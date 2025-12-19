@@ -31,7 +31,8 @@ async def main():
                     if user_input.lower() in ["quit", "exit", "q"]:
                         print("Goodbye!")
                         break
-                    async for chunk in astream_graph_updates(graph, user_input, user_id):
+                    async for chunk, metadata in astream_graph_updates(graph, user_input, user_id):
+                        print(f"Assistants: {' -> '.join(metadata.get('nodes', []))}")
                         chunk.pretty_print()
                         
                 except Exception as e:

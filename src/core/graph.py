@@ -44,9 +44,9 @@ async def run_graph(checkpointer=None, tools=None):
     graph_builder.add_node("guardrail", guardrail)
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node("supervisor", supervisor_node)
-    graph_builder.add_node("common_agent", lambda state: agent_node(state, tools))
-    graph_builder.add_node("network_agent", lambda state: network_node(state, tools))
-    graph_builder.add_node("cloud_agent", lambda state: cloud_node(state, tools))
+    graph_builder.add_node("common_agent", create_agent("common", SYSTEM_PROMPT, tools))
+    graph_builder.add_node("network_agent", create_agent("network", NETWORK_SPECIALIST_PROMPT, tools))
+    graph_builder.add_node("cloud_agent", create_agent("cloud", CLOUD_SPECIALIST_PROMPT, tools))
     graph_builder.add_node(
         "tools",
         ToolNode(
@@ -110,46 +110,35 @@ async def run_graph(checkpointer=None, tools=None):
 
     return graph
 
-def agent_node(state: State, tools: Sequence[BaseTool]):
-    """Invokes the LLM with the current state and available tools."""
-    telemetry.update_counter(
-        "agent.invocations.total", attributes={"agent": "common"}
-    )
+def create_agent(agent_name: str, system_prompt: str, tools: Sequence[BaseTool]):
+    def agent(state: State):
+        telemetry.update_counter(
+        "agent.invocations.total", attributes={"agent": agent_name}
+        )
+        llm = llm_factory(settings.llm.default_profile)
+        llm_with_tools = llm.bind_tools(tools)
 
-    llm = llm_factory(settings.llm.default_profile)
-    llm_with_tools = llm.bind_tools(tools)
+        user_id = state.get("user_id", "User")
+        prompt = (
+        f"{system_prompt}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
+        )
+        messages = construct_llm_context(state, prompt)
+        start_time = time.perf_counter()
+        ai_response = llm_with_tools.invoke(messages)
+        duration = time.perf_counter() - start_time
+        telemetry.update_histogram(
+            "agent.llm.duration_seconds", duration, attributes={"agent": agent_name}
+        )
 
-    user_id = state.get("user_id", "User")
-    system_prompt = (
-        f"{SYSTEM_PROMPT}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
-    )
+        nodes = state["response_metadata"].get("nodes", []) + [agent_name]
+        return {"messages": [ai_response], "response_metadata": {"nodes": nodes}}
 
-    relevant_memories = state.get("relevant_memories")
-    memory_message = []
-    if relevant_memories:
-        memory_message = [SystemMessage(
-            content=f"Here is relevant information from your memory:\n"
-                    f"{relevant_memories}"
-        )]
-
-    messages = (
-        [SystemMessage(content=system_prompt)] +
-        memory_message +
-        state["messages"]
-    )
-
-    start_time = time.perf_counter()
-    ai_response = llm_with_tools.invoke(messages)
-    duration = time.perf_counter() - start_time
-    telemetry.update_histogram(
-        "agent.llm.duration_seconds", duration, attributes={"agent": "common"}
-    )
-
-    return {"messages": [ai_response]}
+    return agent
 
 def supervisor_node(state: State):
+    node_name = "supervisor"
     telemetry.update_counter(
-        "agent.invocations.total", attributes={"agent": "supervisor"}
+        "agent.invocations.total", attributes={"agent": node_name}
     )
 
     llm = llm_factory(settings.llm.default_profile)
@@ -157,89 +146,47 @@ def supervisor_node(state: State):
 
     messages = [SystemMessage(content=SUPERVISOR_PROMPT)] + state["messages"]
 
+    start_time = time.perf_counter()
     decision = llm_structured.invoke(messages)
-    return {"next_worker": decision.next_worker}
-
-def network_node(state: State, tools: Sequence[BaseTool]):
-    llm = llm_factory(settings.llm.default_profile)
-    llm_with_tools = llm.bind_tools(tools)
-
-    user_id = state.get("user_id", "User")
-    system_prompt = (
-        f"{NETWORK_SPECIALIST_PROMPT}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
-    )
-
-    messages = [SystemMessage(content=system_prompt)] + state["messages"]
-
-    start_time = time.perf_counter()
-    response = llm_with_tools.invoke(messages)
     duration = time.perf_counter() - start_time
     telemetry.update_histogram(
-        "agent.llm.duration_seconds", duration, attributes={"agent": "supervisor"}
-    )
+        "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
+    )    
 
-    return {"messages": [response]}
-
-def cloud_node(state: State, tools: Sequence[BaseTool]):
-    telemetry.update_counter(
-        "agent.invocations.total", attributes={"agent": "cloud"}
-    )
-    llm = llm_factory(settings.llm.default_profile)
-    llm_with_tools = llm.bind_tools(tools)
-
-    user_id = state.get("user_id", "User")
-    system_prompt = (
-        f"{CLOUD_SPECIALIST_PROMPT}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
-    )
-
-    messages = [SystemMessage(content=system_prompt)] + state["messages"]
-    start_time = time.perf_counter()
-    response = llm_with_tools.invoke(messages)
-    duration = time.perf_counter() - start_time
-    telemetry.update_histogram(
-        "agent.llm.duration_seconds", duration, attributes={"agent": "cloud"}
-    )
-
-    return {"messages": [response]}
+    nodes = state["response_metadata"].get("nodes", []) + [node_name]
+    return {"next_worker": decision.next_worker,  "response_metadata": {"nodes": nodes}}
 
 async def manage_memory_node(state: State):
-    """
-    Adds current interaction to mem0 and retrieves relevant memories.
-    """
-    logging.info("Mem0: Managing memory...")
+    logger.info("Mem0: Managing memory...")
     mem0 = await get_mem0_client()
+    messages = state["messages"]
     user_id = state["user_id"]
 
+    # search
+
+    try:
+        memories = await mem0.search(messages[-1].content, user_id=user_id)
+        memory_list = memories['results']
+        context = "Relevant information from previous conversations:\n"
+        for memory in memory_list:
+            context += f"- {memory['memory']}\n"
+    except Exception as e:
+        logger.error(f"mem0 err: {e}")
+        context = ""
+
+    # Add to memory if we have a request-response pair
     human_messages = [
         msg for msg in state["messages"] if isinstance(msg, HumanMessage)
     ]
     last_human_message = (
-        human_messages[-2] if len(human_messages) > 1
-        else human_messages[-1] if human_messages else None
-    )
+    human_messages[-2] if len(human_messages) > 1
+    else human_messages[-1] if human_messages else None
+)
     last_ai_message = next(
         (msg for msg in reversed(state["messages"])
          if isinstance(msg, AIMessage) and not msg.tool_calls),
         None
     )
-    last_toolcall_message = (
-        state["messages"][-3]
-        if len(state["messages"]) > 2 and
-        isinstance(state["messages"][-3], ToolMessage)
-        else None
-    )
-    current_human_message = next(
-        (msg for msg in reversed(state["messages"])
-         if isinstance(msg, HumanMessage)),
-        None
-    )
-
-    if last_toolcall_message:
-        if (last_toolcall_message.name in settings.mem0.excluded_tools or
-                "all" in settings.mem0.excluded_tools):
-            return {"relevant_memories": "", "messages": []}
-
-    # Add to memory if we have a request-response pair
     if last_human_message and last_ai_message:
         interaction_messages = [
             {"role": "user", "content": last_human_message.content},
@@ -249,28 +196,9 @@ async def manage_memory_node(state: State):
             messages=interaction_messages,
             user_id=user_id
         )
-        logging.info(f"Mem0: Added interaction for user '{user_id}'.")
+        logging.info(f"Mem0: Added interaction for user '{user_id}'.")      
 
-    messages_to_keep = settings.memory.summarization.keep_message
-    delete_messages = [
-        RemoveMessage(id=m.id)
-        for m in state["messages"][:-messages_to_keep]
-    ]
-
-    # Search for relevant memories based on the most recent user query
-    if last_human_message:
-        search_results = await mem0.search(
-            query=current_human_message.content,
-            user_id=user_id
-        )
-        relevant_memories = search_results.get("results", [])
-        memories_str = (
-            "\n".join([f"- {mem['memory']}" for mem in relevant_memories])
-            if relevant_memories else ""
-        )
-        return {"relevant_memories": memories_str, "messages": delete_messages}
-
-    return {"relevant_memories": "", "messages": delete_messages}
+    return {"relevant_memories": context, "messages": []}
 
 async def astream_graph_updates(
     graph: StateGraph, user_input: str, user_id: str
@@ -281,6 +209,7 @@ async def astream_graph_updates(
         "user_id": user_id,
         "relevant_memories": "",  # Start with no memories, they will be fetched
         "next_worker": "",
+        "response_metadata": {},
     }
     async for event in graph.astream(
         initial_input,
@@ -289,7 +218,7 @@ async def astream_graph_updates(
     ):
         last_message = event["messages"][-1]
         if isinstance(last_message, AIMessage):
-            yield last_message
+            yield last_message, event["response_metadata"]
 
 async def authorize_tools(request, handler):
     tool_name = request.tool_call["name"]
@@ -366,3 +295,20 @@ def custom_error_handler(e: Exception) -> str:
     logger.error(f"critical failure: {e}")
 
     return f"The tool failed to execute. error details: {str(e)}."
+
+def construct_llm_context(state: State, system_prompt: str):
+    relevant_memories = state.get("relevant_memories")
+    memory_message = []
+    if relevant_memories:
+        memory_message = [SystemMessage(
+            content=f"Here is relevant information from your memory:\n"
+                    f"{relevant_memories}"
+        )]
+
+    messages = (
+        [SystemMessage(content=system_prompt)] +
+        memory_message +
+        state["messages"]
+    )
+
+    return messages

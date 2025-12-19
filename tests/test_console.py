@@ -27,7 +27,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         # Mock graph stream
         mock_chunk = MagicMock()
         async def async_gen(*args, **kwargs):
-            yield mock_chunk
+            yield mock_chunk, {}
         mock_astream.side_effect = async_gen
 
         await main()

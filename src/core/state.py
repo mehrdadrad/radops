@@ -1,4 +1,4 @@
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -17,6 +17,7 @@ class State(TypedDict):
         "cloud_specialist",
         "end",
     ]
+    response_metadata: dict[str, Any]
 
 
 class SupervisorAgentOutput(BaseModel):

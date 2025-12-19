@@ -55,7 +55,7 @@ class TestServer(unittest.TestCase):
         mock_msg.tool_calls = []
 
         async def async_gen(*args, **kwargs):
-            yield mock_msg
+            yield mock_msg, {}
 
         mock_astream.side_effect = async_gen
 
@@ -93,7 +93,7 @@ class TestServer(unittest.TestCase):
         mock_msg.tool_calls = [{"name": "my_tool"}]
 
         async def async_gen(*args, **kwargs):
-            yield mock_msg
+            yield mock_msg, {}
 
         mock_astream.side_effect = async_gen
 

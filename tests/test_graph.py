@@ -5,13 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import END
 from core.graph import (
-    agent_node,
+    create_agent,
     authorize_tools,
     check_end_status,
-    cloud_node,
     custom_error_handler,
     manage_memory_node,
-    network_node,
     route_after_worker,
     route_back_from_tool,
     route_workflow,
@@ -24,8 +22,8 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
     @patch("core.graph.llm_factory")
     @patch("core.graph.settings")
     @patch("core.graph.telemetry")  # Mock telemetry to avoid side effects
-    def test_agent_node(self, mock_telemetry, mock_settings, mock_llm_factory):
-        """Test that agent_node correctly invokes the LLM with tools."""
+    def test_create_agent(self, mock_telemetry, mock_settings, mock_llm_factory):
+        """Test that create_agent correctly invokes the LLM with tools."""
         # Setup mocks
         mock_llm = MagicMock()
         mock_llm_with_tools = MagicMock()
@@ -39,11 +37,13 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             "messages": [HumanMessage(content="Hello")],
             "user_id": "test_user",
             "relevant_memories": "User likes python.",
+            "response_metadata": {},
         }
         tools = [MagicMock()]  # Mock tools list
 
         # Execute
-        result = agent_node(state, tools)
+        agent_node = create_agent("common", "system prompt", tools)
+        result = agent_node(state)
 
         # Verify
         self.assertIn("messages", result)
@@ -78,6 +78,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         state = {
             "messages": [HumanMessage(content="Network issue")],
             "user_id": "test_user",
+            "response_metadata": {},
         }
 
         # Execute
@@ -132,58 +133,6 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         text_msg = AIMessage(content="text")
         self.assertEqual(tools_condition({"messages": [text_msg]}), "end")
-
-    @patch("core.graph.llm_factory")
-    @patch("core.graph.settings")
-    @patch("core.graph.telemetry")
-    def test_network_node(self, mock_telemetry, mock_settings, mock_llm_factory):
-        """Test that network_node correctly invokes the LLM."""
-        mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
-        mock_llm.bind_tools.return_value = mock_llm_with_tools
-        mock_llm_factory.return_value = mock_llm
-
-        expected_response = AIMessage(content="Network response")
-        mock_llm_with_tools.invoke.return_value = expected_response
-
-        state = {
-            "messages": [HumanMessage(content="Network check")],
-            "user_id": "test_user",
-        }
-        tools = [MagicMock()]
-
-        result = network_node(state, tools)
-
-        self.assertIn("messages", result)
-        self.assertEqual(result["messages"][0], expected_response)
-        mock_telemetry.update_histogram.assert_called()
-
-    @patch("core.graph.llm_factory")
-    @patch("core.graph.settings")
-    @patch("core.graph.telemetry")
-    def test_cloud_node(self, mock_telemetry, mock_settings, mock_llm_factory):
-        """Test that cloud_node correctly invokes the LLM."""
-        mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
-        mock_llm.bind_tools.return_value = mock_llm_with_tools
-        mock_llm_factory.return_value = mock_llm
-
-        expected_response = AIMessage(content="Cloud response")
-        mock_llm_with_tools.invoke.return_value = expected_response
-
-        state = {
-            "messages": [HumanMessage(content="Cloud check")],
-            "user_id": "test_user",
-        }
-        tools = [MagicMock()]
-
-        result = cloud_node(state, tools)
-
-        self.assertIn("messages", result)
-        self.assertEqual(result["messages"][0], expected_response)
-        mock_telemetry.update_counter.assert_called_with(
-            "agent.invocations.total", attributes={"agent": "cloud"}
-        )
 
     def test_route_back_from_tool(self):
         """Test routing logic returning from tools."""
