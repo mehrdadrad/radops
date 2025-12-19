@@ -2,6 +2,10 @@
 
 A sophisticated AI-powered network operations assistant designed to help with network diagnostics, troubleshooting, and infrastructure management. Built with LangGraph and LangChain, it leverages Large Language Models (LLMs) to provide intelligent responses and execute tools securely.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Python](https://img.shields.io/badge/python-3.11-blue.svg)
+[![Tests](https://github.com/mehrdadrad/radops/actions/workflows/tests.yml/badge.svg)](https://github.com/mehrdadrad/radops/actions/workflows/tests.yml)
+
 ## Features
 
 *   **Intelligent Agent**: Uses LLMs (OpenAI, Ollama, DeepSeek) to understand and process user requests.

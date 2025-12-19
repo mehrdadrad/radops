@@ -45,7 +45,7 @@ async def run_graph(checkpointer=None, tools=None):
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node("supervisor", supervisor_node)
     graph_builder.add_node("common_agent", lambda state: agent_node(state, tools))
-    graph_builder.add_node("react_agent", lambda state: react_node(state, tools))
+    graph_builder.add_node("network_agent", lambda state: network_node(state, tools))
     graph_builder.add_node("cloud_agent", lambda state: cloud_node(state, tools))
     graph_builder.add_node(
         "tools",
@@ -61,7 +61,7 @@ async def run_graph(checkpointer=None, tools=None):
         route_workflow,
         {
             "common_agent": "common_agent",
-            "react_agent": "react_agent",
+            "network_agent": "network_agent",
             "cloud_agent": "cloud_agent",
         },
     )
@@ -71,7 +71,7 @@ async def run_graph(checkpointer=None, tools=None):
         {"tools": "tools", "supervisor": "supervisor", "end": END},
     )
     graph_builder.add_conditional_edges(
-        "react_agent",
+        "network_agent",
         route_after_worker,
         {"tools": "tools", "supervisor": "supervisor", "end": END},
     )
@@ -85,7 +85,7 @@ async def run_graph(checkpointer=None, tools=None):
         route_back_from_tool,
         {
             "common_agent": "common_agent",
-            "react_agent": "react_agent",
+            "network_agent": "network_agent",
             "cloud_agent": "cloud_agent",
         }
     )
@@ -160,7 +160,7 @@ def supervisor_node(state: State):
     decision = llm_structured.invoke(messages)
     return {"next_worker": decision.next_worker}
 
-def react_node(state: State, tools: Sequence[BaseTool]):
+def network_node(state: State, tools: Sequence[BaseTool]):
     llm = llm_factory(settings.llm.default_profile)
     llm_with_tools = llm.bind_tools(tools)
 
@@ -311,7 +311,7 @@ def route_workflow(state: State):
 
     match next_worker:
         case "network_specialist":
-            return "react_agent"
+            return "network_agent"
         case "cloud_specialist":
             return "cloud_agent"
         case "atomic_tool":
@@ -327,7 +327,7 @@ def route_back_from_tool(state):
     if who_called_me == "common_agent" or who_called_me == "atomic_tool":
         return "common_agent"
     elif who_called_me == "network_specialist":
-        return "react_agent"
+        return "network_agent"
     elif who_called_me == "cloud_specialist":
         return "cloud_agent"
     else:
