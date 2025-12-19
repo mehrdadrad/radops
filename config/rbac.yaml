@@ -1,0 +1,50 @@
+# User and Role-Based Access Control (RBAC)
+users:
+  mehrdad: "admin"
+  alice: "premium"
+  bob: "user"
+
+role_permissions:
+  guest: []
+  user:
+    - "mcp_echo_tool"
+    - "get_asn_peering_info"
+  premium:
+    - "mcp_echo_tool"
+    - "get_asn_peering_info"
+  admin:
+    - "mcp_echo_tool"
+    - "get_geoip_location"
+    - "get_asn_peering_info"
+    - "get_peering_exchange_info"
+    - "get_conversation_history"
+    - "delete_conversation_history"
+    - "verizon_looking_glass"
+    - "verizon_looking_glass_locations"
+    - "router_configuration_retriever"
+    - "create_jira_ticket"
+    - "search_jira_issues"
+    - "check_host_ping"
+    - "check_host_http"
+    - "check_host_tcp"
+    - "check_host_dns"
+    - "get_check_host_nodes"
+    - "kb_local_docs"
+    - "kb_router_config"
+    - "set_user_secrets"
+    - "github_list_issues"
+    - "github_create_issue"
+    - "github_create_pull_request"
+    - "github_list_pull_requests"
+    - "analyze_reachability"
+    - "query_logs"
+    - "check_recent_changes"
+    - "get_ec2_health"
+    - "list_ec2_instances"
+    - "manage_ec2_instance"
+    - "get_cloudformation_stack_events"
+    - "get_target_group_health"
+    - "simulate_iam_policy"
+    - find_ip_address
+    - list_core_networks
+    - .*

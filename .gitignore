@@ -1,0 +1,7 @@
+.env
+.venv
+*.pyc
+.ruff_cache
+chroma_db_data
+postgres_data
+__pycache__

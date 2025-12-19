@@ -1,0 +1,73 @@
+! Standard Access List to filter specific BGP advertisements
+! Deny the specific network 10.10.10.0/24 from being advertised.
+! Permit all other networks.
+access-list 10 deny   10.10.10.0 0.0.0.255
+access-list 10 permit any
+
+!
+! IP Prefix Lists for fine-grained filtering
+!
+! Prefix List for inbound updates from ISP1
+! Permits networks in the 192.168.0.0/16 range.
+! Denies all other incoming routes.
+ip prefix-list IN_FILTER_ISP1 seq 5 permit 192.168.0.0/16
+ip prefix-list IN_FILTER_ISP1 seq 10 deny   0.0.0.0/0 le 32
+
+! Prefix List for outbound updates to ISP2
+! Permits only a specific set of local networks to be advertised.
+! Denies all other networks.
+ip prefix-list OUT_FILTER_ISP2 seq 5 permit 10.20.0.0/16
+ip prefix-list OUT_FILTER_ISP2 seq 10 permit 10.30.0.0/24
+ip prefix-list OUT_FILTER_ISP2 seq 15 deny   0.0.0.0/0 le 32
+
+!
+! AS-Path Access Lists to filter based on the AS path
+!
+! Matches a path originating from a single AS 65002.
+ip as-path access-list 100 permit ^65002$
+
+! Matches a path originating from AS 65001 followed by AS 65002.
+ip as-path access-list 101 permit ^65001_65002$
+
+!
+! Route Maps that use the above access lists
+!
+! Route map to apply to inbound routes from ISP1.
+! Uses the IN_FILTER_ISP1 prefix list.
+route-map FILTER_IN_ISP1 permit 10
+ match ip address prefix-list IN_FILTER_ISP1
+
+! Route map to apply to outbound routes to ISP2.
+! Uses the OUT_FILTER_ISP2 prefix list.
+route-map FILTER_OUT_ISP2 permit 10
+ match ip address prefix-list OUT_FILTER_ISP2
+
+! Route map to apply to inbound routes from ISP2 to match AS Path 65002
+route-map FILTER_AS_PATH_ISP2 permit 10
+ match as-path 100
+
+!
+! BGP Configuration
+!
+router bgp 65000
+ bgp router-id 192.0.2.1
+ no synchronization
+ bgp log-neighbor-changes
+
+ ! --- BGP Neighbor 1 (eBGP with ISP1) ---
+ neighbor 203.0.113.2 remote-as 65001
+ neighbor 203.0.113.2 description Link_to_ISP1
+ neighbor 203.0.113.2 prefix-list IN_FILTER_ISP1 in
+ neighbor 203.0.113.2 distribute-list 10 out
+
+ ! --- BGP Neighbor 2 (eBGP with ISP2) ---
+ neighbor 198.51.100.2 remote-as 65002
+ neighbor 198.51.100.2 description Link_to_ISP2
+ neighbor 198.51.100.2 route-map FILTER_OUT_ISP2 out
+ neighbor 198.51.100.2 route-map FILTER_AS_PATH_ISP2 in
+
+ ! --- Networks to be advertised into BGP ---
+ ! These networks are normally the aggregate summary of your internal networks.
+ network 10.20.0.0 mask 255.255.0.0
+ network 10.30.0.0 mask 255.255.255.0
+

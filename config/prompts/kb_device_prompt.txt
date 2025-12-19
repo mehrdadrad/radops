@@ -1,0 +1,9 @@
+This tool retrieves specific configuration details for network devices such as routers and switches from the knowledge base.
+Use this tool when you need to find configuration information about a network device, like a router or switch.
+The 'query' parameter should be a specific question about the configuration, such as 'what are the NTP servers' or 'show me the BGP configuration'. Do not include the device name or location in the 'query'.
+Use the 'device' and 'location' parameters to specify the device you are interested in.
+Return the requested configuration to the user in the same format as retrieved. Do NOT change the format.
+Example:
+- To find the BGP configuration for a router named 'router1' at 'lax01', you would call the tool with:
+  query='BGP configuration', device='router1', location='lax01'
+  and return data without change the format.

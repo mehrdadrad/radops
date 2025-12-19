@@ -1,0 +1,42 @@
+!
+! Router: router1_sjc01
+! Location: San Jose
+!
+hostname router1_sjc01
+!
+! Enable password for privileged mode
+enable secret 5 $1$mER.$/p4v3J4g7l2a5T1v2Q3v/1
+!
+! Configure a loopback interface, often used for management and router ID
+interface Loopback0
+ ip address 10.0.0.2 255.255.255.255
+!
+! Configure the primary network interfaces
+!
+interface GigabitEthernet0/0
+ description Link to Core Network
+ ip address 192.168.1.2 255.255.255.0
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description Link to DMZ
+ ip address 172.16.1.1 255.255.255.0
+ no shutdown
+!
+! Configure OSPF routing process
+! The router-id is set to the loopback interface IP.
+router ospf 1
+ router-id 10.0.0.2
+ ! Advertise the networks connected to the interfaces
+ network 192.168.1.0 0.0.0.255 area 0
+ network 172.16.1.0 0.0.0.255 area 1
+!
+! Standard access-list for management access
+access-list 1 permit 10.1.1.0 0.0.0.255
+!
+! VTY lines for remote access (SSH/Telnet)
+line vty 0 4
+ access-class 1 in
+ login local
+ transport input ssh
+!

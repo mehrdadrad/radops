@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "radops"
+version = "0.1.0"
+description = "LangGraph Example Agent"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "langgraph",
+    "langchain-core",
+    "langchain-openai",
+    "langchain-ollama",
+    "langchain-community",
+    "langchain-chroma",
+    "langchain-weaviate",
+    "langchain-text-splitters",
+    "langchain-mcp-adapters",
+    "pydantic>=2.0",
+    "pydantic-settings",
+    "redis",
+    "mem0ai",
+    "jira",
+    "PyGithub",
+    "google-auth",
+    "google-auth-oauthlib",
+    "google-api-python-client",
+    "chromadb",
+    "weaviate-client",
+    "pyyaml",
+    "httpx",
+    "tiktoken"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pylint",
+    "pytest",
+    "pytest-asyncio"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "app"]
+asyncio_mode = "auto"

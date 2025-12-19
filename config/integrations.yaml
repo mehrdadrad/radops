@@ -1,0 +1,3 @@
+slack:
+  bot_token: vault:integrations#slack_bot_token
+  app_token: vault:integrations#slack_app_token

@@ -1,0 +1,43 @@
+mcp_servers:
+  aws-network-mcp-server:
+    transport: "stdio"
+    command: "docker"
+    args:
+      - "run"
+      - "--rm"
+      - "-i"
+      - "--entrypoint" 
+      - "sh"
+      - "--env"
+      - "FASTMCP_LOG_LEVEL=ERROR"
+      - "--env"
+      - "PYTHONLOGLEVEL=error"
+      - "--env"
+      - "AWS_ACCESS_KEY_ID=vault:tools/aws#ACCESS_KEY_ID"
+      - "--env"
+      - "AWS_SECRET_ACCESS_KEY=vault:tools/aws#SECRET_ACCESS_KEY"
+      - "awslab/aws-network-mcp-server"
+      - "-c"
+      - "awslabs.aws-network-mcp-server 2> /dev/null"
+   
+# Peering DB
+peeringdb:
+  api_key: "vault:tools/peeringdb#api_key"
+
+# GitHub Configuration
+github:
+  server: ""
+
+# Jira Configuration
+jira:
+  server: "https://mehrdadrad.atlassian.net"
+
+# GeoIP
+geoip:
+  database_path: ~/Downloads/GeoLite2-City.mmdb
+
+# AWS Configuration
+aws:
+  region: us-west-2
+  access_key_id: vault:tools/aws#ACCESS_KEY_ID
+  secret_access_key: vault:tools/aws#SECRET_ACCESS_KEY
