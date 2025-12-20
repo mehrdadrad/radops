@@ -1,15 +1,26 @@
+"""
+This module contains tests for the FastAPI server.
+"""
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
+
 from fastapi.testclient import TestClient
+
 from server import app
 
 
 class TestServer(unittest.TestCase):
+    """
+    Test cases for the FastAPI server.
+    """
+
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.mem0_manager")
     @patch("server.Telemetry")
-    def test_lifespan(self, mock_telemetry, mock_mem0, mock_run_graph, mock_get_cp):
+    def test_lifespan(
+        self, mock_telemetry, mock_mem0, mock_run_graph, mock_get_cp
+    ):
         """Test application startup and shutdown logic."""
         # Setup mocks
         mock_redis = AsyncMock()

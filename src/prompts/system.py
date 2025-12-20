@@ -5,33 +5,38 @@ from core.llm import llm_factory
 
 logger = logging.getLogger(__name__)
 
-def generate_description_from_prompt(agent_name, prompt_text_file, llm_profile):
-   try:
-      with open(prompt_text_file, "r") as f:
-         prompt_text = f.read()
-   except Exception as e:
-      logger.error(f"Couldn't open file: {prompt_text_file}, error: {e}")
-      return ""
 
-   logger.info(f"Generating {agent_name} subprompt ...")
-   prompt = (
-      f"Analyze the system prompt for the '{agent_name}' agent below. "
-      "Provide a structured summary that includes:\n"
-      "1. A brief description of the agent's role.\n"
-      "2. An itemized list of its key capabilities.\n"
-      "3. A quick description of when to use this agent.\n\n"
-      f"System Prompt:\n{prompt_text}"
-   )
-   return llm_factory(llm_profile).invoke(prompt).content
+def generate_description_from_prompt(
+    agent_name, prompt_text_file, llm_profile
+):
+    try:
+        with open(prompt_text_file, "r") as f:
+            prompt_text = f.read()
+    except Exception as e:
+        logger.error("Couldn't open file: %s, error: %s", prompt_text_file, e)
+        return ""
+
+    logger.info("Generating %s subprompt ...", agent_name)
+    prompt = (
+        f"Analyze the system prompt for the '{agent_name}' agent below. "
+        "Provide a structured summary that includes:\n"
+        "1. A brief description of the agent's role.\n"
+        "2. An itemized list of its key capabilities.\n"
+        "3. A quick description of when to use this agent.\n\n"
+        f"System Prompt:\n{prompt_text}"
+    )
+    return llm_factory(llm_profile).invoke(prompt).content
+
 
 SYSTEM_PROMPT = """You are a helpful and professional network assistant.
 Your purpose is to help users with network operations by using your available tools.
 You can answer questions about router configurations, perform network diagnostics (ASN, ping, trace).
 You can ask me about location of IP addresses.
-When asked about your identity, introduce yourself as a network assistant. you don't need to explian 
-Network configuration if it's not requested. 
+When asked about your identity, introduce yourself as a network assistant. you don't need to explain
+Network configuration if it's not requested.
 When you use a tool, present the data based on the tool description.
 """
+
 
 def _build_supervisor_prompt():
     prompt = """
@@ -49,12 +54,18 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
 """
     idx = 2
     for agent_name, agent_config in settings.agent.profiles.items():
-        description = agent_config.description or generate_description_from_prompt(
-            agent_name,
-            agent_config.system_prompt_file, 
-            settings.llm.default_profile
+        description = (
+            agent_config.description
+            or generate_description_from_prompt(
+                agent_name,
+                agent_config.system_prompt_file,
+                settings.llm.default_profile,
+            )
         )
-        prompt += f"\n{idx}. **{agent_name.replace('_', ' ').title()}** (`{agent_name}`):\n   {description}\n"
+        prompt += f"""
+{idx}. **{agent_name.replace('_', ' ').title()}** (`{agent_name}`):
+   {description}
+"""
         idx += 1
 
     prompt += """
@@ -66,6 +77,7 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
 """
     return prompt
 
+
 SUPERVISOR_PROMPT = _build_supervisor_prompt()
 
 EXTENSION_PROMPT = """
@@ -73,7 +85,3 @@ EXTENSION_PROMPT = """
 - The user you are speaking with has the user_id: {user_id} which will be automatically injected into any tool that requires it.
 - When appropriate, you MUST address the user by their `user_id`.
 """
-
-
-
-    

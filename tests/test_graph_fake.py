@@ -6,6 +6,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 
 from core.graph import create_agent
 
+
 class TestGraphWithFakeLLM(unittest.IsolatedAsyncioTestCase):
     @patch("core.graph.llm_factory")
     @patch("core.graph.settings")
@@ -59,8 +60,8 @@ class TestGraphWithFakeLLM(unittest.IsolatedAsyncioTestCase):
             content="",
             tool_calls=[
                 {
-                    "name": "ping", 
-                    "args": {"target": "8.8.8.8"}, 
+                    "name": "ping",
+                    "args": {"target": "8.8.8.8"},
                     "id": "call_ping_1"
                 }
             ]

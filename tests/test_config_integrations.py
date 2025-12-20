@@ -49,7 +49,9 @@ class TestIntegrationSettings(unittest.TestCase):
     @patch("config.integrations.app_settings")
     @patch("builtins.open")
     @patch("yaml.safe_load")
-    def test_vault_resolution(self, mock_yaml, mock_open, mock_app_settings, mock_resolve, mock_hvac):
+    def test_vault_resolution(
+        self, mock_yaml, mock_open, mock_app_settings, mock_resolve, mock_hvac
+    ):
         """Test Vault secret resolution logic."""
         # Setup YAML data
         yaml_data = {"slack": {"bot_token": "vault:secret#token"}}

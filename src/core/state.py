@@ -7,8 +7,11 @@ from pydantic import BaseModel, Field
 from config.config import settings
 
 
-members = {k: k for k in ["common_agent"] + list(settings.agent.profiles.keys())}
+members = {
+    k: k for k in ["common_agent"] + list(settings.agent.profiles.keys())
+}
 WorkerEnum = Enum("WorkerEnum", members, type=str)
+
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]

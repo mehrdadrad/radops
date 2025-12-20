@@ -1,3 +1,6 @@
+"""
+This module defines the configuration for the RadOps assistant.
+"""
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -18,11 +21,11 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
     at the project's root and resolves any vault secrets.
     """
     config_path = os.path.join(
-        os.path.dirname(__file__), '..', '..', 'config', 'config.yaml'
+        os.path.dirname(__file__), "..", "..", "config", "config.yaml"
     )
 
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             yaml_data = yaml.safe_load(f) or {}
     except FileNotFoundError:
         return {}
@@ -32,30 +35,33 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
     vault_url = os.environ.get("VAULT_URL", vault_config.get("url"))
     vault_token = os.environ.get("VAULT_TOKEN", vault_config.get("token"))
 
-    if vault_url and vault_token:
-        vault_mount_point = os.environ.get(
-            "VAULT_MOUNT_POINT", vault_config.get("mount_point", "secret")
-        )
-        try:
-            vault_client = hvac.Client(url=vault_url, token=vault_token)
-            if vault_client.is_authenticated():
-                return resolve_vault_secrets(
-                    yaml_data, vault_client, vault_mount_point
-                )
-            else:
-                logger.warning(
-                    "Vault authentication failed. Skipping secret resolution from config.yaml."
-                )
-        except Exception as e:
-            logger.error(
-                f"Error connecting to Vault or resolving secrets from config.yaml: {e}"
+    if not (vault_url and vault_token):
+        return yaml_data
+    vault_mount_point = os.environ.get(
+        "VAULT_MOUNT_POINT", vault_config.get("mount_point", "secret")
+    )
+    try:
+        vault_client = hvac.Client(url=vault_url, token=vault_token)
+        if vault_client.is_authenticated():
+            return resolve_vault_secrets(
+                yaml_data, vault_client, vault_mount_point
             )
+        logger.warning(
+            "Vault authentication failed. "
+            "Skipping secret resolution from config.yaml."
+        )
+    except Exception as e:
+        logger.error(
+            "Error connecting to Vault or resolving secrets from config.yaml: %s",
+            e,
+        )
 
     return yaml_data
 
 
 class LLMProfileSettings(BaseModel):
     """Settings for a single LLM profile."""
+
     provider: str
     model: str
     api_key: Optional[str] = None
@@ -66,37 +72,49 @@ class LLMProfileSettings(BaseModel):
 
 class LLMSettings(BaseModel):
     """Settings for all LLM profiles."""
+
     default_profile: str = "openai-main"
     profiles: Dict[str, LLMProfileSettings] = Field(default_factory=dict)
 
+
 class AgentSettings(BaseModel):
     """Settings for agent configurations."""
+
     description: str = None
     llm_profile: str = None
     system_prompt_file: str
 
+
 class AgentsSettings(BaseModel):
+    """Settings for all agents."""
+
     profiles: Dict[str, AgentSettings] = Field(default_factory=dict)
 
+
 class SummarizationSettings(BaseModel):
+    """Settings for memory summarization."""
+
     keep_message: int = 50
     llm_profile: str = "openai-summary"
 
 
 class TTLSettings(BaseModel):
     """Settings for Redis TTL."""
+
     time_minutes: int
     refresh_on_read: bool
 
 
 class RedisSettings(BaseModel):
     """Settings for Redis memory backend."""
+
     endpoint: str
     ttl: TTLSettings
 
 
 class MemorySettings(BaseModel):
     """Settings for conversation memory."""
+
     redis: RedisSettings
     summarization: SummarizationSettings = Field(
         default_factory=SummarizationSettings
@@ -105,6 +123,7 @@ class MemorySettings(BaseModel):
 
 class Mem0VectorStoreConfigSettings(BaseModel):
     """Settings for mem0 vector store config."""
+
     path: Optional[str] = None
     collection_name: Optional[str] = None
     cluster_url: Optional[str] = None
@@ -112,11 +131,14 @@ class Mem0VectorStoreConfigSettings(BaseModel):
 
 class Mem0VectorStoreSettings(BaseModel):
     """Settings for mem0 vector store."""
+
     provider: str
     config: Mem0VectorStoreConfigSettings
 
 
 class Mem0Settings(BaseModel):
+    """Settings for Mem0."""
+
     llm_profile: str
     embedding_profile: str
     vector_store: Mem0VectorStoreSettings
@@ -124,21 +146,28 @@ class Mem0Settings(BaseModel):
 
 
 class GuardrailSettings(BaseModel):
+    """Settings for guardrails."""
+
     enabled: bool = False
 
 
 class MetadataStructureSetting(BaseModel):
+    """Settings for metadata structure."""
+
     name: str
     description: str
 
 
 class MetadataSettings(BaseModel):
+    """Settings for metadata."""
+
     delimiter: Optional[str] = None
     structure: list[MetadataStructureSetting] = Field(default_factory=list)
 
 
 class SyncLocationSettings(BaseModel):
     """Settings for a single sync location."""
+
     name: str
     type: str
     path: str
@@ -151,6 +180,7 @@ class SyncLocationSettings(BaseModel):
 
 class VectorStoreProfileSettings(BaseModel):
     """Settings for a single vector store profile."""
+
     name: str
     provider: str
     embedding_profile: str
@@ -159,11 +189,14 @@ class VectorStoreProfileSettings(BaseModel):
 
 class VectorStoreSettings(BaseModel):
     """Settings for the vector store."""
+
     profiles: list[VectorStoreProfileSettings] = Field(default_factory=list)
     providers: Dict[str, Any] = Field(default_factory=dict)
 
 
 class LogSettings(BaseModel):
+    """Settings for logging."""
+
     level: str = "INFO"
     file: Optional[str] = None
     retention: str = "1 week"
@@ -171,6 +204,8 @@ class LogSettings(BaseModel):
 
 
 class VaultSettings(BaseModel):
+    """Settings for Vault."""
+
     url: Optional[str] = None
     token: Optional[str] = None
     mount_point: str = "secret"
@@ -181,8 +216,11 @@ class Settings(BaseSettings):
     Centralized application settings.
     Settings are loaded from config.yaml and environment variables.
     """
+
     # model_config for pydantic-settings
-    model_config = SettingsConfigDict(extra='ignore', env_nested_delimiter='__')
+    model_config = SettingsConfigDict(
+        extra="ignore", env_nested_delimiter="__"
+    )
 
     @classmethod
     def settings_customise_sources(
@@ -193,10 +231,15 @@ class Settings(BaseSettings):
         dotenv_settings,
         file_secret_settings,
     ):
+        """
+        Customize the settings sources.
+        """
         return (
             init_settings,
             lambda: yaml_config_settings_source(settings_cls),
             env_settings,
+            dotenv_settings,
+            file_secret_settings,
         )
 
     logging: LogSettings = Field(default_factory=LogSettings)
@@ -208,7 +251,9 @@ class Settings(BaseSettings):
     llm: LLMSettings = Field(default_factory=LLMSettings)
 
     # Vector Store
-    vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
+    vector_store: VectorStoreSettings = Field(
+        default_factory=VectorStoreSettings
+    )
 
     # Guardrail
     guardrail: GuardrailSettings = Field(default_factory=GuardrailSettings)
@@ -224,6 +269,7 @@ class Settings(BaseSettings):
 
     # OpenTelemetry
     opentelemetry: Dict[str, Any] = Field(default_factory=dict)
+
 
 # Instantiate the settings
 settings = Settings()
