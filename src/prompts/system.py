@@ -1,4 +1,6 @@
 import logging
+import os
+from pathlib import Path
 
 from config.config import settings
 from core.llm import llm_factory
@@ -6,9 +8,22 @@ from core.llm import llm_factory
 logger = logging.getLogger(__name__)
 
 
-def generate_description_from_prompt(
+def generate_agent_manifest(
     agent_name, prompt_text_file, llm_profile
 ):
+    cache_file = None
+    try:
+        if os.path.exists(prompt_text_file):
+            cache_dir = Path(".cache")
+            cache_dir.mkdir(exist_ok=True)
+            mtime = int(os.path.getmtime(prompt_text_file))
+            cache_file = cache_dir / f"{Path(prompt_text_file).name}_{mtime}"
+            if cache_file.exists():
+                with open(cache_file, "r") as f:
+                    return f.read()
+    except Exception as e:
+        logger.warning("Cache error: %s", e)
+
     try:
         with open(prompt_text_file, "r") as f:
             prompt_text = f.read()
@@ -19,13 +34,23 @@ def generate_description_from_prompt(
     logger.info("Generating %s subprompt ...", agent_name)
     prompt = (
         f"Analyze the system prompt for the '{agent_name}' agent below. "
-        "Provide a structured summary that includes:\n"
-        "1. A brief description of the agent's role.\n"
-        "2. An itemized list of its key capabilities.\n"
-        "3. A quick description of when to use this agent.\n\n"
+        "Provide a structured summary exactly in the following format:\n"
+        "- **Role:** [A concise title and role description]\n"
+        "   - **Capabilities:** [Comma-separated list of key capabilities]\n"
+        "   - **Trigger When:** [Specific user intents or keywords]\n"
+        "   - **Differentiation:** [When to use this agent over others]\n\n"
         f"System Prompt:\n{prompt_text}"
     )
-    return llm_factory(llm_profile).invoke(prompt).content
+    content = llm_factory(llm_profile).invoke(prompt).content
+
+    if cache_file:
+        try:
+            with open(cache_file, "w") as f:
+                f.write(content)
+        except Exception as e:
+            logger.warning("Failed to write cache: %s", e)
+
+    return content
 
 
 SYSTEM_PROMPT = """You are a helpful and professional network assistant.
@@ -44,27 +69,24 @@ You are the Network Operations Supervisor. Your job is to route user requests to
 You do NOT execute tools or solve problems yourself. You only decide who should handle the task.
 
 ### Your Team
-1. **Common Agent** (`common_agent`): 
-   - HAS ACCESS TO: Simple, atomic tools like `get_network_asn`, `ping`, `calculator`, `get_weather`.
-   - USE FOR: Simple, single-step lookups or factual questions where the user provides specific targets (IPs, ASNs).
-   - EXAMPLES: "What is the ASN for 701?", "Ping 10.0.0.1".
-   - Github and Jira operations
-   - Knowledge base lookups (e.g. on-call schedules, team info, router configs).
-   - MCP tools: [PLACEHOLDER]
+1. **Common Agent** (`common_agent`)
+   - **Role:** Tier 1 Support & Tool Runner.
+   - **Capabilities:** Atomic tool execution (Ping, ASN lookup), GitHub/Jira management, and Knowledge Base search.
+   - **Trigger When:** The user asks for a simple fact, a specific single-step tool execution ("Ping X"), or administrative tasks.
+   - **Differentiation:** The default for simple, defined tasks. If the request requires *investigation* or *diagnosis*, do NOT use this agent.
+   - **MCP Tools:** [PLACEHOLDER]
 """
     idx = 2
     for agent_name, agent_config in settings.agent.profiles.items():
-        description = (
-            agent_config.description
-            or generate_description_from_prompt(
+        agent_manifest = generate_agent_manifest(
                 agent_name,
                 agent_config.system_prompt_file,
                 settings.llm.default_profile,
-            )
         )
+        
         prompt += f"""
 {idx}. **{agent_name.replace('_', ' ').title()}** (`{agent_name}`):
-   {description}
+   {agent_manifest}
 """
         idx += 1
 
@@ -75,6 +97,7 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
 - If the user just says "Hello" or asks a general non-technical question, route to `end` (or handle directly if configured).
 - ALWAYS provide a polite `response_to_user` explaining your decision (e.g., "I'll have the Common Agent look up that ASN for you.").
 """
+    print(prompt)
     return prompt
 
 
