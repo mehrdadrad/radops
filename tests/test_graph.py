@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import END
+from core.state import SupervisorAgentOutput
 from core.graph import (
     create_agent,
     authorize_tools,
@@ -71,8 +72,10 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         mock_llm_factory.return_value = mock_llm
 
         # Mock the structured output (SupervisorAgentOutput)
-        mock_output = MagicMock()
-        mock_output.next_worker = "network_specialist"
+        mock_output = MagicMock(
+            spec=SupervisorAgentOutput,
+            next_worker=MagicMock(value="network_agent"),
+        )
         mock_structured_llm.invoke.return_value = mock_output
 
         state = {
@@ -85,20 +88,16 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         result = supervisor_node(state)
 
         # Verify
-        self.assertEqual(result["next_worker"], "network_specialist")
+        self.assertEqual(result["next_worker"], "network_agent")
 
     def test_route_workflow(self):
         """Test the routing logic from the supervisor."""
         self.assertEqual(
-            route_workflow({"next_worker": "network_specialist"}), "network_agent"
-        )
-        self.assertEqual(
-            route_workflow({"next_worker": "atomic_tool"}), "common_agent"
+            route_workflow({"next_worker": "network_agent"}), "network_agent"
         )
         self.assertEqual(
             route_workflow({"next_worker": "common_agent"}), "common_agent"
         )
-        self.assertEqual(route_workflow({"next_worker": "unknown"}), "end")
 
     def test_route_after_worker(self):
         """Test routing logic after a worker agent finishes."""
@@ -137,10 +136,8 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
     def test_route_back_from_tool(self):
         """Test routing logic returning from tools."""
         self.assertEqual(route_back_from_tool({"next_worker": "common_agent"}), "common_agent")
-        self.assertEqual(route_back_from_tool({"next_worker": "atomic_tool"}), "common_agent")
-        self.assertEqual(route_back_from_tool({"next_worker": "network_specialist"}), "network_agent")
-        self.assertEqual(route_back_from_tool({"next_worker": "cloud_specialist"}), "cloud_agent")
-        self.assertEqual(route_back_from_tool({"next_worker": "unknown"}), END)
+        self.assertEqual(route_back_from_tool({"next_worker": "network_agent"}), "network_agent")
+        self.assertEqual(route_back_from_tool({"next_worker": "cloud_agent"}), "cloud_agent")
 
     def test_check_end_status(self):
         """Test check_end_status logic."""

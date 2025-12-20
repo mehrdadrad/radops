@@ -4,8 +4,8 @@ from typing import Any, AsyncGenerator, Literal, Sequence
 
 from langchain_core.messages import (
     AIMessage,
-    HumanMessage,
     RemoveMessage,
+    HumanMessage,
     SystemMessage,
     ToolMessage,
 )
@@ -20,9 +20,7 @@ from core.llm import llm_factory
 from core.memory import get_mem0_client
 from core.state import State, SupervisorAgentOutput
 from prompts.system import (
-    CLOUD_SPECIALIST_PROMPT,
     EXTENSION_PROMPT,
-    NETWORK_SPECIALIST_PROMPT,
     SUPERVISOR_PROMPT,
     SYSTEM_PROMPT,
 )
@@ -45,8 +43,6 @@ async def run_graph(checkpointer=None, tools=None):
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node("supervisor", supervisor_node)
     graph_builder.add_node("common_agent", create_agent("common", SYSTEM_PROMPT, tools))
-    graph_builder.add_node("network_agent", create_agent("network", NETWORK_SPECIALIST_PROMPT, tools))
-    graph_builder.add_node("cloud_agent", create_agent("cloud", CLOUD_SPECIALIST_PROMPT, tools))
     graph_builder.add_node(
         "tools",
         ToolNode(
@@ -59,11 +55,6 @@ async def run_graph(checkpointer=None, tools=None):
     graph_builder.add_conditional_edges(
         "supervisor",
         route_workflow,
-        {
-            "common_agent": "common_agent",
-            "network_agent": "network_agent",
-            "cloud_agent": "cloud_agent",
-        },
     )
     graph_builder.add_conditional_edges(
         "common_agent",
@@ -71,23 +62,8 @@ async def run_graph(checkpointer=None, tools=None):
         {"tools": "tools", "supervisor": "supervisor", "end": END},
     )
     graph_builder.add_conditional_edges(
-        "network_agent",
-        route_after_worker,
-        {"tools": "tools", "supervisor": "supervisor", "end": END},
-    )
-    graph_builder.add_conditional_edges(
-        "cloud_agent",
-        route_after_worker,
-        {"tools": "tools", "supervisor": "supervisor", "end": END},
-    )
-    graph_builder.add_conditional_edges(
         "tools",
         route_back_from_tool,
-        {
-            "common_agent": "common_agent",
-            "network_agent": "network_agent",
-            "cloud_agent": "cloud_agent",
-        }
     )
     graph_builder.add_edge("memory", "supervisor")
     graph_builder.add_edge(START, "guardrail")
@@ -96,6 +72,26 @@ async def run_graph(checkpointer=None, tools=None):
         check_end_status,
         {"end": END, "continue": "memory"}
     )
+
+    # setup configured agent(s)
+    for agent_name, agent_config in settings.agent.profiles.items():
+        system_prompt_file = agent_config.system_prompt_file
+        if system_prompt_file:
+            with open(system_prompt_file, "r") as f:
+                system_prompt = f.read()
+        else:
+            raise ValueError("System prompt file not found")
+        logger.info(f"Configuring agent: {agent_name}")
+        graph_builder.add_node(
+            agent_name,
+            create_agent(agent_name, system_prompt, tools, agent_config.llm_profile),
+        )
+        graph_builder.add_conditional_edges(
+            agent_name,
+            route_after_worker,
+            {"tools": "tools", "supervisor": "supervisor", "end": END},
+        )
+
     graph = graph_builder.compile(checkpointer=checkpointer)
 
     if logger.level == logging.DEBUG:
@@ -110,12 +106,14 @@ async def run_graph(checkpointer=None, tools=None):
 
     return graph
 
-def create_agent(agent_name: str, system_prompt: str, tools: Sequence[BaseTool]):
+def create_agent(agent_name: str, system_prompt: str, tools: Sequence[BaseTool], llm_profile: str = None):
+    effective_llm_profile = llm_profile if llm_profile else settings.llm.default_profile
+     
     def agent(state: State):
         telemetry.update_counter(
         "agent.invocations.total", attributes={"agent": agent_name}
         )
-        llm = llm_factory(settings.llm.default_profile)
+        llm = llm_factory(effective_llm_profile)
         llm_with_tools = llm.bind_tools(tools)
 
         user_id = state.get("user_id", "User")
@@ -154,7 +152,7 @@ def supervisor_node(state: State):
     )    
 
     nodes = state["response_metadata"].get("nodes", []) + [node_name]
-    return {"next_worker": decision.next_worker,  "response_metadata": {"nodes": nodes}}
+    return {"next_worker": decision.next_worker.value,  "response_metadata": {"nodes": nodes}}
 
 async def manage_memory_node(state: State):
     logger.info("Mem0: Managing memory...")
@@ -163,7 +161,6 @@ async def manage_memory_node(state: State):
     user_id = state["user_id"]
 
     # search
-
     try:
         memories = await mem0.search(messages[-1].content, user_id=user_id)
         memory_list = memories['results']
@@ -196,9 +193,18 @@ async def manage_memory_node(state: State):
             messages=interaction_messages,
             user_id=user_id
         )
-        logging.info(f"Mem0: Added interaction for user '{user_id}'.")      
+        logger.info(f"Mem0: Added interaction for user '{user_id}'.")
 
-    return {"relevant_memories": context, "messages": []}
+    # Remove old messages
+    delete_messages = []
+    messages_to_keep = settings.memory.summarization.keep_message
+    if messages_to_keep:
+        delete_messages = [
+            RemoveMessage(id=m.id)
+            for m in state["messages"][:-messages_to_keep]
+        ]          
+
+    return {"relevant_memories": context, "messages": delete_messages}
 
 async def astream_graph_updates(
     graph: StateGraph, user_input: str, user_id: str
@@ -236,31 +242,10 @@ async def authorize_tools(request, handler):
         )
 
 def route_workflow(state: State):
-    next_worker = state["next_worker"]
-
-    match next_worker:
-        case "network_specialist":
-            return "network_agent"
-        case "cloud_specialist":
-            return "cloud_agent"
-        case "atomic_tool":
-            return "common_agent"
-        case "common_agent":
-            return "common_agent"
-        case _:
-            return "end"
+    return state["next_worker"]
 
 def route_back_from_tool(state):
-    who_called_me = state.get("next_worker")
-
-    if who_called_me == "common_agent" or who_called_me == "atomic_tool":
-        return "common_agent"
-    elif who_called_me == "network_specialist":
-        return "network_agent"
-    elif who_called_me == "cloud_specialist":
-        return "cloud_agent"
-    else:
-        return END
+     return state.get("next_worker")
 
 def route_after_worker(state: State) -> Literal["tools", "supervisor", "end"]:
     """

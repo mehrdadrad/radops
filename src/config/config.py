@@ -69,6 +69,14 @@ class LLMSettings(BaseModel):
     default_profile: str = "openai-main"
     profiles: Dict[str, LLMProfileSettings] = Field(default_factory=dict)
 
+class AgentSettings(BaseModel):
+    """Settings for agent configurations."""
+    description: str = None
+    llm_profile: str = None
+    system_prompt_file: str
+
+class AgentsSettings(BaseModel):
+    profiles: Dict[str, AgentSettings] = Field(default_factory=dict)
 
 class SummarizationSettings(BaseModel):
     keep_message: int = 50
@@ -193,12 +201,16 @@ class Settings(BaseSettings):
 
     logging: LogSettings = Field(default_factory=LogSettings)
 
+    # Agent
+    agent: AgentsSettings = Field(default_factory=AgentsSettings)
+
     # LLM
     llm: LLMSettings = Field(default_factory=LLMSettings)
 
     # Vector Store
     vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
 
+    # Guardrail
     guardrail: GuardrailSettings = Field(default_factory=GuardrailSettings)
 
     # Memory

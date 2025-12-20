@@ -53,7 +53,7 @@ def verizon_looking_glass(destination: str, command: str = "ping", source: str =
 
     
     try:
-        response = requests.post(url, headers=headers, data=data)
+        response = requests.post(url, headers=headers, data=data, timeout=30)
         response.raise_for_status() 
         data = response.json()
         data['location'] = source
@@ -72,7 +72,7 @@ def verizon_looking_glass(destination: str, command: str = "ping", source: str =
             time.sleep(5)  
             print("request id", request_id) 
             poll_params = {'cmd': 'trace', 'requestId': request_id}
-            poll_response = requests.post(url, headers=headers, data=poll_params)
+            poll_response = requests.post(url, headers=headers, data=poll_params, timeout=30)
             poll_response.raise_for_status()
             poll_data = poll_response.json()
 
@@ -93,7 +93,7 @@ def verizon_looking_glass_locations() -> list[str] | str:
     url = "https://www.verizon.com/business/api/lg.js?cmd"
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=30)
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
         data = response.json()
         
