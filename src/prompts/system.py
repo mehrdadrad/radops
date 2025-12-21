@@ -1,3 +1,4 @@
+"""Module for managing system prompts and agent manifests."""
 import logging
 import os
 from pathlib import Path
@@ -11,6 +12,10 @@ logger = logging.getLogger(__name__)
 def generate_agent_manifest(
     agent_name, prompt_text_file, llm_profile
 ):
+    """
+    Generates a structured manifest for an agent by analyzing its system prompt.
+    Uses caching to avoid re-generation if the file hasn't changed.
+    """
     cache_file = None
     try:
         if os.path.exists(prompt_text_file):
@@ -19,15 +24,15 @@ def generate_agent_manifest(
             mtime = int(os.path.getmtime(prompt_text_file))
             cache_file = cache_dir / f"{Path(prompt_text_file).name}_{mtime}"
             if cache_file.exists():
-                with open(cache_file, "r") as f:
+                with open(cache_file, "r", encoding="utf-8") as f:
                     return f.read()
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning("Cache error: %s", e)
 
     try:
-        with open(prompt_text_file, "r") as f:
+        with open(prompt_text_file, "r", encoding="utf-8") as f:
             prompt_text = f.read()
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Couldn't open file: %s, error: %s", prompt_text_file, e)
         return ""
 
@@ -45,9 +50,9 @@ def generate_agent_manifest(
 
     if cache_file:
         try:
-            with open(cache_file, "w") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 f.write(content)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning("Failed to write cache: %s", e)
 
     return content
@@ -77,13 +82,13 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
    - **MCP Tools:** [PLACEHOLDER]
 """
     idx = 2
-    for agent_name, agent_config in settings.agent.profiles.items():
+    for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
         agent_manifest = generate_agent_manifest(
                 agent_name,
                 agent_config.system_prompt_file,
-                settings.llm.default_profile,
+                settings.llm.default_profile,  # pylint: disable=no-member
         )
-        
+
         prompt += f"""
 {idx}. **{agent_name.replace('_', ' ').title()}** (`{agent_name}`):
    {agent_manifest}

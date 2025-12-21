@@ -1,3 +1,4 @@
+"""This module provides a factory for creating and configuring vector store managers."""
 import atexit
 import logging
 
@@ -27,14 +28,14 @@ def vector_store_factory() -> list[VectorStoreManager]:
     """
     managers = []
 
-    for profile in settings.vector_store.profiles:
+    for profile in settings.vector_store.profiles:  # pylint: disable=no-member
         provider = profile.provider
         embedding_profile = profile.embedding_profile
         sync_locations = profile.sync_locations
 
-        logger.info(f"Vector store provider: '{provider}'")
-        logger.info(f"Embedding profile: '{embedding_profile}'")
-        logger.info(f"Sync locations: {[loc.name for loc in sync_locations]}")
+        logger.info("Vector store provider: '%s'", provider)
+        logger.info("Embedding profile: '%s'", embedding_profile)
+        logger.info("Sync locations: %s", [loc.name for loc in sync_locations])
 
         embeddings_model = embedding_factory(embedding_profile)
 

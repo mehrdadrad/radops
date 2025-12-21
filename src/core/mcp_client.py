@@ -24,15 +24,12 @@ class MCPClient:
         self,
         name: str,
         config: Dict[str, Any],
-        retry_attempts: int = 3,
-        retry_delay: int = 5,
-        persistent_interval: int = 60,
     ):
         self.name = name
         self.config = config
-        self.retry_attempts = retry_attempts
-        self.retry_delay = retry_delay
-        self.persistent_interval = persistent_interval
+        self.retry_attempts = self.config.get("retry_attempts", 3)
+        self.retry_delay = self.config.get("retry_delay", 5)
+        self.persistent_interval = self.config.get("persistent_interval", 60)
 
         self.session: Optional[ClientSession] = None
         self.tools: List[BaseTool] = []
@@ -72,10 +69,10 @@ class MCPClient:
         while self._running:
             try:
                 await self._connect_with_retry()
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 error_msg = str(e)
                 if hasattr(e, "exceptions"):
-                    error_msg = f"{e} -> {[str(ex) for ex in e.exceptions]}"
+                    error_msg = f"{e} -> {[str(ex) for ex in e.exceptions]}"  # pylint: disable=no-member
                 logger.error(
                     "[%s] Connection manager error: %s", self.name, error_msg
                 )
@@ -95,11 +92,11 @@ class MCPClient:
             try:
                 await self._connect_session()
                 return
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 attempt += 1
                 error_msg = str(e)
                 if hasattr(e, "exceptions"):
-                    error_msg = f"{e} -> {[str(ex) for ex in e.exceptions]}"
+                    error_msg = f"{e} -> {[str(ex) for ex in e.exceptions]}"  # pylint: disable=no-member
 
                 logger.warning(
                     "[%s] Connection attempt %s/%s failed: %s",
@@ -119,37 +116,29 @@ class MCPClient:
         transport = self.config.get("transport", "stdio")
 
         if transport == "stdio":
-            command = self.config.get("command")
-            args = self.config.get("args", [])
-            env_config = self.config.get("env", {})
-
             env = os.environ.copy()
-            env.update({k: str(v) for k, v in env_config.items()})
+            if env_config := self.config.get("env"):
+                env.update({k: str(v) for k, v in env_config.items()})
 
             server_params = StdioServerParameters(
-                command=command,
-                args=args,
+                command=self.config.get("command"),
+                args=self.config.get("args", []),
                 env=env,
             )
             client_context = stdio_client(server_params)
-        elif transport == "streamable_http":
-            url = self.config.get("url")
-            headers = self.config.get("headers") or {}
-            timeout = self.config.get("connect_timeout", 60.0)
-            if not url:
+        elif transport in ("streamable_http", "sse"):
+            if not (url := self.config.get("url")):
                 raise ValueError(f"URL is required for {transport} transport")
-            client_context = streamablehttp_client(
-                url=url, headers=headers, timeout=timeout
+
+            kwargs = {
+                "url": url,
+                "headers": self.config.get("headers") or {},
+                "timeout": self.config.get("connect_timeout", 60.0),
+            }
+            client_factory = (
+                streamablehttp_client if transport == "streamable_http" else sse_client
             )
-        elif transport == "sse":
-            url = self.config.get("url")
-            headers = self.config.get("headers") or {}
-            timeout = self.config.get("connect_timeout", 60.0)
-            if not url:
-                raise ValueError(f"URL is required for {transport} transport")
-            client_context = sse_client(
-                url=url, headers=headers, timeout=timeout
-            )
+            client_context = client_factory(**kwargs)
         else:
             raise ValueError(f"Unsupported transport: {transport}")
 
@@ -177,19 +166,22 @@ class MCPClient:
                         await asyncio.sleep(10)
                         try:
                             await asyncio.wait_for(session.list_tools(), timeout=5.0)
-                        except asyncio.CancelledError:
+                        except asyncio.CancelledError as exc:
                             if self._running:
                                 logger.warning(
                                     "[%s] Health check cancelled (connection dropped).",
                                     self.name,
                                 )
-                                raise ConnectionError("Connection dropped (Cancelled)")
+                                raise ConnectionError(
+                                    "Connection dropped (Cancelled)"
+                                ) from exc
                             raise
                         except Exception as e:
                             logger.warning("[%s] Health check failed: %s", self.name, e)
                             raise e
 
-                    # If the loop exits but we are still running, the session closed cleanly (e.g. EOF)
+                    # If the loop exits but we are still running,
+                    # the session closed cleanly (e.g. EOF)
                     if self._running:
                         raise ConnectionError("Connection closed unexpectedly")
         finally:
@@ -210,10 +202,11 @@ class MCPClient:
             current_tool_name = tool.name
             args_schema = self._create_args_schema(tool_name, tool.inputSchema)
 
+            tool_coro = self._create_tool_func(tool_name, current_tool_name)
             langchain_tools.append(
                 StructuredTool.from_function(
                     func=None,
-                    coroutine=self._create_tool_func(tool_name, current_tool_name),
+                    coroutine=tool_coro,
                     name=tool_name,
                     description=tool.description or "",
                     args_schema=args_schema,
@@ -232,8 +225,10 @@ class MCPClient:
                     self.session.call_tool(current_tool_name, arguments=kwargs),
                     timeout=60.0
                 )
-            except asyncio.TimeoutError:
-                raise TimeoutError(f"Tool {tool_name} execution timed out.")
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError(
+                    f"Tool {tool_name} execution timed out."
+                ) from exc
             output = []
             if hasattr(result, "content"):
                 for item in result.content:
