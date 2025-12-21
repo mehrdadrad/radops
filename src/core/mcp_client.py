@@ -4,6 +4,7 @@ MCP Client implementation with retry and backoff logic.
 import asyncio
 import logging
 import os
+import json
 from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -218,6 +219,7 @@ class MCPClient:
     def _create_tool_func(self, tool_name: str, current_tool_name: str):
         """Creates a tool function with captured variables."""
         async def _tool_func(**kwargs):
+            kwargs = sanitize_kwargs(kwargs)
             if not self.session:
                 raise RuntimeError(f"Tool {tool_name} is not connected.")
             try:
@@ -267,3 +269,34 @@ class MCPClient:
                 )
 
         return create_model(f"{tool_name.replace('-', '_')}Args", **fields)
+
+
+def sanitize_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Sanitizes tool arguments by parsing stringified JSON.
+
+    Some LLMs may incorrectly pass JSON objects or arrays as strings.
+    This function iterates through the arguments and attempts to parse
+    any string that looks like a JSON object or array.
+
+    Args:
+        kwargs: The original dictionary of arguments from the LLM.
+
+    Returns:
+        A new dictionary with stringified JSON values parsed into
+        Python objects (dicts or lists).
+    """
+    result = {}
+    for k, v in kwargs.items():
+        if isinstance(v, str) and (
+            (v.strip().startswith("{") and v.strip().endswith("}"))
+            or (v.strip().startswith("[") and v.strip().endswith("]"))
+        ):
+            try:
+                result[k] = json.loads(v)
+                logger.debug("Parsed JSON string for argument '%s'", k)
+                continue
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse JSON string for argument '%s'", k)
+        result[k] = v
+    return result
