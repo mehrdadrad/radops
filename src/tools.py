@@ -1,12 +1,12 @@
 """
 This module provides a registry for all the tools available to the RadOps assistant.
 """
+import asyncio
 import logging
 from typing import List
 
-from httpx import ConnectError
 from langchain_core.tools import BaseTool
-from langchain_mcp_adapters.client import MultiServerMCPClient
+from core.mcp_client import MCPClient
 
 from config.tools import tool_settings as settings
 from core.vector_store import vector_store_factory
@@ -62,7 +62,9 @@ class ToolRegistry:
     def __init__(self, checkpointer):
         self.checkpointer = checkpointer
         self.vector_store_managers = vector_store_factory()
-        self.mcp_client = MultiServerMCPClient(settings.mcp_servers)
+        self.mcp_clients = [
+            MCPClient(name, config) for name, config in settings.mcp_servers.items()
+        ]
         self.weaviate_client = None
 
     async def get_all_tools(self) -> List[BaseTool]:
@@ -101,25 +103,22 @@ class ToolRegistry:
             simulate_iam_policy,
         ]
 
-        try:
-            mcp_tools = await self.mcp_client.get_tools()
-            if len(mcp_tools) > 0:
-                logger.info(
-                    "Connected to MCP servers (%s tools found)", len(mcp_tools)
-                )
-        except (ConnectError, ExceptionGroup) as e:
-            # We need to handle this to prevent the app from crashing.
-            if isinstance(e, ExceptionGroup):
-                # We only want to suppress connection errors, so we check for them.
-                if not any(isinstance(exc, ConnectError) for exc in e.exceptions):
-                    raise  # Re-raise if it's not a connection error.
+        mcp_tools = []
+        async def _load_client(client):
+            try:
+                if not client._running:
+                    await client.start()
+                return await client.get_tools()
+            except Exception as e:
+                logger.error("Failed to load tools from %s: %s", client.name, e)
+                return []
 
-            logger.error(
-                "Could not connect to MCP server(s) to get tools: %s. "
-                "Continuing without them.",
-                e,
-            )
-            mcp_tools = []
+        results = await asyncio.gather(*[_load_client(c) for c in self.mcp_clients])
+        for tools in results:
+            mcp_tools.extend(tools)
+
+        if mcp_tools:
+            logger.info("Connected to MCP servers (%s tools found)", len(mcp_tools))
 
         try:
             dynamic_kb_tools = create_kb_tools(self.vector_store_managers)
@@ -131,3 +130,5 @@ class ToolRegistry:
 
     async def close(self):
         """Closes any open clients."""
+        for client in self.mcp_clients:
+            await client.stop()

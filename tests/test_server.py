@@ -18,8 +18,9 @@ class TestServer(unittest.TestCase):
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.mem0_manager")
     @patch("server.Telemetry")
+    @patch("server.ToolRegistry")
     def test_lifespan(
-        self, mock_telemetry, mock_mem0, mock_run_graph, mock_get_cp
+        self, mock_tool_registry, mock_telemetry, mock_mem0, mock_run_graph, mock_get_cp
     ):
         """Test application startup and shutdown logic."""
         # Setup mocks
@@ -31,6 +32,7 @@ class TestServer(unittest.TestCase):
 
         mock_run_graph.return_value = MagicMock()
         mock_mem0.close = AsyncMock()
+        mock_tool_registry.return_value.close = AsyncMock()
 
         # TestClient context triggers lifespan
         with TestClient(app):
@@ -42,14 +44,16 @@ class TestServer(unittest.TestCase):
         mock_mem0.close.assert_called_once()
         mock_telemetry.return_value.shutdown.assert_called_once()
         mock_redis.aclose.assert_called_once()
+        mock_tool_registry.return_value.close.assert_called_once()
 
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.astream_graph_updates")
     @patch("server.mem0_manager")
     @patch("server.Telemetry")
+    @patch("server.ToolRegistry")
     def test_websocket_chat(
-        self, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp
+        self, mock_tool_registry, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp
     ):
         """Test WebSocket chat flow."""
         # Setup mocks
@@ -59,6 +63,7 @@ class TestServer(unittest.TestCase):
         mock_get_cp.return_value = mock_cp_ctx
         mock_run_graph.return_value = MagicMock()
         mock_mem0.close = AsyncMock()
+        mock_tool_registry.return_value.close = AsyncMock()
 
         # Mock streaming response
         mock_msg = MagicMock()
@@ -87,8 +92,9 @@ class TestServer(unittest.TestCase):
     @patch("server.astream_graph_updates")
     @patch("server.mem0_manager")
     @patch("server.Telemetry")
+    @patch("server.ToolRegistry")
     def test_websocket_tool_execution(
-        self, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp
+        self, mock_tool_registry, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp
     ):
         """Test WebSocket handling of tool calls."""
         mock_redis = AsyncMock()
@@ -97,6 +103,7 @@ class TestServer(unittest.TestCase):
         mock_get_cp.return_value = mock_cp_ctx
         mock_run_graph.return_value = MagicMock()
         mock_mem0.close = AsyncMock()
+        mock_tool_registry.return_value.close = AsyncMock()
 
         # Mock tool call response
         mock_msg = MagicMock()

@@ -14,6 +14,7 @@ from core.checkpoint import get_checkpointer
 from core.graph import astream_graph_updates, run_graph
 from core.memory import mem0_manager
 from services.telemetry.telemetry import Telemetry
+from tools import ToolRegistry
 
 
 app = FastAPI(
@@ -31,11 +32,12 @@ async def lifespan(fastapi_app: FastAPI):
     """
     logging.info("Application startup: Initializing resources.")
     telemetry = Telemetry()
-    checkpointer, redis_client = None, None
+    checkpointer, redis_client, tool_registry = None, None, None
     try:
         async with get_checkpointer() as (cp, rc):
             checkpointer, redis_client = cp, rc
-            fastapi_app.state.graph = await run_graph(checkpointer)
+            tool_registry = ToolRegistry(checkpointer=checkpointer)
+            fastapi_app.state.graph = await run_graph(checkpointer, tool_registry=tool_registry)
             fastapi_app.state.checkpointer = checkpointer
             fastapi_app.state.redis_client = redis_client
             yield
@@ -44,6 +46,9 @@ async def lifespan(fastapi_app: FastAPI):
         if redis_client:
             await redis_client.aclose()
             logging.info("Redis client closed.")
+        if tool_registry:
+            await tool_registry.close()
+            logging.info("Tool registry closed.")
         await mem0_manager.close()
         logging.info("mem0_manager closed.")
         telemetry.shutdown()

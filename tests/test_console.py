@@ -19,8 +19,10 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
     @patch("console.astream_graph_updates")
     @patch("console.mem0_manager")
     @patch("console.Telemetry")
+    @patch("console.ToolRegistry")
     async def test_console_happy_path(
         self,
+        mock_tool_registry,
         mock_telemetry,
         mock_mem0,
         mock_astream,
@@ -35,6 +37,9 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_cp_ctx = AsyncMock()
         mock_cp_ctx.__aenter__.return_value = (MagicMock(), mock_redis)
         mock_get_cp.return_value = mock_cp_ctx
+
+        # Mock ToolRegistry
+        mock_tool_registry.return_value.close = AsyncMock()
 
         # Input sequence: username -> message -> quit
         mock_input.side_effect = ["test_user", "hello", "quit"]
@@ -65,14 +70,17 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_mem0.close.assert_called()
         mock_telemetry.return_value.shutdown.assert_called()
         mock_redis.aclose.assert_called()
+        mock_tool_registry.return_value.close.assert_called()
 
     @patch("console.input")
     @patch("console.print")
     @patch("console.get_checkpointer")
     @patch("console.run_graph", new_callable=AsyncMock)
     @patch("console.Telemetry")
+    @patch("console.ToolRegistry")
     async def test_console_empty_username(
         self,
+        mock_tool_registry,
         mock_telemetry,
         mock_run_graph,
         mock_get_cp,
@@ -83,6 +91,8 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_cp_ctx = AsyncMock()
         mock_cp_ctx.__aenter__.return_value = (MagicMock(), AsyncMock())
         mock_get_cp.return_value = mock_cp_ctx
+
+        mock_tool_registry.return_value.close = AsyncMock()
 
         mock_input.return_value = ""  # Empty username
 
@@ -96,8 +106,10 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
     @patch("console.get_checkpointer")
     @patch("console.run_graph", new_callable=AsyncMock)
     @patch("console.Telemetry")
+    @patch("console.ToolRegistry")
     async def test_console_empty_input_loop(
         self,
+        mock_tool_registry,
         mock_telemetry,
         mock_run_graph,
         mock_get_cp,
@@ -108,6 +120,8 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_cp_ctx = AsyncMock()
         mock_cp_ctx.__aenter__.return_value = (MagicMock(), AsyncMock())
         mock_get_cp.return_value = mock_cp_ctx
+
+        mock_tool_registry.return_value.close = AsyncMock()
 
         # username -> empty input -> quit
         mock_input.side_effect = ["user", "   ", "quit"]
@@ -125,8 +139,10 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
     @patch("console.run_graph", new_callable=AsyncMock)
     @patch("console.astream_graph_updates")
     @patch("console.Telemetry")
+    @patch("console.ToolRegistry")
     async def test_console_exception_handling(
         self,
+        mock_tool_registry,
         mock_telemetry,
         mock_astream,
         mock_run_graph,
@@ -139,6 +155,8 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_cp_ctx = AsyncMock()
         mock_cp_ctx.__aenter__.return_value = (MagicMock(), AsyncMock())
         mock_get_cp.return_value = mock_cp_ctx
+
+        mock_tool_registry.return_value.close = AsyncMock()
 
         mock_input.side_effect = ["user", "trigger_error", "quit"]
 

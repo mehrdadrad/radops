@@ -29,9 +29,10 @@ logger = logging.getLogger(__name__)
 telemetry = Telemetry()
 
 
-async def run_graph(checkpointer=None, tools=None):
+async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     """Builds and runs the LangGraph application."""
-    tool_registry = ToolRegistry(checkpointer=checkpointer)
+    if tool_registry is None:
+        tool_registry = ToolRegistry(checkpointer=checkpointer)
     if tools is None:
         tools = await tool_registry.get_all_tools()
 

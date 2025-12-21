@@ -97,7 +97,6 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
 - If the user just says "Hello" or asks a general non-technical question, route to `end` (or handle directly if configured).
 - ALWAYS provide a polite `response_to_user` explaining your decision (e.g., "I'll have the Common Agent look up that ASN for you.").
 """
-    print(prompt)
     return prompt
 
 

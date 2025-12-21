@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("NA")
+mcp = FastMCP("EchoServer")
 
 @mcp.tool()
 async def mcp_echo_tool(arg: str) -> str:

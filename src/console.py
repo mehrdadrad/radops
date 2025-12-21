@@ -11,8 +11,12 @@ from core.checkpoint import get_checkpointer
 from core.graph import astream_graph_updates, run_graph
 from core.memory import mem0_manager
 from services.telemetry.telemetry import Telemetry
+from tools import ToolRegistry
 
 
+async def ainput(prompt: str = "") -> str:
+    """Async wrapper for input function."""
+    return await asyncio.to_thread(input, prompt)
 
 async def main():
     """
@@ -20,18 +24,20 @@ async def main():
     """
     redis_client = None
     telemetry = None
+    tool_registry = None
     try:
         telemetry = Telemetry()
         async with get_checkpointer() as (checkpointer, redis_client):
-            graph = await run_graph(checkpointer)
-            user_id = input("Please enter your username: ")
+            tool_registry = ToolRegistry(checkpointer=checkpointer)
+            graph = await run_graph(checkpointer, tool_registry=tool_registry)
+            user_id = await ainput("Please enter your username: ")
             if not user_id:
                 print("Username cannot be empty. Exiting.")
                 return
 
             while True:
                 try:
-                    user_input = input("User: ")
+                    user_input = await ainput("User: ")
                     if not user_input.strip():
                         continue
                     if user_input.lower() in ["quit", "exit", "q"]:
@@ -49,8 +55,6 @@ async def main():
                     print("\nGoodbye!")
                     break
                 except Exception as e:
-                    # It's hard to predict what exceptions can be raised by the graph.
-                    # For now, we catch all exceptions and log them.
                     logging.error("An error occurred: %s", e)
                     continue
     except (KeyboardInterrupt, asyncio.CancelledError):
@@ -63,10 +67,11 @@ async def main():
             if redis_client:
                 await redis_client.aclose()
                 logging.info("Redis client closed.")
+            if tool_registry:
+                await tool_registry.close()
+                logging.info("Tool registry closed.")
             await mem0_manager.close()
         except (asyncio.CancelledError, Exception) as e:
-            # It's hard to predict what exceptions can be raised during cleanup.
-            # For now, we catch all exceptions and log them.
             logging.error("An error occurred during cleanup: %s", e)
 
 

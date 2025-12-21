@@ -21,6 +21,10 @@ mcp_servers:
       FASTMCP_LOG_LEVEL: "ERROR"
       AWS_ACCESS_KEY_ID: "vault:tools/aws#ACCESS_KEY_ID"
       AWS_SECRET_ACCESS_KEY: "vault:tools/aws#SECRET_ACCESS_KEY"
+
+  test-mcp-server:
+    url: "http://localhost:8000/mcp"
+    transport: "streamable_http"
    
 # Peering DB
 peeringdb:
