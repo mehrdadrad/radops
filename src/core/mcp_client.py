@@ -163,23 +163,7 @@ class MCPClient:
                     )
 
                     # Keep session alive and monitor health
-                    while self._running:
-                        await asyncio.sleep(10)
-                        try:
-                            await asyncio.wait_for(session.list_tools(), timeout=5.0)
-                        except asyncio.CancelledError as exc:
-                            if self._running:
-                                logger.warning(
-                                    "[%s] Health check cancelled (connection dropped).",
-                                    self.name,
-                                )
-                                raise ConnectionError(
-                                    "Connection dropped (Cancelled)"
-                                ) from exc
-                            raise
-                        except Exception as e:
-                            logger.warning("[%s] Health check failed: %s", self.name, e)
-                            raise e
+                    await self._monitor_health(session)
 
                     # If the loop exits but we are still running,
                     # the session closed cleanly (e.g. EOF)
@@ -192,6 +176,26 @@ class MCPClient:
             # Reset future for next try
             if self._tools_future.done():
                 self._tools_future = asyncio.Future()
+
+    async def _monitor_health(self, session: ClientSession):
+        """Monitors the health of the session."""
+        while self._running:
+            await asyncio.sleep(10)
+            try:
+                await asyncio.wait_for(session.list_tools(), timeout=5.0)
+            except asyncio.CancelledError as exc:
+                if self._running:
+                    logger.warning(
+                        "[%s] Health check cancelled (connection dropped).",
+                        self.name,
+                    )
+                    raise ConnectionError(
+                        "Connection dropped (Cancelled)"
+                    ) from exc
+                raise
+            except Exception as e:
+                logger.warning("[%s] Health check failed: %s", self.name, e)
+                raise e
 
     def _process_tools(self, mcp_tools: List[Any]) -> List[BaseTool]:
         """Converts MCP tools to LangChain tools and applies prefix."""
