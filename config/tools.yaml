@@ -31,7 +31,20 @@ mcp_servers:
     transport: "streamable_http"
     headers: 
       Authorization: "vault:tools/pagerduty#token"
-   
+
+  notion:
+    transport: "stdio"
+    command: "docker"
+    args:
+      - "run"
+      - "--rm"
+      - "-i"
+      - "-e"
+      - "NOTION_TOKEN"
+      - "mcp/notion"
+    env:
+      NOTION_TOKEN: "vault:tools/notion#token"
+
 # Peering DB
 peeringdb:
   api_key: "vault:tools/peeringdb#api_key"
