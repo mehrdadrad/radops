@@ -74,14 +74,8 @@ You are the Network Operations Supervisor. Your job is to route user requests to
 You do NOT execute tools or solve problems yourself. You only decide who should handle the task.
 
 ### Your Team
-1. **Common Agent** (`common_agent`)
-   - **Role:** Tier 1 Support & Tool Runner.
-   - **Capabilities:** Atomic tool execution (Ping, ASN lookup), GitHub/Jira management, and Knowledge Base search.
-   - **Trigger When:** The user asks for a simple fact, a specific single-step tool execution ("Ping X"), or administrative tasks.
-   - **Differentiation:** The default for simple, defined tasks. If the request requires *investigation* or *diagnosis*, do NOT use this agent.
-   - **MCP Tools:** [PLACEHOLDER]
 """
-    idx = 2
+    idx = 1
     for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
         agent_manifest = generate_agent_manifest(
                 agent_name,
@@ -94,13 +88,16 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
    {agent_manifest}
 """
         idx += 1
-
     prompt += """
 ### Instructions
-- If the user asks a question that requires a specific tool you know the Common Agent has, route to `common_agent`.
-- For other requests, route to the agent whose description best matches the user's need.
-- If the user just says "Hello" or asks a general non-technical question, route to `end` (or handle directly if configured).
-- ALWAYS provide a polite `response_to_user` explaining your decision (e.g., "I'll have the Common Agent look up that ASN for you.").
+"""
+    for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
+        if agent_config.description:
+            prompt += f"- If the user request matches {agent_config.description}, route to `{agent_name}`.\n"
+
+    prompt += """- Route the user's request to the agent whose capabilities best match the intent.
+- If the user just says "Hello" or asks a general non-technical question, route to `end`.
+- ALWAYS provide a polite `response_to_user` explaining your decision.
 """
     return prompt
 

@@ -20,11 +20,11 @@ def get_aws_client(service_name: str):
 
 
 @tool
-def aws__manage_vpc(action: Literal["create", "delete"], vpc_id: Optional[str] = None, cidr_block: Optional[str] = None, name_tag: Optional[str] = None, confirm: bool = False) -> str:
+def aws__manage_vpc(action: Literal["create", "delete", "list"], vpc_id: Optional[str] = None, cidr_block: Optional[str] = None, name_tag: Optional[str] = None, confirm: bool = False) -> str:
     """
-    Creates or deletes an AWS VPC.
+    Creates, deletes, or lists AWS VPCs.
     Args:
-        action: 'create' or 'delete'.
+        action: 'create', 'delete', or 'list'.
         vpc_id: Required for 'delete'.
         cidr_block: Required for 'create' (e.g., 10.0.0.0/16).
         name_tag: Optional Name tag for 'create'.
@@ -55,6 +55,23 @@ def aws__manage_vpc(action: Literal["create", "delete"], vpc_id: Optional[str] =
             return json.dumps({"status": "deleted", "vpc_id": vpc_id}, indent=2)
         except Exception as e:
             logger.error(f"Error in aws__manage_vpc (delete): {e}")
+            return json.dumps({"error": str(e)}, indent=2)
+    elif action == "list":
+        try:
+            response = ec2.describe_vpcs()
+            vpcs = []
+            for vpc in response.get('Vpcs', []):
+                name = next((tag['Value'] for tag in vpc.get('Tags', []) if tag['Key'] == 'Name'), None)
+                vpcs.append({
+                    'VpcId': vpc.get('VpcId'),
+                    'CidrBlock': vpc.get('CidrBlock'),
+                    'State': vpc.get('State'),
+                    'Name': name,
+                    'IsDefault': vpc.get('IsDefault')
+                })
+            return json.dumps(vpcs, indent=2)
+        except Exception as e:
+            logger.error(f"Error in aws__manage_vpc (list): {e}")
             return json.dumps({"error": str(e)}, indent=2)
     return json.dumps({"error": f"Invalid action: {action}"}, indent=2)
 
