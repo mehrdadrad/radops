@@ -21,7 +21,7 @@ def get_aws_client(service_name: str):
 
 
 @tool
-def get_cloudformation_stack_events(stack_name: str) -> str:
+def aws__get_cloudformation_stack_events(stack_name: str) -> str:
     """
     Retrieves the recent events for a CloudFormation stack, which is useful for diagnosing 'ROLLBACK_COMPLETE' failures.
     Args:
@@ -44,12 +44,12 @@ def get_cloudformation_stack_events(stack_name: str) -> str:
         # Return the most recent 15 events to keep it concise
         return json.dumps(events[:15], indent=2)
     except ClientError as e:
-        logger.error(f"Error in get_cloudformation_stack_events: {e}")
+        logger.error(f"Error in aws__get_cloudformation_stack_events: {e}")
         return json.dumps({"error": str(e)}, indent=2)
 
 
 @tool
-def get_target_group_health(target_group_arn: str) -> str:
+def aws__get_target_group_health(target_group_arn: str) -> str:
     """
     Checks the health of registered targets in an Elastic Load Balancer (ELB) target group. Useful for diagnosing 'Unhealthy' instances.
     Args:
@@ -62,12 +62,12 @@ def get_target_group_health(target_group_arn: str) -> str:
         response = elbv2.describe_target_health(TargetGroupArn=target_group_arn)
         return json.dumps(response.get('TargetHealthDescriptions', []), default=str, indent=2)
     except ClientError as e:
-        logger.error(f"Error in get_target_group_health: {e}")
+        logger.error(f"Error in aws__get_target_group_health: {e}")
         return json.dumps({"error": str(e)}, indent=2)
 
 
 @tool
-def simulate_iam_policy(principal_arn: str, action_names: List[str], resource_arns: List[str]) -> str:
+def aws__simulate_iam_policy(principal_arn: str, action_names: List[str], resource_arns: List[str]) -> str:
     """
     Simulates IAM policies to check if a principal (user or role) has specific permissions for given actions on specified resources.
     Useful for diagnosing '403 Access Denied', 'sts:AssumeRole', and other permission errors.
@@ -87,5 +87,5 @@ def simulate_iam_policy(principal_arn: str, action_names: List[str], resource_ar
         )
         return json.dumps(response.get('EvaluationResults', []), default=str, indent=2)
     except ClientError as e:
-        logger.error(f"Error in simulate_iam_policy: {e}")
+        logger.error(f"Error in aws__simulate_iam_policy: {e}")
         return json.dumps({"error": str(e)}, indent=2)

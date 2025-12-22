@@ -20,7 +20,7 @@ def get_aws_client(service_name: str):
 
 
 @tool
-def list_ec2_instances(state: Optional[str] = None) -> str:
+def aws__list_ec2_instances(state: Optional[str] = None) -> str:
     """
     Lists EC2 instances in the configured region.
     Args:
@@ -52,12 +52,12 @@ def list_ec2_instances(state: Optional[str] = None) -> str:
                 })
         return json.dumps(instances, indent=2)
     except Exception as e:
-        logger.error(f"Error in list_ec2_instances: {e}")
+        logger.error(f"Error in aws__list_ec2_instances: {e}")
         return json.dumps({"error": str(e)}, indent=2)
 
 
 @tool
-def manage_ec2_instance(instance_id: str, action: str) -> str:
+def aws__manage_ec2_instance(instance_id: str, action: str) -> str:
     """
     Manages an EC2 instance state.
     Args:
@@ -82,5 +82,5 @@ def manage_ec2_instance(instance_id: str, action: str) -> str:
         else:
             return json.dumps({"error": f"Invalid action: {action}. Must be start, stop, reboot, or terminate."}, indent=2)
     except Exception as e:
-        logger.error(f"Error in manage_ec2_instance: {e}")
+        logger.error(f"Error in aws__manage_ec2_instance: {e}")
         return json.dumps({"error": str(e)}, indent=2)

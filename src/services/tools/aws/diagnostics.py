@@ -21,7 +21,7 @@ def get_aws_client(service_name: str):
     )
 
 @tool
-def analyze_reachability(source_id: str, dest_id: str, port: int) -> str:
+def aws__analyze_reachability(source_id: str, dest_id: str, port: int) -> str:
     """
     Triggers AWS VPC Reachability Analyzer between two points.
     Returns: JSON describing the blocking component (SG, NACL, Route Table).
@@ -73,12 +73,12 @@ def analyze_reachability(source_id: str, dest_id: str, port: int) -> str:
             "explanations": result.get('Explanations', [])
         }, indent=2)
     except Exception as e:
-        logger.error(f"Error in analyze_reachability: {e}")
+        logger.error(f"Error in aws__analyze_reachability: {e}")
         return json.dumps({"error": str(e)}, indent=2)
 
 
 @tool
-def query_logs(log_group: str, query: str) -> str:
+def aws__query_logs(log_group: str, query: str) -> str:
     """
     Runs a CloudWatch Logs Insights query.
     Example Query: "fields @message | filter @message like /Error/"
@@ -110,12 +110,12 @@ def query_logs(log_group: str, query: str) -> str:
 
         return json.dumps(parsed_results, indent=2)
     except Exception as e:
-        logger.error(f"Error in query_logs: {e}")
+        logger.error(f"Error in aws__query_logs: {e}")
         return json.dumps([{"error": str(e)}], indent=2)
 
 
 @tool
-def check_recent_changes(resource_id: str) -> str:
+def aws__check_recent_changes(resource_id: str) -> str:
     """
     Queries CloudTrail/Config for changes to this resource in the last 24h.
     """
@@ -143,12 +143,12 @@ def check_recent_changes(resource_id: str) -> str:
             })
         return json.dumps(events, indent=2)
     except Exception as e:
-        logger.error(f"Error in check_recent_changes: {e}")
+        logger.error(f"Error in aws__check_recent_changes: {e}")
         return json.dumps([{"error": str(e)}], indent=2)
 
 
 @tool
-def get_ec2_health(instance_id: str) -> str:
+def aws__get_ec2_health(instance_id: str) -> str:
     """
     Checks Status Checks (System/Instance) and CPU utilization metrics.
     """
@@ -189,5 +189,5 @@ def get_ec2_health(instance_id: str) -> str:
             "cpu_utilization": cpu_stats
         }, indent=2)
     except Exception as e:
-        logger.error(f"Error in get_ec2_health: {e}")
+        logger.error(f"Error in aws__get_ec2_health: {e}")
         return json.dumps({"error": str(e)}, indent=2)

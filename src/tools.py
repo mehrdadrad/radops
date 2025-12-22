@@ -11,16 +11,23 @@ from core.mcp_client import MCPClient
 from config.tools import tool_settings as settings
 from core.vector_store import vector_store_factory
 from services.tools.aws.diagnostics import (
-    analyze_reachability,
-    check_recent_changes,
-    get_ec2_health,
-    query_logs,
+    aws__analyze_reachability,
+    aws__check_recent_changes,
+    aws__get_ec2_health,
+    aws__query_logs,
 )
-from services.tools.aws.ec2 import list_ec2_instances, manage_ec2_instance
+from services.tools.aws.ec2 import aws__list_ec2_instances, aws__manage_ec2_instance
+from services.tools.aws.network import (
+    aws__manage_vpc,
+    aws__manage_subnet,
+    aws__manage_internet_gateway,
+    aws__manage_route_table,
+    aws__manage_route,
+)
 from services.tools.aws.troubleshooting import (
-    get_cloudformation_stack_events,
-    get_target_group_health,
-    simulate_iam_policy,
+    aws__get_cloudformation_stack_events,
+    aws__get_target_group_health,
+    aws__simulate_iam_policy,
 )
 from services.tools.checkhost.check_host_net import (
     check_host_dns,
@@ -63,7 +70,9 @@ class ToolRegistry:
         self.checkpointer = checkpointer
         self.vector_store_managers = vector_store_factory()
         self.mcp_clients = [
-            MCPClient(name, config) for name, config in settings.mcp_servers.items()
+            MCPClient(name, config)
+            for name, config in settings.mcp_servers.items()
+            if not config.get("disabled", False)
         ]
         self.weaviate_client = None
 
@@ -92,15 +101,20 @@ class ToolRegistry:
             github_create_issue,
             github_create_pull_request,
             github_list_pull_requests,
-            analyze_reachability,
-            query_logs,
-            check_recent_changes,
-            get_ec2_health,
-            list_ec2_instances,
-            manage_ec2_instance,
-            get_cloudformation_stack_events,
-            get_target_group_health,
-            simulate_iam_policy,
+            aws__analyze_reachability,
+            aws__query_logs,
+            aws__check_recent_changes,
+            aws__get_ec2_health,
+            aws__list_ec2_instances,
+            aws__manage_ec2_instance,
+            aws__get_cloudformation_stack_events,
+            aws__get_target_group_health,
+            aws__simulate_iam_policy,
+            aws__manage_vpc,
+            aws__manage_subnet,
+            aws__manage_internet_gateway,
+            aws__manage_route_table,
+            aws__manage_route,
         ]
 
         mcp_tools = []
