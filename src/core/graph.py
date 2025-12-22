@@ -43,9 +43,6 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node("supervisor", supervisor_node)
     graph_builder.add_node(
-        "common_agent", create_agent("common", SYSTEM_PROMPT, tools)
-    )
-    graph_builder.add_node(
         "tools",
         ToolNode(
             tools=tools,
@@ -54,18 +51,22 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         ),
         retry_policy=RetryPolicy(max_attempts=2),
     )
+
+    # Create path mapping 
+    path_map = {name: name for name in settings.agent.profiles.keys()}
+    path_map["tools"] = "tools"
+    path_map["supervisor"] = "supervisor"
+    path_map["end"] = END
+
     graph_builder.add_conditional_edges(
         "supervisor",
         route_workflow,
-    )
-    graph_builder.add_conditional_edges(
-        "common_agent",
-        route_after_worker,
-        {"tools": "tools", "supervisor": "supervisor", "end": END},
+        path_map,
     )
     graph_builder.add_conditional_edges(
         "tools",
         route_back_from_tool,
+        path_map,
     )
     graph_builder.add_edge("memory", "supervisor")
     graph_builder.add_edge(START, "guardrail")
@@ -99,7 +100,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
 
     graph = graph_builder.compile(checkpointer=checkpointer)
 
-    if logger.level == logging.DEBUG:
+    if logger.level != logging.DEBUG:
         try:
             graph.get_graph().draw_mermaid_png(
                 output_file_path="graph.png", max_retries=5, retry_delay=2.0
@@ -158,7 +159,12 @@ def supervisor_node(state: State) -> dict:
     llm = llm_factory(settings.llm.default_profile)  # pylint: disable=no-member
     llm_structured = llm.with_structured_output(SupervisorAgentOutput)
 
-    messages = [SystemMessage(content=SUPERVISOR_PROMPT)] + state["messages"]
+    # Sanitize messages to remove orphaned ToolMessages caused by truncation
+    conversation_messages = state["messages"]
+    while conversation_messages and isinstance(conversation_messages[0], ToolMessage):
+        conversation_messages = conversation_messages[1:]
+
+    messages = [SystemMessage(content=SUPERVISOR_PROMPT)] + conversation_messages
 
     start_time = time.perf_counter()
     decision = llm_structured.invoke(messages)
@@ -278,6 +284,13 @@ def route_workflow(state: State) -> str:
 
 def route_back_from_tool(state: State) -> str:
     """Routes back to the designated worker after a tool call."""
+    # Check if the escalation tool was called
+    for message in reversed(state.get("messages", [])):
+        if isinstance(message, ToolMessage):
+            if message.name == "system__escalate_to_supervisor":
+                return "supervisor"
+        else:
+            break
     return state.get("next_worker")
 
 
@@ -332,10 +345,15 @@ def construct_llm_context(state: State, system_prompt: str):
             )
         ]
 
+    # Sanitize messages to remove orphaned ToolMessages caused by truncation
+    conversation_messages = state["messages"]
+    while conversation_messages and isinstance(conversation_messages[0], ToolMessage):
+        conversation_messages = conversation_messages[1:]
+
     messages = (
         [SystemMessage(content=system_prompt)]
         + memory_message
-        + state["messages"]
+        + conversation_messages
     )
 
     return messages
@@ -345,8 +363,10 @@ def filter_tools(
     tools: Sequence[BaseTool], allow_list: Sequence[str] = None
 ) -> Sequence[BaseTool]:
     """Filters tools based on name or regex pattern."""
-    if allow_list is None or len(allow_list) == 0:
+    if allow_list is None:
         return tools
+    if len(allow_list) == 0:
+        return []
 
     filtered_tools = []
     for tool in tools:

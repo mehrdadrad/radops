@@ -4,17 +4,31 @@ logging:
 agent:
   profiles:
     network_agent:
-      description: "network specialist"
+      description: "Specialist for network connectivity, latency, DNS, BGP, and IP routing issues."
       llm_profile: "openai-main"
       system_prompt_file: "../config/prompts/network_agent_prompt.txt"
       allow_tools:
+        - system__.*
         - network.*
     cloud_agent:
-      description: "cloud specialist"
+      description: "Specialist for AWS cloud infrastructure, EC2, VPC, IAM, and observability."
       llm_profile: "openai-main"
       system_prompt_file: "../config/prompts/cloud_agent_prompt.txt"
       allow_tools:
+        - system__.*
         - aws.*
+    support_agent:
+      description: "Specialist for operational support tasks: managing Jira tickets, PagerDuty incidents, GitHub issues, and searching the Knowledge Base."
+      llm_profile: "openai-main"
+      system_prompt_file: "../config/prompts/support_agent_prompt.txt"
+      allow_tools:
+        - system__.*
+        - kb.*
+        - jira.*
+        - pagerduty.*
+        - notion.*
+        - github.*
+        - mcp_echo_tool
  
 vector_store:
   profiles:

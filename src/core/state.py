@@ -8,7 +8,7 @@ from config.config import settings
 
 
 members = {
-    k: k for k in ["common_agent"] + list(settings.agent.profiles.keys())
+    k: k for k in list(settings.agent.profiles.keys())
 }
 WorkerEnum = Enum("WorkerEnum", members, type=str)
 

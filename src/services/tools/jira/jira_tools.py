@@ -51,7 +51,7 @@ class SearchJiraIssuesInput(JiraBaseInput):
 
 
 @tool(args_schema=CreateJiraTicketInput)
-async def create_jira_ticket(
+async def jira_create_ticket(
     user_id: Annotated[str, InjectedState("user_id")],
     project: str,
     summary: str,
@@ -93,7 +93,7 @@ async def create_jira_ticket(
 
 
 @tool(args_schema=SearchJiraIssuesInput)
-async def search_jira_issues(
+async def jira_search_issues(
     user_id: Annotated[str, InjectedState("user_id")],
     jql_query: str,
     max_results: int = 20

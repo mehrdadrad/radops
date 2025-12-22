@@ -39,7 +39,7 @@ from services.tools.github.pull_request import (
     github_create_pull_request,
     github_list_pull_requests,
 )
-from services.tools.jira.jira_tools import create_jira_ticket, search_jira_issues
+from services.tools.jira.jira_tools import jira_create_ticket, jira_search_issues
 from services.tools.network.lg.lg import (
     network__verizon_looking_glass,
     network__verizon_looking_glass_locations,
@@ -54,6 +54,8 @@ from services.tools.system.history.history_tools import (
     create_history_retrieval_tool,
 )
 from services.tools.system.kb.kb_tools import create_kb_tools
+from services.tools.system.system.system import system__escalate_to_supervisor
+
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +89,8 @@ class ToolRegistry:
             network__verizon_looking_glass,
             network__verizon_looking_glass_locations,
             network__get_geoip_location,
-            create_jira_ticket,
-            search_jira_issues,
+            jira_create_ticket,
+            jira_search_issues,
             network__check_host,
             network__get_check_host_nodes,
             github_list_issues,
@@ -109,6 +111,7 @@ class ToolRegistry:
             aws__manage_internet_gateway,
             aws__manage_route_table,
             aws__manage_route,
+            system__escalate_to_supervisor
         ]
 
         mcp_tools = []
