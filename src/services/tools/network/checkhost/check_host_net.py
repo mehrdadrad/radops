@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 import httpx
 from langchain_core.tools import tool
@@ -68,82 +68,24 @@ async def _run_check(check_type: str, host: str, max_nodes: Optional[int] = 3, n
 
 
 @tool
-async def check_host_ping(host: str, max_nodes: Optional[int] = 3, nodes: Optional[List[str]] = None) -> str:
+async def network__check_host(check_type: Literal["ping", "http", "tcp", "dns"], host: str, max_nodes: Optional[int] = 3, nodes: Optional[List[str]] = None) -> str:
     """
-    Performs a ping check from multiple geographical locations using check-host.net.
+    Performs a network check (ping, http, tcp, dns) from multiple geographical locations using check-host.net.
 
     Args:
-        host: The hostname or IP address to ping.
-        max_nodes: The maximum number of random nodes to use for the check. Defaults to 3.
-        nodes: A specific list of node names to use for the check (e.g., ["us1.node.check-host.net"]).
-
-    Returns:
-        A JSON string with the ping results from each node.
-    """
-    return await _run_check("ping", host, max_nodes, nodes)
-
-
-@tool
-async def check_host_http(host: str, max_nodes: Optional[int] = 3, nodes: Optional[List[str]] = None) -> str:
-    """
-    Performs an HTTP check from multiple geographical locations using check-host.net.
-
-    Args:
-        host: The URL to check (e.g., 'https://example.com').
+        check_type: The type of check to perform. Must be one of: 'ping', 'http', 'tcp', 'dns'.
+        host: The target to check. For 'http', use a URL. For 'tcp', use 'host:port'. For 'ping'/'dns', use hostname/IP.
         max_nodes: The maximum number of random nodes to use for the check. Defaults to 3.
         nodes: A specific list of node names to use for the check.
 
     Returns:
-        A JSON string with the HTTP check results from each node.
+        A JSON string with the check results from each node. For DNS, parse and display records clearly.
     """
-    return await _run_check("http", host, max_nodes, nodes)
+    return await _run_check(check_type, host, max_nodes, nodes)
 
 
 @tool
-async def check_host_tcp(host: str, max_nodes: Optional[int] = 3, nodes: Optional[List[str]] = None) -> str:
-    """
-    Performs a TCP port connection check from multiple geographical locations using check-host.net.
-
-    Args:
-        host: The host and port to check (e.g., 'example.com:443').
-        max_nodes: The maximum number of random nodes to use for the check. Defaults to 3.
-        nodes: A specific list of node names to use for the check.
-
-    Returns:
-        A JSON string with the TCP connection results from each node.
-    """
-    return await _run_check("tcp", host, max_nodes, nodes)
-
-
-@tool
-async def check_host_dns(host: str, max_nodes: Optional[int] = 3, nodes: Optional[List[str]] = None) -> str:
-    """
-    Performs a DNS record check from multiple geographical locations. It returns a JSON object where each key is a monitoring node and the value contains the DNS 'A' (IPv4), 'AAAA' (IPv6), and 'TTL' records.
-    You MUST parse this JSON and present the results to the user in a clear, formatted list. For each node, display the A records, AAAA records (if any), and TTL.
-
-    For example, format the output like this:
-    1. **at1.node.check-host.net**:
-       - A Records: 74.208.236.26
-       - TTL: 300
-    
-    2. **ca1.node.check-host.net**:
-       - A Records: 74.208.236.26
-       - TTL: 300
-
-
-    Args:
-        host: The hostname to resolve.
-        max_nodes: The maximum number of random nodes to use for the check. Defaults to 3.
-        nodes: A specific list of node names to use for the check.
-
-    Returns:
-        A JSON string with the DNS resolution results from each node.
-    """
-    return await _run_check("dns", host, max_nodes, nodes)
-
-
-@tool
-async def get_check_host_nodes() -> str:
+async def network__get_check_host_nodes() -> str:
     """
     Fetches the list of available monitoring nodes from check-host.net.
     Use this to find valid node names for other check-host tools.

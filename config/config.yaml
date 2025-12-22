@@ -7,10 +7,14 @@ agent:
       description: "network specialist"
       llm_profile: "openai-main"
       system_prompt_file: "../config/prompts/network_agent_prompt.txt"
+      allow_tools:
+        - network.*
     cloud_agent:
       description: "cloud specialist"
       llm_profile: "openai-main"
       system_prompt_file: "../config/prompts/cloud_agent_prompt.txt"
+      allow_tools:
+        - aws.*
  
 vector_store:
   profiles:

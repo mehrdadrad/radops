@@ -1,5 +1,6 @@
 """This module defines and configures the main LangGraph for the agent."""
 import logging
+import re
 import time
 from typing import Any, AsyncGenerator, Literal, Sequence
 
@@ -81,10 +82,11 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         else:
             raise ValueError("System prompt file not found")
         logger.info("Configuring agent: %s", agent_name)
+        filtered_tools = filter_tools(tools, agent_config.allow_tools)
         graph_builder.add_node(
             agent_name,
             create_agent(
-                agent_name, system_prompt, tools, agent_config.llm_profile
+                agent_name, system_prompt, filtered_tools, agent_config.llm_profile
             ),
         )
         graph_builder.add_conditional_edges(
@@ -92,6 +94,8 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
             route_after_worker,
             {"tools": "tools", "supervisor": "supervisor", "end": END},
         )
+        logger.info("Agent configured: %s with %d tools.", agent_name, len(filtered_tools))
+
 
     graph = graph_builder.compile(checkpointer=checkpointer)
 
@@ -335,3 +339,19 @@ def construct_llm_context(state: State, system_prompt: str):
     )
 
     return messages
+
+
+def filter_tools(
+    tools: Sequence[BaseTool], allow_list: Sequence[str] = None
+) -> Sequence[BaseTool]:
+    """Filters tools based on name or regex pattern."""
+    if allow_list is None or len(allow_list) == 0:
+        return tools
+
+    filtered_tools = []
+    for tool in tools:
+        for pattern in allow_list:
+            if re.fullmatch(pattern, tool.name):
+                filtered_tools.append(tool)
+                break
+    return filtered_tools

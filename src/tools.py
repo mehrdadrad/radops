@@ -29,27 +29,24 @@ from services.tools.aws.troubleshooting import (
     aws__get_target_group_health,
     aws__simulate_iam_policy,
 )
-from services.tools.checkhost.check_host_net import (
-    check_host_dns,
-    check_host_http,
-    check_host_ping,
-    check_host_tcp,
-    get_check_host_nodes,
+from services.tools.network.checkhost.check_host_net import (
+    network__check_host,
+    network__get_check_host_nodes,
 )
-from services.tools.geoip.geoip import get_geoip_location
+from services.tools.network.geoip.geoip import network__get_geoip_location
 from services.tools.github.issue import github_create_issue, github_list_issues
 from services.tools.github.pull_request import (
     github_create_pull_request,
     github_list_pull_requests,
 )
 from services.tools.jira.jira_tools import create_jira_ticket, search_jira_issues
-from services.tools.lg.lg import (
-    verizon_looking_glass,
-    verizon_looking_glass_locations,
+from services.tools.network.lg.lg import (
+    network__verizon_looking_glass,
+    network__verizon_looking_glass_locations,
 )
-from services.tools.peeringdb.peeringdb import (
-    get_asn_peering_info,
-    get_peering_exchange_info,
+from services.tools.network.peeringdb.peeringdb import (
+    network__get_asn_peering_info,
+    network__get_peering_exchange_info,
 )
 from services.tools.system.config.secrets import set_user_secrets
 from services.tools.system.history.history_tools import (
@@ -85,18 +82,15 @@ class ToolRegistry:
         ]
 
         local_tools = [
-            get_asn_peering_info,
-            get_peering_exchange_info,
-            verizon_looking_glass,
-            verizon_looking_glass_locations,
-            get_geoip_location,
+            network__get_asn_peering_info,
+            network__get_peering_exchange_info,
+            network__verizon_looking_glass,
+            network__verizon_looking_glass_locations,
+            network__get_geoip_location,
             create_jira_ticket,
             search_jira_issues,
-            check_host_ping,
-            check_host_http,
-            check_host_tcp,
-            check_host_dns,
-            get_check_host_nodes,
+            network__check_host,
+            network__get_check_host_nodes,
             github_list_issues,
             github_create_issue,
             github_create_pull_request,

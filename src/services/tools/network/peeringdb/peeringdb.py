@@ -8,7 +8,7 @@ from config.tools import tool_settings as settings
 
 
 @tool
-async def get_asn_peering_info(asn: str) -> str:
+async def network__get_asn_peering_info(asn: str) -> str:
     """
     Fetches detailed information about a network from PeeringDB based on its
     Autonomous System Number (ASN).
@@ -41,7 +41,7 @@ async def get_asn_peering_info(asn: str) -> str:
 
 
 @tool
-async def get_peering_exchange_info(
+async def network__get_peering_exchange_info(
     asn: str, filter_by_name: Optional[str] = None
 ) -> str:
     """

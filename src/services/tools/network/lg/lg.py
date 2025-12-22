@@ -6,7 +6,7 @@ from langchain.tools import tool
 
 
 @tool
-def verizon_looking_glass(
+def network__verizon_looking_glass(
     destination: str,
     command: str = "ping",
     source: str = "ASHBURN,USA",
@@ -97,7 +97,7 @@ def verizon_looking_glass(
 
 
 @tool
-def verizon_looking_glass_locations() -> list[str] | str:
+def network__verizon_looking_glass_locations() -> list[str] | str:
     """
     Fetches the list of available source locations for the Verizon Looking Glass tool.
     Returns a list of location strings (e.g., 'ASHBURN,USA') that can be used

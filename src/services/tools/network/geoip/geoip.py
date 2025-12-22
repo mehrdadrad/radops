@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def get_geoip_location(ip_address: str) -> str:
+def network__get_geoip_location(ip_address: str) -> str:
     """
     Performs a GeoIP lookup for a given IP address to find its geographical location.
     Use this tool when the user asks for the location, country, city, or other geographic details of an IP address.

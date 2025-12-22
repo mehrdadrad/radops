@@ -82,6 +82,7 @@ class AgentSettings(BaseModel):
 
     description: str = None
     llm_profile: str = None
+    allow_tools: list[str] = Field(default_factory=list)
     system_prompt_file: str
 
 
