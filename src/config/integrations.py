@@ -1,3 +1,4 @@
+"""Handles integration settings for the application."""
 import logging
 import os
 from typing import Any, Optional
@@ -23,7 +24,7 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
     )
 
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             yaml_data = yaml.safe_load(f) or {}
     except FileNotFoundError:
         return {}
@@ -44,7 +45,8 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
                 )
             else:
                 logger.warning(
-                    "Vault authentication failed. Skipping secret resolution from integrations.yaml."
+                    "Vault authentication failed. "
+                    "Skipping secret resolution from integrations.yaml."
                 )
         except Exception as e:
             logger.error(

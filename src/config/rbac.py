@@ -1,3 +1,4 @@
+"""Handles Role-Based Access Control (RBAC) settings for the application."""
 import os
 from typing import Any, Dict
 
@@ -14,7 +15,7 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
     config_path = os.path.join(os.path.dirname(__file__), '..', '..','config', 'rbac.yaml')
 
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f) or {}
     except FileNotFoundError:
         # Return empty dict if rbac.yaml is not found
