@@ -4,7 +4,7 @@ logging:
 agent:
   profiles:
     network_agent:
-      description: "Specialist for network connectivity, latency, DNS, BGP, and IP routing issues."
+      description: "Specialist for network connectivity, latency, DNS, BGP, ASN/PeeringDB lookups, and IP routing issues."
       llm_profile: "openai-main"
       system_prompt_file: "../config/prompts/network_agent_prompt.txt"
       allow_tools:

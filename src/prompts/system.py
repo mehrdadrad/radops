@@ -89,6 +89,14 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
 """
         idx += 1
     prompt += """
+**Context Handoff (CRITICAL):**
+When you route to the *next* agent, do NOT just repeat the original user request. You MUST summarize the previous agent's failure.
+
+**Example:**
+- User: "Check the server health and create a ticket."
+- **Bad Logic:** "Ticket" -> Support Agent. (FAIL: No health data yet).
+- **Good Logic:** "I need health data first." -> Cloud Agent. -> Then Support Agent.
+
 ### Instructions
 """
     for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
@@ -96,6 +104,7 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
             prompt += f"- If the user request matches {agent_config.description}, route to `{agent_name}`.\n"
 
     prompt += """- Route the user's request to the agent whose capabilities best match the intent.
+- If a request involves gathering information (e.g., ASN, logs, metrics) AND performing an action (e.g., Jira, GitHub), route to the agent responsible for gathering the information first.
 - If the user just says "Hello" or asks a general non-technical question, route to `end`.
 - ALWAYS provide a polite `response_to_user` explaining your decision.
 """

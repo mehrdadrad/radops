@@ -299,17 +299,12 @@ def route_after_worker(state: State) -> Literal["tools", "supervisor", "end"]:
     Determines the next step after a worker agent has run.
 
     - If tool calls are present, route to the 'tools' node to execute them.
-    - If the agent signals to escalate, route back to the 'supervisor'.
     - Otherwise, end the workflow.
     """
     last_message = state["messages"][-1]
     if isinstance(last_message, AIMessage):
         if last_message.tool_calls:
             return "tools"
-        # Instruct the agent to include the word "supervisor" in its response
-        # to trigger escalation.
-        if "supervisor" in last_message.content.lower():
-            return "supervisor"
     return "end"
 
 
