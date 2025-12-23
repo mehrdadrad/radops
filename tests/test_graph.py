@@ -74,6 +74,9 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         mock_output = MagicMock(
             spec=SupervisorAgentOutput,
             next_worker=MagicMock(value="network_agent"),
+            response_to_user="Response for user",
+            instructions_for_worker="Instructions for worker",
+            original_request="Original user request",
         )
         mock_structured_llm.invoke.return_value = mock_output
 
