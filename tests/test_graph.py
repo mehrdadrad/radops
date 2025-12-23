@@ -109,12 +109,6 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(route_after_worker({"messages": [tool_msg]}), "tools")
 
-        # Supervisor escalation keyword -> route to supervisor
-        escalate_msg = AIMessage(content="I need to escalate to the supervisor.")
-        self.assertEqual(
-            route_after_worker({"messages": [escalate_msg]}), "supervisor"
-        )
-
         # Normal response -> end
         end_msg = AIMessage(content="Here is the answer.")
         self.assertEqual(route_after_worker({"messages": [end_msg]}), "end")
@@ -137,6 +131,15 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(route_back_from_tool({"next_worker": "common_agent"}), "common_agent")
         self.assertEqual(route_back_from_tool({"next_worker": "network_agent"}), "network_agent")
         self.assertEqual(route_back_from_tool({"next_worker": "cloud_agent"}), "cloud_agent")
+
+        # Test escalation
+        escalation_state = {
+            "messages": [
+                ToolMessage(content="Escalating", tool_call_id="1", name="system__escalate_to_supervisor")
+            ],
+            "next_worker": "network_agent"
+        }
+        self.assertEqual(route_back_from_tool(escalation_state), "supervisor")
 
     def test_check_end_status(self):
         """Test check_end_status logic."""
