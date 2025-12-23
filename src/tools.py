@@ -48,7 +48,7 @@ from services.tools.network.peeringdb.peeringdb import (
     network__get_asn_peering_info,
     network__get_peering_exchange_info,
 )
-from services.tools.system.config.secrets import set_user_secrets
+from services.tools.system.config.secrets import secret__set_user_secrets
 from services.tools.system.history.history_tools import (
     create_history_deletion_tool,
     create_history_retrieval_tool,
@@ -80,7 +80,7 @@ class ToolRegistry:
         system_tools: List[BaseTool] = [
             create_history_deletion_tool(self.checkpointer),
             create_history_retrieval_tool(self.checkpointer),
-            set_user_secrets,
+            secret__set_user_secrets,
         ]
 
         local_tools = [
