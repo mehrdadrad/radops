@@ -173,10 +173,19 @@ def supervisor_node(state: State) -> dict:
         "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
     )
 
+    ai_message = AIMessage(
+        content=decision.response_to_user
+    )
+    context_message = HumanMessage(
+        content=f"COMMAND FROM SUPERVISOR: {decision.instructions_for_worker}",
+        name="supervisor"
+    )
+
     nodes = state["response_metadata"].get("nodes", []) + [node_name]
     return {
         "next_worker": decision.next_worker.value,
         "response_metadata": {"nodes": nodes},
+        "messages": [context_message, ai_message],
     }
 
 

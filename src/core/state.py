@@ -26,9 +26,25 @@ class State(TypedDict):
 class SupervisorAgentOutput(BaseModel):
     # The Logic: Hidden from user, used by Graph
     next_worker: WorkerEnum = Field(
-        description="The next logical step to take, if it needs to take an action "
+        description=(
+            "The single worker responsible for the very next action. "
+            "Select ONLY ONE."
+        )
     )
     # The Content: Shown to user
     response_to_user: str = Field(
-        description="A natural language response telling the user what you are doing."
+        description=(
+            "A natural language response telling the user about the overall "
+            "plan or the next immediate step."
+        )
+    )
+    instructions_for_worker: str = Field(
+        description=(
+            "The instructions for the selected 'next_worker'. This must only "
+            "contain the instructions for the single, immediate next step. "
+            "Only include the phrase 'then escalate back to the supervisor' "
+            "if you have determined that there are more steps required to "
+            "fully answer the user's original request. ensure that no "
+            "further action is taken unless explicitly requested"
+        )
     )
