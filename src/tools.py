@@ -53,6 +53,7 @@ from services.tools.system.history.history_tools import (
     create_history_deletion_tool,
     create_history_retrieval_tool,
 )
+from services.tools.system.history.long_memory import memory__clear_long_term_memory
 from services.tools.system.kb.kb_tools import create_kb_tools
 from services.tools.system.system.system import system__escalate_to_supervisor
 
@@ -78,6 +79,7 @@ class ToolRegistry:
     async def get_all_tools(self) -> List[BaseTool]:
         """Gathers and returns all available tools."""
         system_tools: List[BaseTool] = [
+            memory__clear_long_term_memory,
             create_history_deletion_tool(self.checkpointer),
             create_history_retrieval_tool(self.checkpointer),
             secret__set_user_secrets,
