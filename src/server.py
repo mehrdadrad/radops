@@ -2,6 +2,8 @@
 This module implements a FastAPI server for the RadOps assistant.
 """
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 from libs.logger import initialize_logger
 
@@ -15,6 +17,9 @@ from core.graph import astream_graph_updates, run_graph
 from core.memory import mem0_manager
 from services.telemetry.telemetry import Telemetry
 from tools import ToolRegistry
+from libs.status_generator import StatusGenerator
+
+USE_PLAIN_MESSAGE = os.getenv("PLAIN_MESSAGE", "false").lower() == "true" or "--plain-message" in sys.argv
 
 
 app = FastAPI(
@@ -79,7 +84,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     agent_name = "unknown"
                     if metadata and "nodes" in metadata and metadata["nodes"]:
                         agent_name = metadata["nodes"][-1]
-                    message = f"Agent: {agent_name} -> Running tool: {tool_name}"
+
+                    if USE_PLAIN_MESSAGE:
+                        message = f"Agent: {agent_name} -> Running tool: {tool_name}"
+                    else:
+                        status = StatusGenerator.parse_tool_call(tool_name, {})
+                        message = f"{status}"
                 else:
                     message = str(chunk.content)
                 await websocket.send_text(message)
