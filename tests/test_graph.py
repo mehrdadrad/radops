@@ -114,7 +114,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         # Normal response -> end
         end_msg = AIMessage(content="Here is the answer.")
-        self.assertEqual(route_after_worker({"messages": [end_msg]}), "end")
+        self.assertEqual(route_after_worker({"messages": [end_msg]}), "supervisor")
 
     def test_tools_condition(self):
         """Test the basic tools condition check."""

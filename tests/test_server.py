@@ -87,6 +87,7 @@ class TestServer(unittest.TestCase):
                 eot = websocket.receive_text()
                 self.assertEqual(eot, "\x03")
 
+    @patch("server.USE_PLAIN_MESSAGE", True)
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.astream_graph_updates")
