@@ -70,13 +70,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     try:
         async for user_input in websocket.iter_text():
             logging.info("Received message from %s: %s", user_id, user_input)
-            async for chunk, _ in astream_graph_updates(
+            async for chunk, metadata in astream_graph_updates(
                 graph, user_input, user_id
             ):
                 message = None
                 if chunk.tool_calls:
                     tool_name = chunk.tool_calls[0].get("name", "unknown")
-                    message = f"Running tool: {tool_name}"
+                    agent_name = "unknown"
+                    if metadata and "nodes" in metadata and metadata["nodes"]:
+                        agent_name = metadata["nodes"][-1]
+                    message = f"Agent: {agent_name} -> Running tool: {tool_name}"
                 else:
                     message = str(chunk.content)
                 await websocket.send_text(message)
