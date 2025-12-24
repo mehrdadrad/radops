@@ -9,6 +9,7 @@ agent:
       system_prompt_file: "../config/prompts/network_agent_prompt.txt"
       allow_tools:
         - system__.*
+        - kb.*
         - network.*
     cloud_agent:
       description: "Specialist for AWS cloud infrastructure, EC2, VPC, IAM, and observability."
@@ -23,6 +24,7 @@ agent:
       system_prompt_file: "../config/prompts/support_agent_prompt.txt"
       allow_tools:
         - system__.*
+        - memory__.*
         - secret__.*
         - kb.*
         - jira.*

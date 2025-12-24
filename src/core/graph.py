@@ -21,7 +21,7 @@ from core.auth import is_tool_authorized
 from core.llm import llm_factory
 from core.memory import get_mem0_client
 from core.state import State, SupervisorAgentOutput
-from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, SYSTEM_PROMPT
+from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT
 from services.guardrails.guardrails import guardrail
 from services.telemetry.telemetry import Telemetry
 from tools import ToolRegistry
@@ -93,7 +93,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         graph_builder.add_conditional_edges(
             agent_name,
             route_after_worker,
-            {"tools": "tools", "supervisor": "supervisor", "end": END},
+            {"tools": "tools", "supervisor": "supervisor"},
         )
         logger.info("Agent configured: %s with %d tools.", agent_name, len(filtered_tools))
 
@@ -173,15 +173,27 @@ def supervisor_node(state: State) -> dict:
         "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
     )
 
+    nodes = state["response_metadata"].get("nodes", []) + [node_name]
     ai_message = AIMessage(
         content=decision.response_to_user
     )
+    
+    if decision.next_worker == "end":
+        return {
+            "next_worker": "end",
+            "messages": [ai_message], 
+            "response_metadata": {"nodes": nodes},
+        }
+
     context_message = HumanMessage(
-        content=f"COMMAND FROM SUPERVISOR: {decision.instructions_for_worker}",
+        content=(
+        "COMMAND FROM SUPERVISOR: "
+        f"{decision.instructions_for_worker}, "
+        "ESCALATE back to the supervisor"
+        ),
         name="supervisor"
     )
 
-    nodes = state["response_metadata"].get("nodes", []) + [node_name]
     return {
         "next_worker": decision.next_worker.value,
         "response_metadata": {"nodes": nodes},
@@ -303,7 +315,7 @@ def route_back_from_tool(state: State) -> str:
     return state.get("next_worker")
 
 
-def route_after_worker(state: State) -> Literal["tools", "supervisor", "end"]:
+def route_after_worker(state: State) -> Literal["tools", "supervisor"]:
     """
     Determines the next step after a worker agent has run.
 
@@ -314,7 +326,7 @@ def route_after_worker(state: State) -> Literal["tools", "supervisor", "end"]:
     if isinstance(last_message, AIMessage):
         if last_message.tool_calls:
             return "tools"
-    return "end"
+    return "supervisor"
 
 
 def check_end_status(state: State) -> Literal["end", "continue"]:
@@ -379,3 +391,29 @@ def filter_tools(
                 filtered_tools.append(tool)
                 break
     return filtered_tools
+
+def detect_tool_loop(state, limit=3):
+    messages = state['messages']
+    
+    # Filter only AI messages that have tool calls
+    tool_calls = [
+        m.tool_calls[0] 
+        for m in messages[-limit*2:] # Look at last few turns
+        if isinstance(m, AIMessage) and m.tool_calls
+    ]
+
+    # Check if we have enough history to detect a loop
+    if len(tool_calls) < limit:
+        return False
+
+    # Extract Name AND Arguments
+    # We check arguments to allow "Pagination" (calling same tool with different next_token is OK)
+    last_call = tool_calls[-1]
+    
+    # Check if the last 'limit' calls are identical
+    is_loop = all(
+        (t['name'] == last_call['name'] and t['args'] == last_call['args'])
+        for t in tool_calls[-limit:]
+    )
+
+    return is_loop

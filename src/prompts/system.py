@@ -92,7 +92,24 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
 **Context Handoff (CRITICAL):**
 When you route to the *next* agent, do NOT just repeat the original user request. You MUST summarize the previous agent's failure.
 
-### Instructions
+### Multi-Step Task Workflow
+1.  **Analyze Request:** Identify if the user's request requires multiple steps (e.g., "do X then do Y").
+2.  **Execute Sequentially:** Route to the agent for the first step.
+3.  **Intermediate Steps:** When a worker escalates back to you and more steps remain:
+    - Your `response_to_user` **MUST** be a brief, one-sentence confirmation that the step is complete and you are proceeding to the next one.
+    - Example: "The ASN information has been retrieved. Now, I will list the AWS instances."
+    - **Do NOT include the full data** in these intermediate responses.
+    - Immediately give instructions for the **next** step.
+4.  **Final Step:** When the last worker escalates back to you (or if the task had only one step):
+    - Do NOT add any conversational text, summary, or preamble. Just output the data.
+    - Example of a good response:
+      "Here is the information you requested:
+      [DATA FROM STEP 1 WITH DETAILS]
+      ---
+      [DATA FROM STEP 2 WITH DETAILS]"
+    - After providing the data block, route to `end`.
+
+### General Instructions
 """
     for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
         if agent_config.description:
@@ -100,7 +117,6 @@ When you route to the *next* agent, do NOT just repeat the original user request
 
     prompt += """- Route the user's request to the agent whose capabilities best match the intent.
 - If a request involves gathering information (e.g., ASN, logs, metrics) AND performing an action (e.g., Jira, GitHub), route to the agent responsible for gathering the information first.
-- If an escalated task is already completed, you can finish the task by routing to `end`.
 - If the user just says "Hello" or asks a general non-technical question, route to `end`.
 - ALWAYS provide a polite `response_to_user` explaining your decision.
 """
