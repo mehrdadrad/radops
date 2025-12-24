@@ -86,9 +86,22 @@ class AgentSettings(BaseModel):
     system_prompt_file: str
 
 
+class SupervisorSettings(BaseModel):
+    """Settings for the supervisor agent."""
+
+    llm_profile: Optional[str] = None
+
+class SystemSettings(BaseModel):
+    """Settings for the system agent."""
+
+    llm_profile: Optional[str] = None    
+
+
 class AgentsSettings(BaseModel):
     """Settings for all agents."""
 
+    supervisor: SupervisorSettings = Field(default_factory=SupervisorSettings)
+    system: SystemSettings = Field(default_factory=SystemSettings)
     profiles: Dict[str, AgentSettings] = Field(default_factory=dict)
 
 

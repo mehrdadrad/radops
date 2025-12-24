@@ -11,6 +11,7 @@ members = {
     k: k for k in list(settings.agent.profiles.keys())
 }
 # Add a way to end the conversation
+members["system"] = "system"
 members["end"] = "end"
 WorkerEnum = Enum("WorkerEnum", members, type=str)
 

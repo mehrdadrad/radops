@@ -2,6 +2,7 @@
 import logging
 import re
 import time
+from functools import partial
 from typing import Any, AsyncGenerator, Literal, Sequence
 
 from langchain_core.messages import (
@@ -21,7 +22,7 @@ from core.auth import is_tool_authorized
 from core.llm import llm_factory
 from core.memory import get_mem0_client
 from core.state import State, SupervisorAgentOutput
-from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT
+from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, PLATFORM_PROMPT
 from services.guardrails.guardrails import guardrail
 from services.telemetry.telemetry import Telemetry
 from tools import ToolRegistry
@@ -38,14 +39,17 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     if tools is None:
         tools = await tool_registry.get_all_tools()
 
+    system_tools = await tool_registry.get_system_tools()    
+
     graph_builder = StateGraph(State)
     graph_builder.add_node("guardrail", guardrail)
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node("supervisor", supervisor_node)
+    graph_builder.add_node("system", partial(system_node, tools=system_tools))
     graph_builder.add_node(
         "tools",
         ToolNode(
-            tools=tools,
+            tools=tools + system_tools,
             awrap_tool_call=authorize_tools,
             handle_tool_errors=custom_error_handler,
         ),
@@ -56,6 +60,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     path_map = {name: name for name in settings.agent.profiles.keys()}
     path_map["tools"] = "tools"
     path_map["supervisor"] = "supervisor"
+    path_map["system"] = "system"
     path_map["end"] = END
 
     graph_builder.add_conditional_edges(
@@ -71,7 +76,14 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     graph_builder.add_edge("memory", "supervisor")
     graph_builder.add_edge(START, "guardrail")
     graph_builder.add_conditional_edges(
-        "guardrail", check_end_status, {"end": END, "continue": "memory"}
+        "guardrail", 
+        check_end_status, 
+        {"end": END, "continue": "memory"},
+    )
+    graph_builder.add_conditional_edges(
+        "system",
+        route_after_worker,
+        {"tools": "tools", "supervisor": "supervisor"},
     )
 
     # setup configured agent(s)
@@ -156,7 +168,10 @@ def supervisor_node(state: State) -> dict:
         "agent.invocations.total", attributes={"agent": node_name}
     )
 
-    llm = llm_factory(settings.llm.default_profile)  # pylint: disable=no-member
+    llm_profile = (
+        settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
+    )
+    llm = llm_factory(llm_profile)
     llm_structured = llm.with_structured_output(SupervisorAgentOutput)
 
     # Sanitize messages to remove orphaned ToolMessages caused by truncation
@@ -199,6 +214,33 @@ def supervisor_node(state: State) -> dict:
         "response_metadata": {"nodes": nodes},
         "messages": [context_message, ai_message],
     }
+
+def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
+    """The system node that manages the infrastructure of the bot itself."""
+    node_name = "system"
+    telemetry.update_counter(
+        "agent.invocations.total", attributes={"agent": node_name}
+    )
+
+    llm_profile = (
+        settings.agent.system.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
+    )
+    llm = llm_factory(llm_profile)
+    llm_with_tools = llm.bind_tools(tools)
+
+    user_id = state.get("user_id", "User")
+    prompt = f"{PLATFORM_PROMPT}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
+    messages = construct_llm_context(state, prompt)
+
+    start_time = time.perf_counter()
+    decision = llm_with_tools.invoke(messages)
+    duration = time.perf_counter() - start_time
+    telemetry.update_histogram(
+        "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
+    )
+
+    nodes = state["response_metadata"].get("nodes", []) + [node_name]
+    return {"messages": [decision], "response_metadata": {"nodes": nodes}}
 
 
 async def manage_memory_node(state: State) -> dict:

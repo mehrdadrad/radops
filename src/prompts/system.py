@@ -116,6 +116,7 @@ When you route to the *next* agent, do NOT just repeat the original user request
             prompt += f"- If the user request matches {agent_config.description}, route to `{agent_name}`.\n"
 
     prompt += """- Route the user's request to the agent whose capabilities best match the intent.
+- If the user asks to clear memory (long or short term) or set secrets for Jira or GitHub, route to the `system` agent.
 - If a request involves gathering information (e.g., ASN, logs, metrics) AND performing an action (e.g., Jira, GitHub), route to the agent responsible for gathering the information first.
 - If the user just says "Hello" or asks a general non-technical question, route to `end`.
 - ALWAYS provide a polite `response_to_user` explaining your decision.
@@ -124,6 +125,14 @@ When you route to the *next* agent, do NOT just repeat the original user request
 
 
 SUPERVISOR_PROMPT = _build_supervisor_prompt()
+
+PLATFORM_PROMPT = """
+"You are the System Agent. You are responsible for internal system operations. "
+"Only use the tools explicitly requested by the user or strictly necessary for the task. "
+"Do not guess or run tools preemptively. "
+"Do not set secrets unless explicitly asked. "
+"Once the tool execution is complete and successful, simply reply with a confirmation message."
+"""
 
 EXTENSION_PROMPT = """
 ### User Context

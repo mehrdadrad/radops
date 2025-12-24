@@ -78,13 +78,6 @@ class ToolRegistry:
 
     async def get_all_tools(self) -> List[BaseTool]:
         """Gathers and returns all available tools."""
-        system_tools: List[BaseTool] = [
-            memory__clear_long_term_memory,
-            create_history_deletion_tool(self.checkpointer),
-            create_history_retrieval_tool(self.checkpointer),
-            secret__set_user_secrets,
-        ]
-
         local_tools = [
             network__get_asn_peering_info,
             network__get_peering_exchange_info,
@@ -139,7 +132,17 @@ class ToolRegistry:
             logger.error("No dynamic knowledge base tools found: %s", e)
             dynamic_kb_tools = []
 
-        return system_tools + local_tools + mcp_tools + dynamic_kb_tools
+        return local_tools + mcp_tools + dynamic_kb_tools
+    
+    async def get_system_tools(self):
+        system_tools: List[BaseTool] = [
+            memory__clear_long_term_memory,
+            create_history_deletion_tool(self.checkpointer),
+            create_history_retrieval_tool(self.checkpointer),
+            secret__set_user_secrets,
+        ]
+        return system_tools
+
 
     async def close(self):
         """Closes any open clients."""
