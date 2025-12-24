@@ -152,6 +152,13 @@ class GuardrailSettings(BaseModel):
     enabled: bool = False
 
 
+class GraphSettings(BaseModel):
+    """Settings for graph execution."""
+
+    max_concurrency: int = 5
+    recursion_limit: int = 40
+
+
 class MetadataStructureSetting(BaseModel):
     """Settings for metadata structure."""
 
@@ -258,6 +265,9 @@ class Settings(BaseSettings):
 
     # Guardrail
     guardrail: GuardrailSettings = Field(default_factory=GuardrailSettings)
+
+    # Graph
+    graph: GraphSettings = Field(default_factory=GraphSettings)
 
     # Memory
     memory: MemorySettings = Field(default_factory=MemorySettings)

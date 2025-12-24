@@ -263,7 +263,11 @@ async def astream_graph_updates(
     graph: StateGraph, user_input: str, user_id: str
 ) -> AsyncGenerator[AIMessage, Any]:
     """Streams updates from the graph execution."""
-    config = {"configurable": {"thread_id": user_id}}
+    config = {
+        "configurable": {"thread_id": user_id},
+        "recursion_limit": settings.graph.recursion_limit,
+        "max_concurrency": settings.graph.max_concurrency,
+    }
     initial_input = {
         "messages": [{"role": "user", "content": user_input}],
         "user_id": user_id,
