@@ -2,9 +2,9 @@
 import os
 from typing import Any, Dict
 
-import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from config.utils import load_yaml_config
 
 
 def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, Any]:
@@ -13,13 +13,7 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
     at the project's root.
     """
     config_path = os.path.join(os.path.dirname(__file__), '..', '..','config', 'rbac.yaml')
-
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        # Return empty dict if rbac.yaml is not found
-        return {}
+    return load_yaml_config(config_path)
 
 
 class RBACSettings(BaseSettings):

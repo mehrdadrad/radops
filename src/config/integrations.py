@@ -3,13 +3,11 @@ import logging
 import os
 from typing import Any, Optional
 
-import hvac
-import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from config.config import settings as app_settings
-from libs.vault_resolver import resolve_vault_secrets
+from config.utils import load_yaml_config, process_vault_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -23,37 +21,18 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
         os.path.dirname(__file__), '..', '..', 'config', 'integrations.yaml'
     )
 
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            yaml_data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return {}
+    yaml_data = load_yaml_config(config_path)
 
     # Resolve vault secrets
     vault_url = os.environ.get("VAULT_URL", app_settings.vault.url)
     vault_token = os.environ.get("VAULT_TOKEN", app_settings.vault.token)
+    vault_mount_point = os.environ.get(
+        "VAULT_MOUNT_POINT", app_settings.vault.mount_point
+    )
 
-    if vault_url and vault_token:
-        vault_mount_point = os.environ.get(
-            "VAULT_MOUNT_POINT", app_settings.vault.mount_point
-        )
-        try:
-            vault_client = hvac.Client(url=vault_url, token=vault_token)
-            if vault_client.is_authenticated():
-                return resolve_vault_secrets(
-                    yaml_data, vault_client, vault_mount_point
-                )
-            else:
-                logger.warning(
-                    "Vault authentication failed. "
-                    "Skipping secret resolution from integrations.yaml."
-                )
-        except Exception as e:
-            logger.error(
-                f"Error connecting to Vault or resolving secrets from integrations.yaml: {e}"
-            )
-
-    return yaml_data
+    return process_vault_secrets(
+        yaml_data, vault_url, vault_token, vault_mount_point, "integrations.yaml"
+    )
 
 
 class SlackSettings(BaseModel):

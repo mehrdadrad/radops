@@ -44,8 +44,8 @@ class TestIntegrationSettings(unittest.TestCase):
                 self.assertEqual(settings.slack.bot_token, "env-bot-token")
                 self.assertEqual(settings.slack.log_level, "ERROR")
 
-    @patch("config.integrations.hvac.Client")
-    @patch("config.integrations.resolve_vault_secrets")
+    @patch("config.utils.hvac.Client")
+    @patch("config.utils.resolve_vault_secrets")
     @patch("config.integrations.app_settings")
     @patch("builtins.open")
     @patch("yaml.safe_load")
@@ -79,7 +79,7 @@ class TestIntegrationSettings(unittest.TestCase):
         # Verify settings contain resolved value
         self.assertEqual(settings.slack.bot_token, "resolved-token")
 
-    @patch("config.integrations.hvac.Client")
+    @patch("config.utils.hvac.Client")
     @patch("config.integrations.app_settings")
     @patch("builtins.open")
     @patch("yaml.safe_load")
