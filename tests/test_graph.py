@@ -14,6 +14,7 @@ from core.graph import (
     route_back_from_tool,
     route_workflow,
     supervisor_node,
+    system_node,
     tools_condition,
 )
 
@@ -75,6 +76,9 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             spec=SupervisorAgentOutput,
             next_worker=MagicMock(value="network_agent"),
             response_to_user="Response for user",
+            detected_requirements=["Requirement 1", "Requirement 2"],
+            completed_steps=["Step 1", "Step 2"],
+            is_fully_completed=True,
             instructions_for_worker="Instructions for worker",
             original_request="Original user request",
         )
@@ -91,6 +95,50 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         # Verify
         self.assertEqual(result["next_worker"], "network_agent")
+
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    @patch("core.graph.telemetry")
+    def test_system_node(self, mock_telemetry, mock_settings, mock_llm_factory):
+        """Test that system_node correctly invokes the LLM with tools."""
+        # Setup mocks
+        mock_llm = MagicMock()
+        mock_llm_with_tools = MagicMock()
+        mock_llm.bind_tools.return_value = mock_llm_with_tools
+        mock_llm_factory.return_value = mock_llm
+
+        expected_response = AIMessage(content="System response")
+        mock_llm_with_tools.invoke.return_value = expected_response
+
+        # Mock settings
+        mock_settings.agent.system.llm_profile = "test-profile"
+
+        state = {
+            "messages": [HumanMessage(content="Clear memory")],
+            "user_id": "test_user",
+            "relevant_memories": "",
+            "response_metadata": {},
+        }
+        tools = [MagicMock()]
+
+        # Execute
+        result = system_node(state, tools)
+
+        # Verify
+        self.assertIn("messages", result)
+        self.assertEqual(result["messages"][0], expected_response)
+        self.assertIn("system", result["response_metadata"]["nodes"])
+
+        # Check if tools were bound
+        mock_llm.bind_tools.assert_called_with(tools)
+
+        # Check if invoke was called
+        mock_llm_with_tools.invoke.assert_called()
+
+        # Verify telemetry
+        mock_telemetry.update_counter.assert_called_with(
+            "agent.invocations.total", attributes={"agent": "system"}
+        )
 
     def test_route_workflow(self):
         """Test the routing logic from the supervisor."""
