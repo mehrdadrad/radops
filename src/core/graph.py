@@ -194,6 +194,9 @@ def supervisor_node(state: State) -> dict:
     )
     
     if decision.next_worker == "end":
+        logger.info("requirements: %s", decision.detected_requirements)
+        logger.info("steps: %s", decision.completed_steps)
+        logger.info("is_fully_completed: %s", decision.is_fully_completed)
         return {
             "next_worker": "end",
             "messages": [ai_message], 

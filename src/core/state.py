@@ -27,6 +27,23 @@ class State(TypedDict):
 
 
 class SupervisorAgentOutput(BaseModel):
+    detected_requirements: list[str] = Field(
+        description=(
+            "A list of specific requirements extracted from the user's request."
+        )
+    )
+    completed_steps: list[str] = Field(
+        description=(
+            "A list of steps that have been successfully completed so far. "
+            "Include steps where the tool ran successfully but returned no results (e.g., 'not found')."
+        )
+    )
+    is_fully_completed: bool = Field(
+        description=(
+            "Set to True if all detected_requirements have been ATTEMPTED, "
+            "regardless of the outcome. "
+        )
+    )
     # The Logic: Hidden from user, used by Graph
     next_worker: WorkerEnum = Field(
         description=(
@@ -42,6 +59,7 @@ class SupervisorAgentOutput(BaseModel):
             "1. **Planning Step:** explain how do you want to break up the task and what agent will be responsible for each step. **DO NOT** repeat the data found by the previous agent."
             "2. **Intermediate Step:** If you are routing to a worker (Network/Cloud), provide a BRIEF status update only (e.g., 'ASN info gathered, now checking Cloud'). **DO NOT** repeat the data found by the previous agent."
             "3. **Final Step:** If you are routing to 'end'/'finish', provide the complete, detailed summary of ALL gathered information."
+            "4. **Final Step:** provide a verification based on the 'is_fully_completed' is false or true at the end of the conversation."
         )
     )
     instructions_for_worker: str = Field(
