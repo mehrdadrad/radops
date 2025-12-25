@@ -140,6 +140,7 @@ class ToolRegistry:
             create_history_deletion_tool(self.checkpointer),
             create_history_retrieval_tool(self.checkpointer),
             secret__set_user_secrets,
+            system__escalate_to_supervisor
         ]
         return system_tools
 
