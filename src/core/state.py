@@ -1,11 +1,13 @@
+import logging
 from enum import Enum
 from typing import Annotated, Any, Literal, TypedDict
 
 from langgraph.graph.message import add_messages
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from config.config import settings
 
+logger = logging.getLogger(__name__)
 
 members = {
     k: k for k in list(settings.agent.profiles.keys())
@@ -32,16 +34,32 @@ class SupervisorAgentOutput(BaseModel):
             "A list of specific requirements extracted from the user's request."
         )
     )
+    remaining_steps: list[str] = Field(
+        description=(
+            "The list of detected_requirements that are NOT yet present in "
+            "completed_steps OR failed_steps. "
+            "If this list is not empty, 'is_fully_completed' MUST be False."
+        )
+    )
     completed_steps: list[str] = Field(
         description=(
             "A list of steps that have been successfully completed so far. "
             "Include steps where the tool ran successfully but returned no results (e.g., 'not found')."
         )
     )
+    failed_steps: list[str] = Field(
+        default_factory=list,
+        description=(
+            "List of steps that were ATTEMPTED but FAILED (e.g., 'Tool not found', "
+            "'Permission denied', 'Timeouts'). Tracking this prevents infinite retries."
+        )
+    )
     is_fully_completed: bool = Field(
         description=(
-            "Set to True if all detected_requirements have been ATTEMPTED, "
-            "regardless of the outcome. "
+            "Set to True if EVERY item in 'detected_requirements' has been addressed, "
+            "either by being listed in 'completed_steps' (Success) "
+            "OR by being listed in 'failed_steps' (Failure/Give Up). "
+            "If we have tried and failed, the job is technically COMPLETED."
         )
     )
     # The Logic: Hidden from user, used by Graph
@@ -74,3 +92,37 @@ class SupervisorAgentOutput(BaseModel):
             "provide instructions."
         )
     )
+
+    @model_validator(mode='after')
+    def prevent_insanity_loop(self):
+        if self.next_worker != 'end':
+            for failure in self.failed_steps:
+                if self.next_worker.replace("_", " ") in failure.lower():
+                    raise ValueError(
+                        f"STOP: You are assigning '{self.next_worker}' to a task, "
+                        f"but they already failed: '{failure}'. "
+                        "Do not retry. Mark 'is_fully_completed' = True (because we gave up) and route to 'end'."
+                    )
+        if self.next_worker == 'end':
+            total_attempted = len(self.completed_steps) + len(self.failed_steps)
+            if total_attempted < len(self.detected_requirements):
+                pass
+
+        return self
+
+    @model_validator(mode='after')
+    def force_completion_flag(self):
+        all_attempts = self.completed_steps + self.failed_steps
+        
+        if len(all_attempts) >= len(self.detected_requirements):
+            
+            if not self.is_fully_completed:
+                logger.info("Forced supervisor completion flag.")
+                self.is_fully_completed = True
+                
+                # Optional: Force the next step to END if we are "done"
+                if self.next_worker != 'end':
+                    self.next_worker = WorkerEnum.end
+
+                    
+        return self
