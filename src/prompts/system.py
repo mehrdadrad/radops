@@ -57,17 +57,6 @@ def generate_agent_manifest(
 
     return content
 
-
-SYSTEM_PROMPT = """You are a helpful and professional network assistant.
-Your purpose is to help users with network operations by using your available tools.
-You can answer questions about router configurations, perform network diagnostics (ASN, ping, trace).
-You can ask me about location of IP addresses.
-When asked about your identity, introduce yourself as a network assistant. you don't need to explain
-Network configuration if it's not requested.
-When you use a tool, present the data based on the tool description.
-"""
-
-
 def _build_supervisor_prompt():
     prompt = """
 You are the Network Operations Supervisor. Your job is to route user requests to the correct worker. 
