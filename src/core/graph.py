@@ -179,6 +179,8 @@ def supervisor_node(state: State) -> dict:
     while conversation_messages and isinstance(conversation_messages[0], ToolMessage):
         conversation_messages = conversation_messages[1:]
 
+    conversation_messages = sanitize_tool_calls(conversation_messages)
+
     messages = [SystemMessage(content=SUPERVISOR_PROMPT)] + conversation_messages
 
     start_time = time.perf_counter()
@@ -195,7 +197,9 @@ def supervisor_node(state: State) -> dict:
     
     if decision.next_worker == "end":
         logger.info("requirements: %s", decision.detected_requirements)
-        logger.info("steps: %s", decision.completed_steps)
+        logger.info("completed steps: %s", decision.completed_steps)
+        logger.info("failed steps: %s", decision.failed_steps)
+        logger.info("remaining steps: %s", decision.remaining_steps)
         logger.info("is_fully_completed: %s", decision.is_fully_completed)
         return {
             "next_worker": "end",
@@ -266,7 +270,8 @@ async def manage_memory_node(state: State) -> dict:
 
     # Add to memory if we have a request-response pair
     human_messages = [
-        msg for msg in state["messages"] if isinstance(msg, HumanMessage)
+        msg for msg in state["messages"] 
+        if isinstance(msg, HumanMessage) and getattr(msg, "name", None) != "supervisor"
     ]
     last_human_message = (
         human_messages[-2]
@@ -415,6 +420,8 @@ def construct_llm_context(state: State, system_prompt: str):
     while conversation_messages and isinstance(conversation_messages[0], ToolMessage):
         conversation_messages = conversation_messages[1:]
 
+    conversation_messages = sanitize_tool_calls(conversation_messages)
+
     messages = (
         [SystemMessage(content=system_prompt)]
         + memory_message
@@ -440,6 +447,29 @@ def filter_tools(
                 filtered_tools.append(tool)
                 break
     return filtered_tools
+
+def sanitize_tool_calls(messages: list) -> list:
+    """
+    Sanitizes messages to ensure AIMessages with tool_calls are followed by ToolMessages.
+    If not, the tool_calls are removed to prevent API errors (400).
+    """
+    sanitized = []
+    for i, msg in enumerate(messages):
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            is_followed_by_tool = False
+            if i + 1 < len(messages):
+                next_msg = messages[i + 1]
+                if isinstance(next_msg, ToolMessage):
+                    is_followed_by_tool = True
+            
+            if not is_followed_by_tool:
+                content = msg.content if msg.content else "..."
+                sanitized.append(AIMessage(content=content, id=msg.id))
+            else:
+                sanitized.append(msg)
+        else:
+            sanitized.append(msg)
+    return sanitized
 
 def detect_tool_loop(state, limit=3):
     messages = state['messages']
