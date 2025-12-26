@@ -55,7 +55,10 @@ from services.tools.system.history.history_tools import (
 )
 from services.tools.system.history.long_memory import memory__clear_long_term_memory
 from services.tools.system.kb.kb_tools import create_kb_tools
-from services.tools.system.system.system import system__escalate_to_supervisor
+from services.tools.system.system.system import (
+    create_mcp_server_health_tool,
+    system__escalate_to_supervisor,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -139,8 +142,9 @@ class ToolRegistry:
             memory__clear_long_term_memory,
             create_history_deletion_tool(self.checkpointer),
             create_history_retrieval_tool(self.checkpointer),
+            create_mcp_server_health_tool(self.mcp_clients),
             secret__set_user_secrets,
-            system__escalate_to_supervisor
+            system__escalate_to_supervisor,
         ]
         return system_tools
 

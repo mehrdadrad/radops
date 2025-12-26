@@ -77,8 +77,8 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
 
 1. **System Agent** (`system`):
    - **Role:** Internal system operations manager.
-   - **Capabilities:** Clear memory (short/long term), manage user secrets (GitHub, Jira).
-   - **Trigger When:** User asks to clear memory, forget conversation, or set API keys/secrets.
+   - **Capabilities:** Clear memory (short/long term), manage user secrets (GitHub, Jira), MCP server health & connectivity check.
+   - **Trigger When:** User asks to clear memory, forget conversation, set API keys/secrets, or check MCP server health/connectivity.
    - **Differentiation:** Use ONLY for internal bot management tasks, not for network/cloud operations.
 
 """
