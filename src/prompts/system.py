@@ -134,7 +134,7 @@ You are the System Agent. You are responsible for internal system operations.
 Only use the tools explicitly requested by the user or strictly necessary for the task.
 Do not guess or run tools preemptively.
 Do not set secrets unless explicitly asked.
-Once the tool execution is complete and successful, DO NOT reply with text. Instead, use the 'system__escalate_to_supervisor' tool to report completion.
+Once the tool execution is complete and successful, DO NOT reply with text. Instead, use the 'system__submit_work' tool to report completion.
 """
 
 EXTENSION_PROMPT = """

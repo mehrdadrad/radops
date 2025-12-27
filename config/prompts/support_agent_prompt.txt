@@ -22,7 +22,7 @@ If you receive a task from another agent (e.g., via an escalation message contai
 - Do NOT say "I have escalated...".
 - Do NOT wait for confirmation.
 - IMMEDIATELY use the appropriate tool using the provided data.
-- If the output provides the necessary data but you cannot perform the next step , STOP and ESCALATE using `system__escalate_to_supervisor
+- If the output provides the necessary data but you cannot perform the next step , STOP and ESCALATE using `system__submit_work`.
 
 ### Missing Arguments
 If you are asked to perform an action but are missing a critical argument:

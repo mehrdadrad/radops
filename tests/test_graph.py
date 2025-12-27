@@ -9,6 +9,7 @@ from core.graph import (
     authorize_tools,
     check_end_status,
     custom_error_handler,
+    detect_tool_loop,
     manage_memory_node,
     route_after_worker,
     route_back_from_tool,
@@ -177,6 +178,62 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         text_msg = AIMessage(content="text")
         self.assertEqual(tools_condition({"messages": [text_msg]}), "end")
 
+    def test_detect_tool_loop(self):
+        """Test the tool loop detection logic."""
+        # Case 1: No loop (not enough history)
+        state_short = {
+            "messages": [
+                AIMessage(content="", tool_calls=[{"name": "tool_a", "args": {"x": 1}, "id": "1"}])
+            ]
+        }
+        self.assertFalse(detect_tool_loop(state_short))
+
+        # Case 2: Identical loop
+        # limit is 3 by default. We need 3 identical calls.
+        tool_call = {"name": "tool_a", "args": {"x": 1}, "id": "1"}
+        state_identical = {
+            "messages": [
+                AIMessage(content="", tool_calls=[tool_call]),
+                ToolMessage(content="res", tool_call_id="1", name="tool_a"),
+                AIMessage(content="", tool_calls=[tool_call]),
+                ToolMessage(content="res", tool_call_id="1", name="tool_a"),
+                AIMessage(content="", tool_calls=[tool_call]),
+            ]
+        }
+        self.assertTrue(detect_tool_loop(state_identical))
+
+        # Case 3: Alternating loop (A, B, A, B)
+        call_a = {"name": "tool_a", "args": {}, "id": "1"}
+        call_b = {"name": "tool_b", "args": {}, "id": "2"}
+        state_alternating = {
+            "messages": [
+                AIMessage(content="", tool_calls=[call_a]),
+                ToolMessage(content="res", tool_call_id="1", name="tool_a"),
+                AIMessage(content="", tool_calls=[call_b]),
+                ToolMessage(content="res", tool_call_id="2", name="tool_b"),
+                AIMessage(content="", tool_calls=[call_a]),
+                ToolMessage(content="res", tool_call_id="1", name="tool_a"),
+                AIMessage(content="", tool_calls=[call_b]),
+            ]
+        }
+        self.assertTrue(detect_tool_loop(state_alternating))
+
+    def test_route_after_worker_loop_detection(self):
+        """Test that route_after_worker catches loops."""
+        tool_call = {"name": "tool_a", "args": {"x": 1}, "id": "1"}
+        # Create a state that triggers the identical loop check (limit=3)
+        state = {
+            "messages": [
+                AIMessage(content="", tool_calls=[tool_call]),
+                ToolMessage(content="res", tool_call_id="1", name="tool_a"),
+                AIMessage(content="", tool_calls=[tool_call]),
+                ToolMessage(content="res", tool_call_id="1", name="tool_a"),
+                AIMessage(content="", tool_calls=[tool_call]),
+            ]
+        }
+        # Should return supervisor instead of tools because of loop
+        self.assertEqual(route_after_worker(state), "supervisor")
+
     def test_route_back_from_tool(self):
         """Test routing logic returning from tools."""
         self.assertEqual(route_back_from_tool({"next_worker": "common_agent"}), "common_agent")
@@ -186,7 +243,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         # Test escalation
         escalation_state = {
             "messages": [
-                ToolMessage(content="Escalating", tool_call_id="1", name="system__escalate_to_supervisor")
+                ToolMessage(content="Escalating", tool_call_id="1", name="system__submit_work")
             ],
             "next_worker": "network_agent"
         }

@@ -39,7 +39,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     if tools is None:
         tools = await tool_registry.get_all_tools()
 
-    system_tools = await tool_registry.get_system_tools()    
+    system_tools = await tool_registry.get_system_tools()
 
     graph_builder = StateGraph(State)
     graph_builder.add_node("guardrail", guardrail)
@@ -56,7 +56,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         retry_policy=RetryPolicy(max_attempts=2),
     )
 
-    # Create path mapping 
+    # Create path mapping
     path_map = {name: name for name in settings.agent.profiles.keys()}
     path_map["tools"] = "tools"
     path_map["supervisor"] = "supervisor"
@@ -77,7 +77,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     graph_builder.add_edge(START, "guardrail")
     graph_builder.add_conditional_edges(
         "guardrail", 
-        check_end_status, 
+        check_end_status,
         {"end": END, "continue": "memory"},
     )
     graph_builder.add_conditional_edges(
@@ -194,7 +194,7 @@ def supervisor_node(state: State) -> dict:
     ai_message = AIMessage(
         content=decision.response_to_user
     )
-    
+
     if decision.next_worker == "end":
         logger.info("requirements: %s", decision.detected_requirements)
         logger.info("completed steps: %s", decision.completed_steps)
@@ -209,9 +209,10 @@ def supervisor_node(state: State) -> dict:
 
     context_message = HumanMessage(
         content=(
-        "COMMAND FROM SUPERVISOR: "
-        f"{decision.instructions_for_worker}, "
-        "ESCALATE back to the supervisor"
+            "COMMAND FROM SUPERVISOR: "
+            f"{decision.instructions_for_worker}, "
+            "When finished or if you cannot proceed, use the 'system__submit_work' tool "
+            "to report the result."
         ),
         name="supervisor"
     )
@@ -270,7 +271,7 @@ async def manage_memory_node(state: State) -> dict:
 
     # Add to memory if we have a request-response pair
     human_messages = [
-        msg for msg in state["messages"] 
+        msg for msg in state["messages"]
         if isinstance(msg, HumanMessage) and getattr(msg, "name", None) != "supervisor"
     ]
     last_human_message = (
@@ -362,7 +363,7 @@ def route_back_from_tool(state: State) -> str:
     # Check if the escalation tool was called
     for message in reversed(state.get("messages", [])):
         if isinstance(message, ToolMessage):
-            if message.name == "system__escalate_to_supervisor":
+            if message.name == "system__submit_work":
                 return "supervisor"
         else:
             break
@@ -379,6 +380,9 @@ def route_after_worker(state: State) -> Literal["tools", "supervisor"]:
     last_message = state["messages"][-1]
     if isinstance(last_message, AIMessage):
         if last_message.tool_calls:
+            if detect_tool_loop(state):
+                logger.warning("Tool loop detected. Ending worker execution.")
+                return "supervisor"
             return "tools"
     return "supervisor"
 
@@ -473,11 +477,11 @@ def sanitize_tool_calls(messages: list) -> list:
 
 def detect_tool_loop(state, limit=3):
     messages = state['messages']
-    
+
     # Filter only AI messages that have tool calls
     tool_calls = [
-        m.tool_calls[0] 
-        for m in messages[-limit*2:] # Look at last few turns
+        m.tool_calls[0]
+        for m in messages[-limit*4:] # Look at last few turns (increased window)
         if isinstance(m, AIMessage) and m.tool_calls
     ]
 
@@ -485,14 +489,18 @@ def detect_tool_loop(state, limit=3):
     if len(tool_calls) < limit:
         return False
 
-    # Extract Name AND Arguments
-    # We check arguments to allow "Pagination" (calling same tool with different next_token is OK)
+    # Check for identical calls (Name AND Args)
     last_call = tool_calls[-1]
-    
-    # Check if the last 'limit' calls are identical
-    is_loop = all(
+    if all(
         (t['name'] == last_call['name'] and t['args'] == last_call['args'])
         for t in tool_calls[-limit:]
-    )
+    ):
+        return True
 
-    return is_loop
+    # Check for alternating loops (e.g., A, B, A, B)
+    if len(tool_calls) >= 4:
+        names = [t['name'] for t in tool_calls[-4:]]
+        if names[0] == names[2] and names[1] == names[3]:
+            return True
+
+    return False

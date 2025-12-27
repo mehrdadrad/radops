@@ -28,6 +28,18 @@ class State(TypedDict):
     response_metadata: dict[str, Any]
 
 
+class WorkerAgentOutput(BaseModel):
+    success: bool = Field(
+        description="True if the task was completed successfully, False otherwise."
+    )
+    result: str = Field(
+        description="The result of the work or the error message."
+    )
+    failure_reason: str | None = Field(
+        default=None,
+        description="If failed, the reason why."
+    )
+
 class SupervisorAgentOutput(BaseModel):
     detected_requirements: list[str] = Field(
         description=(
