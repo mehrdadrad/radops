@@ -15,7 +15,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from core.checkpoint import get_checkpointer
 from core.graph import astream_graph_updates, run_graph
 from core.memory import mem0_manager
-from services.telemetry.telemetry import Telemetry
+from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 from libs.status_generator import StatusGenerator
 
@@ -23,9 +23,9 @@ USE_PLAIN_MESSAGE = os.getenv("PLAIN_MESSAGE", "false").lower() == "true" or "--
 
 
 app = FastAPI(
-    title="Chatbot Server",
+    title="RadOps Chatbot Server",
     version="1.0",
-    description="A simple API server for interacting with a net assistant.",
+    description="A simple API server for interacting with RadOps.",
 )
 
 
@@ -36,7 +36,6 @@ async def lifespan(fastapi_app: FastAPI):
     and cleaning them up on shutdown.
     """
     logging.info("Application startup: Initializing resources.")
-    telemetry = Telemetry()
     checkpointer, redis_client, tool_registry = None, None, None
     try:
         async with get_checkpointer() as (cp, rc):
@@ -106,6 +105,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="RadOps Chatbot Server")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8005, help="Port to bind to")
+    args, _ = parser.parse_known_args()
+
     uvicorn.run(
-        app, host="0.0.0.0", port=8005, log_config=None, ws="wsproto"
+        app, host=args.host, port=args.port, log_config=None, ws="wsproto"
     )
