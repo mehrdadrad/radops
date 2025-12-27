@@ -46,13 +46,6 @@ class SupervisorAgentOutput(BaseModel):
             "A list of specific requirements extracted from the user's request."
         )
     )
-    remaining_steps: list[str] = Field(
-        description=(
-            "The list of detected_requirements that are NOT yet present in "
-            "completed_steps OR failed_steps. "
-            "If this list is not empty, 'is_fully_completed' MUST be False."
-        )
-    )
     completed_steps: list[str] = Field(
         description=(
             "A list of steps that have been successfully completed so far. "
@@ -121,20 +114,24 @@ class SupervisorAgentOutput(BaseModel):
                 pass
 
         return self
-
+    
     @model_validator(mode='after')
-    def force_completion_flag(self):
+    def validate_completion_status(self):
         all_attempts = self.completed_steps + self.failed_steps
         
         if len(all_attempts) >= len(self.detected_requirements):
-            
-            if not self.is_fully_completed:
-                logger.info("Forced supervisor completion flag.")
+            if self.next_worker != 'end' and not self.failed_steps:
+                raise ValueError(
+                    "All requirements are completed successfully. You must select 'end'."
+                )
+            if self.next_worker == 'end' and not self.is_fully_completed:
                 self.is_fully_completed = True
-                
-                # Optional: Force the next step to END if we are "done"
-                if self.next_worker != 'end':
-                    self.next_worker = WorkerEnum.end
+        return self
 
-                    
+    @model_validator(mode='after')
+    def validate_worker_instructions(self):
+        if self.next_worker != 'end' and len(self.instructions_for_worker.strip()) < 5:
+            raise ValueError(
+                "Instructions for the worker must be descriptive."
+            )
         return self

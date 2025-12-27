@@ -197,7 +197,6 @@ def supervisor_node(state: State) -> dict:
         logger.info("requirements: %s", decision.detected_requirements)
         logger.info("completed steps: %s", decision.completed_steps)
         logger.info("failed steps: %s", decision.failed_steps)
-        logger.info("remaining steps: %s", decision.remaining_steps)
         logger.info("is_fully_completed: %s", decision.is_fully_completed)
         return {
             "next_worker": "end",
