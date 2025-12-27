@@ -330,4 +330,5 @@ class WeaviateVectorStoreManager:
         self.stop_periodic_sync()
         if self._client:
             self._client.close()
+            self._client = None
             logger.info("Weaviate client connection closed.")

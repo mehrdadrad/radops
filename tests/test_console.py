@@ -18,7 +18,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
     @patch("console.run_graph", new_callable=AsyncMock)
     @patch("console.astream_graph_updates")
     @patch("console.mem0_manager")
-    @patch("console.Telemetry")
+    @patch("console.telemetry")
     @patch("console.ToolRegistry")
     async def test_console_happy_path(
         self,
@@ -68,7 +68,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
 
         # Verify cleanup
         mock_mem0.close.assert_called()
-        mock_telemetry.return_value.shutdown.assert_called()
+        mock_telemetry.shutdown.assert_called()
         mock_redis.aclose.assert_called()
         mock_tool_registry.return_value.close.assert_called()
 
@@ -76,7 +76,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
     @patch("console.print")
     @patch("console.get_checkpointer")
     @patch("console.run_graph", new_callable=AsyncMock)
-    @patch("console.Telemetry")
+    @patch("console.telemetry")
     @patch("console.ToolRegistry")
     async def test_console_empty_username(
         self,
@@ -105,7 +105,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
     @patch("console.print")
     @patch("console.get_checkpointer")
     @patch("console.run_graph", new_callable=AsyncMock)
-    @patch("console.Telemetry")
+    @patch("console.telemetry")
     @patch("console.ToolRegistry")
     async def test_console_empty_input_loop(
         self,
@@ -138,7 +138,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
     @patch("console.get_checkpointer")
     @patch("console.run_graph", new_callable=AsyncMock)
     @patch("console.astream_graph_updates")
-    @patch("console.Telemetry")
+    @patch("console.telemetry")
     @patch("console.ToolRegistry")
     async def test_console_exception_handling(
         self,

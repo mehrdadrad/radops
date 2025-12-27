@@ -24,12 +24,10 @@ from core.memory import get_mem0_client
 from core.state import State, SupervisorAgentOutput
 from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, PLATFORM_PROMPT
 from services.guardrails.guardrails import guardrail
-from services.telemetry.telemetry import Telemetry
+from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-telemetry = Telemetry()
 
 
 async def run_graph(checkpointer=None, tools=None, tool_registry=None):

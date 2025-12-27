@@ -153,3 +153,6 @@ class ToolRegistry:
         """Closes any open clients."""
         for client in self.mcp_clients:
             await client.stop()
+
+        for manager in self.vector_store_managers:
+            manager.close()

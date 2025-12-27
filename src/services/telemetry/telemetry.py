@@ -125,6 +125,7 @@ class Telemetry:
     def shutdown(self):
         if self.server:
             self.server.shutdown()
+            self.server.server_close()
 
     def register_counter(self, name: str, unit: str = "", description: str = ""):
         """Registers a new counter metric."""
@@ -186,3 +187,7 @@ class Telemetry:
         # The SDK invokes the callbacks automatically.
         self._metrics[name] = self.meter.create_observable_gauge(name, callbacks, unit, description)
         logger.info(f"Registered observable gauge: {name}")
+
+# Singleton instance
+telemetry = Telemetry()
+       

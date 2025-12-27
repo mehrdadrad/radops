@@ -10,7 +10,7 @@ initialize_logger()
 from core.checkpoint import get_checkpointer
 from core.graph import astream_graph_updates, run_graph
 from core.memory import mem0_manager
-from services.telemetry.telemetry import Telemetry
+from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 
 
@@ -23,10 +23,8 @@ async def main():
     The main function for the console application.
     """
     redis_client = None
-    telemetry = None
     tool_registry = None
     try:
-        telemetry = Telemetry()
         async with get_checkpointer() as (checkpointer, redis_client):
             tool_registry = ToolRegistry(checkpointer=checkpointer)
             graph = await run_graph(checkpointer, tool_registry=tool_registry)
@@ -62,8 +60,7 @@ async def main():
 
     finally:
         try:
-            if telemetry:
-                telemetry.shutdown()
+            telemetry.shutdown()
             if redis_client:
                 await redis_client.aclose()
                 logging.info("Redis client closed.")

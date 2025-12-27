@@ -17,7 +17,7 @@ class TestServer(unittest.TestCase):
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.mem0_manager")
-    @patch("server.Telemetry")
+    @patch("server.telemetry")
     @patch("server.ToolRegistry")
     def test_lifespan(
         self, mock_tool_registry, mock_telemetry, mock_mem0, mock_run_graph, mock_get_cp
@@ -42,7 +42,7 @@ class TestServer(unittest.TestCase):
 
         # Shutdown checks
         mock_mem0.close.assert_called_once()
-        mock_telemetry.return_value.shutdown.assert_called_once()
+        mock_telemetry.shutdown.assert_called_once()
         mock_redis.aclose.assert_called_once()
         mock_tool_registry.return_value.close.assert_called_once()
 
@@ -50,7 +50,7 @@ class TestServer(unittest.TestCase):
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.astream_graph_updates")
     @patch("server.mem0_manager")
-    @patch("server.Telemetry")
+    @patch("server.telemetry")
     @patch("server.ToolRegistry")
     def test_websocket_chat(
         self, mock_tool_registry, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp
@@ -92,7 +92,7 @@ class TestServer(unittest.TestCase):
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.astream_graph_updates")
     @patch("server.mem0_manager")
-    @patch("server.Telemetry")
+    @patch("server.telemetry")
     @patch("server.ToolRegistry")
     def test_websocket_tool_execution(
         self, mock_tool_registry, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp
