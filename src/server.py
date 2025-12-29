@@ -4,6 +4,7 @@ This module implements a FastAPI server for the RadOps assistant.
 import logging
 import os
 import sys
+import warnings
 from contextlib import asynccontextmanager
 from libs.logger import initialize_logger
 
@@ -21,6 +22,9 @@ from tools import ToolRegistry
 from libs.status_generator import StatusGenerator
 
 USE_PLAIN_MESSAGE = os.getenv("PLAIN_MESSAGE", "false").lower() == "true" or "--plain-message" in sys.argv
+
+# Suppress Weaviate ResourceWarning on shutdown
+warnings.filterwarnings("ignore", category=ResourceWarning, message=".*The connection to Weaviate was not closed properly.*")
 
 
 app = FastAPI(

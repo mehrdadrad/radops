@@ -3,6 +3,7 @@ This module provides a command-line interface for interacting with the RadOps as
 """
 import asyncio
 import logging
+import warnings
 from libs.logger import initialize_logger
 
 initialize_logger()
@@ -14,6 +15,8 @@ from core.memory import mem0_manager
 from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 
+# Suppress Weaviate ResourceWarning on shutdown
+warnings.filterwarnings("ignore", category=ResourceWarning, message=".*The connection to Weaviate was not closed properly.*")
 
 async def ainput(prompt: str = "") -> str:
     """Async wrapper for input function."""
