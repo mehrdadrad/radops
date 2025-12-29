@@ -24,7 +24,7 @@ def aws__list_ec2_instances(state: Optional[str] = None) -> str:
     """
     Lists EC2 instances in the configured region.
     Args:
-        state: Optional filter for instance state (e.g., 'running', 'stopped').
+        state: Optional filter for instance state (e.g., 'running', 'stopped'). Do NOT set this argument if the user wants ALL instances. Only use it if the user explicitly asks to filter by state.
     Returns:
         A JSON string containing a list of instances, each with details like InstanceId, Name, State, IPs, VpcId, and SubnetId.
     """
