@@ -21,8 +21,8 @@ from config.config import settings
 from core.auth import is_tool_authorized
 from core.llm import llm_factory
 from core.memory import get_mem0_client
-from core.state import State, SupervisorAgentOutput
-from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, PLATFORM_PROMPT
+from core.state import State, SupervisorAgentOutput, AuditReport
+from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, PLATFORM_PROMPT, AUDITOR_PROMPT
 from services.guardrails.guardrails import guardrail
 from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
@@ -43,6 +43,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     graph_builder.add_node("guardrail", guardrail)
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node("supervisor", supervisor_node)
+    graph_builder.add_node("auditor", auditor_node)
     graph_builder.add_node("system", partial(system_node, tools=system_tools))
     graph_builder.add_node(
         "tools",
@@ -59,12 +60,18 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     path_map["tools"] = "tools"
     path_map["supervisor"] = "supervisor"
     path_map["system"] = "system"
+    path_map["auditor"] = "auditor"
     path_map["end"] = END
 
     graph_builder.add_conditional_edges(
         "supervisor",
         route_workflow,
         path_map,
+    )
+    graph_builder.add_conditional_edges(
+        "auditor",
+        route_auditor,
+        {"approved": END, "supervisor": "supervisor"},
     )
     graph_builder.add_conditional_edges(
         "tools",
@@ -74,7 +81,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     graph_builder.add_edge("memory", "supervisor")
     graph_builder.add_edge(START, "guardrail")
     graph_builder.add_conditional_edges(
-        "guardrail", 
+        "guardrail",
         check_end_status,
         {"end": END, "continue": "memory"},
     )
@@ -169,6 +176,7 @@ def supervisor_node(state: State) -> dict:
     llm_profile = (
         settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
     )
+    logger.info("Supervisor LLM profile: %s", llm_profile)
     llm = llm_factory(llm_profile)
     llm_structured = llm.with_structured_output(SupervisorAgentOutput)
 
@@ -200,7 +208,7 @@ def supervisor_node(state: State) -> dict:
         logger.info("is_fully_completed: %s", decision.is_fully_completed)
         return {
             "next_worker": "end",
-            "messages": [ai_message], 
+            "messages": [ai_message],
             "response_metadata": {"nodes": nodes},
         }
 
@@ -246,6 +254,71 @@ def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
 
     nodes = state["response_metadata"].get("nodes", []) + [node_name]
     return {"messages": [decision], "response_metadata": {"nodes": nodes}}
+
+def auditor_node(state):
+    if not settings.agent.auditor.enabled:
+        return {}
+
+    agent_name = "auditor"
+    messages = state["messages"]
+    original_request = "Unknown Request"
+    last_request_index = -1
+
+    llm_profile = (
+        settings.agent.auditor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
+    )
+
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if isinstance(msg, HumanMessage) and getattr(msg, "name", None) != "supervisor":
+            original_request = msg.content
+            last_request_index = i
+            break
+    tool_outputs = [
+        m for i, m in enumerate(messages)
+        if isinstance(m, ToolMessage) and i > last_request_index
+    ]
+    supervisor_response = messages[-1].content if isinstance(messages[-1], AIMessage) else ""
+
+    llm = llm_factory(llm_profile)
+    llm_structured = llm.with_structured_output(AuditReport)
+    audit = llm_structured.invoke([
+        SystemMessage(content=AUDITOR_PROMPT),
+        HumanMessage(content=f"User Request: {original_request}"),
+        HumanMessage(content=f"Tool Evidence: {tool_outputs}"),
+        HumanMessage(content=f"Supervisor Conclusion: {supervisor_response}")
+    ])
+
+    nodes = state["response_metadata"].get("nodes", []) + [agent_name]
+    
+    failed_verifications = [v for v in audit.verifications if not v.is_success]
+
+    if failed_verifications:
+        # Check for previous rejections to prevent infinite loops
+        previous_rejections = [
+            m for m in messages
+            if isinstance(m, HumanMessage) and "QA REJECTION" in str(m.content)
+        ]
+        if len(previous_rejections) >= 2:
+            logger.info("QA rejected twice. Ending task.")
+            return {
+                "response_metadata": {"nodes": nodes}
+            }
+
+        first_failure = failed_verifications[0]
+        feedback = f"QA REJECTION: {first_failure.missing_information}. {first_failure.correction_instruction}"
+        logger.info(f"QA Rejected with feedback: {feedback}")
+        return {
+            "messages": [HumanMessage(content=feedback)],
+            "next_worker": None,
+            "response_metadata": {"nodes": nodes}
+        }
+
+    if audit.score < settings.agent.auditor.threshold:
+        logger.warning("QA Score %s is below threshold %s, but no specific verifications failed. Approving to prevent false positive.", audit.score, settings.agent.auditor.threshold)
+
+    logger.info("QA Passed with score %s. Finishing job.", audit.score)
+    return {"messages": [AIMessage(content=f"QA Passed. Finishing job (score: {audit.score})")], "response_metadata": {"nodes": nodes}}
 
 
 async def manage_memory_node(state: State) -> dict:
@@ -352,7 +425,17 @@ async def authorize_tools(request, handler) -> ToolMessage:
 
 def route_workflow(state: State) -> str:
     """Routes to the next worker based on the supervisor's decision."""
-    return state["next_worker"]
+    next_worker = state["next_worker"]
+    if next_worker == "end":
+        return "auditor"
+    return next_worker
+
+def route_auditor(state):
+    last_msg = state["messages"][-1]
+    if "QA REJECTION" in last_msg.content:
+        return "supervisor"
+    else:
+        return "approved"
 
 
 def route_back_from_tool(state: State) -> str:
@@ -475,10 +558,18 @@ def sanitize_tool_calls(messages: list) -> list:
 def detect_tool_loop(state, limit=3):
     messages = state['messages']
 
+    # Find the start of the current conversation turn
+    last_human_idx = 0
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if isinstance(msg, HumanMessage) and getattr(msg, "name", None) != "supervisor":
+            last_human_idx = i
+            break
+
     # Filter only AI messages that have tool calls
     tool_calls = [
         m.tool_calls[0]
-        for m in messages[-limit*4:] # Look at last few turns (increased window)
+        for m in messages[last_human_idx:]
         if isinstance(m, AIMessage) and m.tool_calls
     ]
 

@@ -40,6 +40,7 @@ class WorkerAgentOutput(BaseModel):
         description="If failed, the reason why."
     )
 
+
 class SupervisorAgentOutput(BaseModel):
     detected_requirements: list[str] = Field(
         description=(
@@ -116,22 +117,33 @@ class SupervisorAgentOutput(BaseModel):
         return self
     
     @model_validator(mode='after')
-    def validate_completion_status(self):
-        all_attempts = self.completed_steps + self.failed_steps
-        
-        if len(all_attempts) >= len(self.detected_requirements):
-            if self.next_worker != 'end' and not self.failed_steps:
-                raise ValueError(
-                    "All requirements are completed successfully. You must select 'end'."
-                )
-            if self.next_worker == 'end' and not self.is_fully_completed:
-                self.is_fully_completed = True
-        return self
-
-    @model_validator(mode='after')
     def validate_worker_instructions(self):
         if self.next_worker != 'end' and len(self.instructions_for_worker.strip()) < 5:
             raise ValueError(
                 "Instructions for the worker must be descriptive."
             )
         return self
+
+
+class VerificationResult(BaseModel):
+    is_success: bool = Field(
+        description="True ONLY if the 'actual_evidence' fully satisfies the 'original_requirement'."
+    )
+    missing_information: str = Field(
+        description="If is_success is False, describe EXACTLY what is missing or incorrect. If True, return an empty string."
+    )
+    correction_instruction: str = Field(
+        description="Precise instruction for the Supervisor to fix the error. If True, return an empty string."
+    )
+
+
+class AuditReport(BaseModel):
+    # We grade every single requirement individually
+    verifications: list[VerificationResult]
+    score: float = Field(
+        description="A score between 0.0 and 1.0 indicating the quality and completeness of the execution. 1.0 is perfect."
+    )
+    
+    final_decision: Literal["APPROVE", "REJECT"] = Field(
+        description="APPROVE only if ALL verifications are True."
+    )
