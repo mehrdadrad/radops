@@ -1,8 +1,9 @@
 import asyncio
-import atexit
 import logging
+from typing import Any
 
 import httpx
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -26,19 +27,25 @@ limits = httpx.Limits(
 _shared_http_aclient = httpx.AsyncClient(limits=limits)
 
 
-def _close_shared_http_client():
-    """Closes the shared httpx.AsyncClient on application exit."""
+class LLMErrorCallback(BaseCallbackHandler):
+    """Callback handler to log LLM errors."""
+
+    def on_llm_error(self, error: BaseException, **kwargs: Any) -> Any:
+        logger.error("LLM Error detected: %s", error)
+    def on_tool_error(self, error: BaseException, **kwargs: Any) -> Any:
+        logger.error("Tool Error detected: %s", error)
+    def on_chain_error(self, error: BaseException, **kwargs):
+        logger.error("Chain Error detected: %s", error)
+    
+
+async def close_shared_client():
+    """Closes the shared httpx.AsyncClient."""
     if not _shared_http_aclient.is_closed:
         try:
-            # Use asyncio.run() to execute the async close method
-            # from the synchronous context of atexit.
-            asyncio.run(_shared_http_aclient.aclose())
+            await _shared_http_aclient.aclose()
             logger.info("Shared HTTP async client closed.")
         except Exception as e:
             logger.error(f"Error closing shared HTTP async client: {e}")
-
-
-atexit.register(_close_shared_http_client)
 
 
 def llm_factory(profile_name: str) -> BaseChatModel:
@@ -62,6 +69,8 @@ def llm_factory(profile_name: str) -> BaseChatModel:
         else 0.7
     )
 
+    callbacks = [LLMErrorCallback()]
+
     match provider:
         case "openai" | "deepseek":
 
@@ -72,6 +81,7 @@ def llm_factory(profile_name: str) -> BaseChatModel:
                 api_key=profile_settings.api_key,
                 base_url=profile_settings.base_url,
                 http_async_client=_shared_http_aclient,
+                callbacks=callbacks,
             )
         case "anthropic":
             return ChatAnthropic(
@@ -80,11 +90,13 @@ def llm_factory(profile_name: str) -> BaseChatModel:
                 max_tokens=profile_settings.max_tokens,
                 api_key=profile_settings.api_key,
                 base_url=profile_settings.base_url,
+                callbacks=callbacks,
             )
         case "ollama":
             return ChatOllama(
                 model=profile_settings.model,
                 base_url=profile_settings.base_url,
+                callbacks=callbacks,
             )
         case _:
             raise ValueError(
