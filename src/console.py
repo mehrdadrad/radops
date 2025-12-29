@@ -9,6 +9,7 @@ initialize_logger()
 
 from core.checkpoint import get_checkpointer
 from core.graph import astream_graph_updates, run_graph
+from core.llm import close_shared_client
 from core.memory import mem0_manager
 from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
@@ -68,6 +69,7 @@ async def main():
                 await tool_registry.close()
                 logging.info("Tool registry closed.")
             await mem0_manager.close()
+            await close_shared_client()
         except (asyncio.CancelledError, Exception) as e:
             logging.error("An error occurred during cleanup: %s", e)
 
