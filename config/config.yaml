@@ -2,6 +2,14 @@ logging:
   level: info
 
 agent:
+  supervisor:
+    llm_profile: anthropic-main
+  auditor:
+    enabled: true
+    llm_profile: openai-main
+  guardrail:
+    enabled: false
+    llm_profile: openai-main
   profiles:
     network_agent:
       description: "Specialist for network connectivity, latency, DNS, BGP, ASN/PeeringDB lookups, and IP routing issues."
@@ -69,10 +77,6 @@ vector_store:
       grpc_secure: false
     chroma:
       persist_dir: ./chroma_db_data
-  
-guardrail:
-  enabled: false
-  llm_profile: "TODO"
 
 memory:
   redis:
@@ -136,6 +140,13 @@ llm:
       max_tokens: 1000
       api_key: vault:system#deepseek_key
       base_url: "https://api.deepseek.com/v1"
+    anthropic-main:
+      provider: "anthropic"
+      model: "claude-sonnet-4-20250514"
+      temperature: 0.0
+      max_tokens: 1000
+      api_key: vault:system#anthropic_key
+ 
 
 vault:
   url: http://localhost:8200
