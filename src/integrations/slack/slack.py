@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import websockets
+import websockets.exceptions
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 from config.integrations import integration_settings as settings
@@ -110,8 +111,13 @@ async def handler(body, say, client):
 
     # TODO: change first name to email address
     user_first_name = user_name.split()[0].lower()
-    ws = await manager.get_connection(user_first_name)
-    if ws:
+
+    for attempt in range(2):
+        ws = await manager.get_connection(user_first_name)
+        if not ws:
+            await say("Service unavailable.", thread_ts=event.get("ts"))
+            return
+
         try:
             await ws.send(text)
             while True:
@@ -119,11 +125,21 @@ async def handler(body, say, client):
                 if result == '\x03':
                     break
                 await say(result, thread_ts=event.get("ts"))
+            break
+        except websockets.exceptions.ConnectionClosed as e:
+            logger.warning(f"WebSocket connection closed for {user_first_name}: {e}")
+            await manager.close_connection(user_first_name)
+            if e.code == 1012 and attempt == 0:
+                continue
+            elif e.code == 1012:
+                await say("Service is restarting. Please try again in a moment.", thread_ts=event.get("ts"))
+            else:
+                await say(f"Connection lost: {e}", thread_ts=event.get("ts"))
+            break
         except Exception as e:
             await say(f"Error: {e}", thread_ts=event.get("ts"))
-            await manager.close_connection(user_id)
-    else:
-        await say("Service unavailable.", thread_ts=event.get("ts"))
+            await manager.close_connection(user_first_name)
+            break
 
 
 async def main():
