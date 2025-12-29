@@ -63,6 +63,13 @@ class AgentSettings(BaseModel):
     system_prompt_file: str
 
 
+class GuardrailSettings(BaseModel):
+    """Settings for guardrails."""
+
+    enabled: bool = False
+    llm_profile: str = None
+
+
 class SupervisorSettings(BaseModel):
     """Settings for the supervisor agent."""
 
@@ -74,11 +81,21 @@ class SystemSettings(BaseModel):
     llm_profile: Optional[str] = None    
 
 
+class AuditorSettings(BaseModel):
+    """Settings for auditor."""
+
+    enabled: bool = False
+    llm_profile: str = None
+    threshold: float = 0.8
+
+
 class AgentsSettings(BaseModel):
     """Settings for all agents."""
 
+    guardrail: GuardrailSettings = Field(default_factory=GuardrailSettings)
     supervisor: SupervisorSettings = Field(default_factory=SupervisorSettings)
     system: SystemSettings = Field(default_factory=SystemSettings)
+    auditor: AuditorSettings = Field(default_factory=AuditorSettings)
     profiles: Dict[str, AgentSettings] = Field(default_factory=dict)
 
 
@@ -134,13 +151,6 @@ class Mem0Settings(BaseModel):
     embedding_profile: str
     vector_store: Mem0VectorStoreSettings
     excluded_tools: list[str] = Field(default_factory=list)
-
-
-class GuardrailSettings(BaseModel):
-    """Settings for guardrails."""
-
-    enabled: bool = False
-
 
 class GraphSettings(BaseModel):
     """Settings for graph execution."""
@@ -252,9 +262,6 @@ class Settings(BaseSettings):
     vector_store: VectorStoreSettings = Field(
         default_factory=VectorStoreSettings
     )
-
-    # Guardrail
-    guardrail: GuardrailSettings = Field(default_factory=GuardrailSettings)
 
     # Graph
     graph: GraphSettings = Field(default_factory=GraphSettings)
