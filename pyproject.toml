@@ -247,6 +247,8 @@ dependencies = [
     "yfinance==0.2.66",
     "zipp==3.23.0",
     "zstandard==0.25.0",
+    "langchain-pinecone>=0.2.13",
+    "langchain-qdrant>=1.1.0",
 ]
 
 [project.optional-dependencies]
@@ -262,4 +264,5 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "app"]
+norecursedirs = ["tests/evaluations", "tests/integration"]
 asyncio_mode = "auto"
