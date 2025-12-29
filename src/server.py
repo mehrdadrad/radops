@@ -13,6 +13,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from core.checkpoint import get_checkpointer
+from core.llm import close_shared_client
 from core.graph import astream_graph_updates, run_graph
 from core.memory import mem0_manager
 from services.telemetry.telemetry import telemetry
@@ -55,6 +56,8 @@ async def lifespan(fastapi_app: FastAPI):
             logging.info("Tool registry closed.")
         await mem0_manager.close()
         logging.info("mem0_manager closed.")
+        await close_shared_client()
+        logging.info("Shared LLM client closed.")
         telemetry.shutdown()
         logging.info("Telemetry shutdown.")
 
