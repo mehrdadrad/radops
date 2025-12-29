@@ -6,6 +6,8 @@ from config.config import settings
 from core.llm import embedding_factory
 from storage.chromadb import ChromaVectorStoreManager
 from storage.protocols import VectorStoreManager
+from storage.pinecone import PineconeVectorStoreManager
+from storage.qdrant import QdrantVectorStoreManager
 from storage.weaviatedb import WeaviateVectorStoreManager
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,14 @@ def vector_store_factory() -> list[VectorStoreManager]:
             manager = WeaviateVectorStoreManager(
                 profile.name, sync_locations, embeddings_model
             )  # type: ignore
+        elif provider == "pinecone":
+            manager = PineconeVectorStoreManager(
+                profile.name, sync_locations, embeddings_model
+            )
+        elif provider == "qdrant":
+            manager = QdrantVectorStoreManager(
+                profile.name, sync_locations, embeddings_model
+            )
         else:
             raise ValueError(f"Unsupported vector store provider: {provider}")
 

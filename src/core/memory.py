@@ -27,19 +27,15 @@ class Mem0Manager:
 
             # Build vector store config dynamically based on provider
             vector_store_config = {}
-            if mem0_config.vector_store.provider == "chroma":
-                if mem0_config.vector_store.config.path:
-                    vector_store_config["path"] = (
-                        mem0_config.vector_store.config.path
-                    )
-            elif mem0_config.vector_store.provider == "weaviate":
-                if mem0_config.vector_store.config.collection_name:
-                    vector_store_config["collection_name"] = (
-                        mem0_config.vector_store.config.collection_name
-                    )
-                    vector_store_config["cluster_url"] = (
-                        mem0_config.vector_store.config.cluster_url
-                    )
+            provider_fields_map = {
+                "chroma": ["path"],
+                "weaviate": ["collection_name", "cluster_url"],
+                "pinecone": ["api_key", "index_name", "environment"],
+                "qdrant": ["collection_name", "url", "host", "port", "api_key", "path"],
+            }
+            for field in provider_fields_map.get(mem0_config.vector_store.provider, []):
+                if value := getattr(mem0_config.vector_store.config, field, None):
+                    vector_store_config[field] = value
 
             # Construct the configuration for mem0's Memory.from_config
             config = {

@@ -119,6 +119,18 @@ wheels = [
 ]
 
 [[package]]
+name = "aiohttp-retry"
+version = "2.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9d/61/ebda4d8e3d8cfa1fd3db0fb428db2dd7461d5742cea35178277ad180b033/aiohttp_retry-2.9.1.tar.gz", hash = "sha256:8eb75e904ed4ee5c2ec242fefe85bf04240f685391c4879d8f541d6028ff01f1", size = 13608, upload-time = "2024-11-06T10:44:54.574Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/99/84ba7273339d0f3dfa57901b846489d2e5c2cd731470167757f1935fffbd/aiohttp_retry-2.9.1-py3-none-any.whl", hash = "sha256:66d2759d1921838256a05a3f80ad7e724936f083e35be5abb5e16eed6be6dc54", size = 9981, upload-time = "2024-11-06T10:44:52.917Z" },
+]
+
+[[package]]
 name = "aiopg"
 version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1828,6 +1840,38 @@ wheels = [
 ]
 
 [[package]]
+name = "langchain-pinecone"
+version = "0.2.13"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
+    { name = "numpy" },
+    { name = "pinecone", extra = ["asyncio"] },
+    { name = "pydantic" },
+    { name = "simsimd" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5f/e9/b52029651f6f8c0c585f26ae665a8ef34cd36a47b2590a2cd3a1a0b11d9d/langchain_pinecone-0.2.13.tar.gz", hash = "sha256:294a6da7e1a81d5805060e37639d3e4fb72cb239d651a34a4d1f81ba096f473a", size = 40655, upload-time = "2025-11-02T19:11:45.842Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/cf/27ec504e2fa92e73d49bc49f4345d82e5b6e75158c56092f5140f6afc8bd/langchain_pinecone-0.2.13-py3-none-any.whl", hash = "sha256:2f9db3f9d8c634e8716eb8fb65a405458083c4d52810be76294665e2d75ad65a", size = 26232, upload-time = "2025-11-02T19:11:44.749Z" },
+]
+
+[[package]]
+name = "langchain-qdrant"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "pydantic" },
+    { name = "qdrant-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/77/66/fb1c4e2801e55d92dea71d9a7f948574a322a1f5adc7913231023827f79f/langchain_qdrant-1.1.0.tar.gz", hash = "sha256:433236845736f973543ac6b7137f9d7fa511b7539373fbc6565c581d3ba59373", size = 195565, upload-time = "2025-10-22T17:27:15.157Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/7e/d951082cb13e923508ba1eee4f48e7d511efc991c6506af567334654a3f3/langchain_qdrant-1.1.0-py3-none-any.whl", hash = "sha256:546c5c9aa57f543dbcee07343f730c331e4ec2af2ec55b541010af08d872bf35", size = 24254, upload-time = "2025-10-22T17:27:14.065Z" },
+]
+
+[[package]]
 name = "langchain-text-splitters"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2984,6 +3028,37 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6f/60/58e7a307a24044e0e982b99042fcd5a58d0cd928d9c01829574d7553ee8d/peewee-3.18.3.tar.gz", hash = "sha256:62c3d93315b1a909360c4b43c3a573b47557a1ec7a4583a71286df2a28d4b72e", size = 3026296, upload-time = "2025-11-03T16:43:46.678Z" }
 
 [[package]]
+name = "pinecone"
+version = "7.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "pinecone-plugin-interface" },
+    { name = "python-dateutil" },
+    { name = "typing-extensions" },
+    { name = "urllib3", marker = "python_full_version < '4'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bc/9d/07a7f2136ce04cabd21d69c057dc2915867082b0047e6873e424388d4475/pinecone-7.0.1.tar.gz", hash = "sha256:49ff7b0f5be4a2ddec5aaa709758a9f2df56baa58ad46507d081409e246a81ec", size = 207930, upload-time = "2025-05-21T19:39:01.218Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/81/88/896221e991077d353e61991b759f46d75f3b4298eb5a4aa6534c1371f4b0/pinecone-7.0.1-py3-none-any.whl", hash = "sha256:ce7b0dab3c9f7d81e75b24c13fcbca4a51371e08021faaecaf0cd9a45ca1be6c", size = 516590, upload-time = "2025-05-21T19:38:59.117Z" },
+]
+
+[package.optional-dependencies]
+asyncio = [
+    { name = "aiohttp" },
+    { name = "aiohttp-retry" },
+]
+
+[[package]]
+name = "pinecone-plugin-interface"
+version = "0.0.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/fb/e8a4063264953ead9e2b24d9b390152c60f042c951c47f4592e9996e57ff/pinecone_plugin_interface-0.0.7.tar.gz", hash = "sha256:b8e6675e41847333aa13923cc44daa3f85676d7157324682dc1640588a982846", size = 3370, upload-time = "2024-06-05T01:57:52.093Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3b/1d/a21fdfcd6d022cb64cef5c2a29ee6691c6c103c4566b41646b080b7536a5/pinecone_plugin_interface-0.0.7-py3-none-any.whl", hash = "sha256:875857ad9c9fc8bbc074dbe780d187a2afd21f5bfe0f3b08601924a61ef1bba8", size = 6249, upload-time = "2024-06-05T01:57:50.583Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4003,6 +4078,8 @@ dependencies = [
     { name = "langchain-mcp-adapters" },
     { name = "langchain-ollama" },
     { name = "langchain-openai" },
+    { name = "langchain-pinecone" },
+    { name = "langchain-qdrant" },
     { name = "langchain-text-splitters" },
     { name = "langchain-tools" },
     { name = "langchain-weaviate" },
@@ -4252,6 +4329,8 @@ requires-dist = [
     { name = "langchain-mcp-adapters", specifier = "==0.1.13" },
     { name = "langchain-ollama", specifier = "==1.0.0" },
     { name = "langchain-openai", specifier = "==1.0.3" },
+    { name = "langchain-pinecone", specifier = ">=0.2.13" },
+    { name = "langchain-qdrant", specifier = ">=1.1.0" },
     { name = "langchain-text-splitters", specifier = "==1.0.0" },
     { name = "langchain-tools", specifier = "==0.1.34" },
     { name = "langchain-weaviate", specifier = "==0.0.6" },

@@ -135,6 +135,12 @@ class Mem0VectorStoreConfigSettings(BaseModel):
     path: Optional[str] = None
     collection_name: Optional[str] = None
     cluster_url: Optional[str] = None
+    api_key: Optional[str] = None
+    index_name: Optional[str] = None
+    environment: Optional[str] = None
+    url: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
 
 
 class Mem0VectorStoreSettings(BaseModel):
