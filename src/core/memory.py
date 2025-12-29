@@ -73,21 +73,22 @@ class Mem0Manager:
         This is important for providers like Weaviate to close sessions.
         Closes the mem0 client and its underlying connections.
         """
-        if (self._mem0_client and
-                hasattr(self._mem0_client, 'vector_store') and
-                hasattr(self._mem0_client.vector_store, 'client')):
-            if hasattr(self._mem0_client.vector_store.client, 'close'):
-                # Some clients might not have a close method,
-                # or it might not be async
-                try:
-                    client = self._mem0_client.vector_store.client
-                    if asyncio.iscoroutinefunction(client.close):
-                        await client.close()
-                    else:
-                        client.close()
-                    logger.info("Mem0 client closed successfully.")
-                except Exception as e:
-                    logger.error(f"Error closing mem0 client: {e}")
+        if not self._mem0_client:
+            return
+        
+        vector_store = getattr(self._mem0_client, "vector_store", None)
+        client = getattr(vector_store, "client", None) if vector_store else None
+        close_method = getattr(client, "close", None) if client else None
+
+        if callable(close_method):
+            try:
+                if asyncio.iscoroutinefunction(close_method):
+                    await close_method()
+                else:
+                    close_method()
+                logger.info("Mem0 client closed successfully.")
+            except Exception as e:
+                logger.error(f"Error closing mem0 client: {e}")
 
 
 # Singleton instance
