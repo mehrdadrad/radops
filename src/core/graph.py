@@ -279,12 +279,14 @@ def auditor_node(state):
         if isinstance(m, ToolMessage) and i > last_request_index
     ]
     supervisor_response = messages[-1].content if isinstance(messages[-1], AIMessage) else ""
+    relevant_memories = state.get("relevant_memories", "")
 
     llm = llm_factory(llm_profile)
     llm_structured = llm.with_structured_output(AuditReport)
     audit = llm_structured.invoke([
         SystemMessage(content=AUDITOR_PROMPT),
         HumanMessage(content=f"User Request: {original_request}"),
+        HumanMessage(content=f"Memory Evidence (Past Knowledge): {relevant_memories}"),
         HumanMessage(content=f"Tool Evidence: {tool_outputs}"),
         HumanMessage(content=f"Supervisor Conclusion: {supervisor_response}")
     ])
@@ -350,7 +352,9 @@ async def manage_memory_node(state: State) -> dict:
 
     # search
     try:
-        memories = await mem0.search(messages[-1].content, user_id=user_id)
+        memories = await mem0.search(
+            messages[-1].content, user_id=user_id, limit=settings.mem0.limit
+        )
         memory_list = memories["results"]
         context = "Relevant information from previous conversations:\n"
         for memory in memory_list:
@@ -384,7 +388,10 @@ async def manage_memory_node(state: State) -> dict:
             {"role": "user", "content": last_human_message.content},
             {"role": "assistant", "content": last_ai_message.content},
         ]
-        await mem0.add(messages=interaction_messages, user_id=user_id)
+        await mem0.add(
+            messages=interaction_messages, 
+            user_id=user_id,
+        )
         logger.info("Mem0: Added interaction for user '%s'.", user_id)
 
     # Remove old messages
@@ -394,7 +401,8 @@ async def manage_memory_node(state: State) -> dict:
     )
     if messages_to_keep:
         delete_messages = [
-            RemoveMessage(id=m.id) for m in state["messages"][:-messages_to_keep]
+            RemoveMessage(id=m.id)
+            for m in state["messages"][:-messages_to_keep]
         ]
 
     return {"relevant_memories": context, "messages": delete_messages}

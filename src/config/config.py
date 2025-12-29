@@ -149,6 +149,7 @@ class Mem0Settings(BaseModel):
 
     llm_profile: str
     embedding_profile: str
+    limit: int = 10
     vector_store: Mem0VectorStoreSettings
     excluded_tools: list[str] = Field(default_factory=list)
 
