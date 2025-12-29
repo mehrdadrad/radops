@@ -290,6 +290,19 @@ def auditor_node(state):
     ])
 
     nodes = state["response_metadata"].get("nodes", []) + [agent_name]
+
+    if audit.score >= settings.agent.auditor.threshold:
+        logger.info(
+            "QA Score %s is above threshold %s. Finishing job.",
+            audit.score,
+            settings.agent.auditor.threshold,
+        )
+        return {
+            "messages": [
+                AIMessage(content=f"QA Passed. Finishing job (score: {audit.score})")
+            ],
+            "response_metadata": {"nodes": nodes},
+        }
     
     failed_verifications = [v for v in audit.verifications if not v.is_success]
 
@@ -300,25 +313,32 @@ def auditor_node(state):
             if isinstance(m, HumanMessage) and "QA REJECTION" in str(m.content)
         ]
         if len(previous_rejections) >= 2:
-            logger.info("QA rejected twice. Ending task.")
+            logger.info(
+                f"QA rejected {len(previous_rejections)} times (Last score {audit.score}) "
+                "Ending task."
+            )
             return {
                 "response_metadata": {"nodes": nodes}
             }
 
         first_failure = failed_verifications[0]
         feedback = f"QA REJECTION: {first_failure.missing_information}. {first_failure.correction_instruction}"
-        logger.info(f"QA Rejected with feedback: {feedback}")
+        logger.info(
+            f"QA Rejected with feedback (Score {audit.score}): {feedback}"
+        )
         return {
             "messages": [HumanMessage(content=feedback)],
             "next_worker": None,
             "response_metadata": {"nodes": nodes}
         }
 
-    if audit.score < settings.agent.auditor.threshold:
-        logger.warning("QA Score %s is below threshold %s, but no specific verifications failed. Approving to prevent false positive.", audit.score, settings.agent.auditor.threshold)
-
     logger.info("QA Passed with score %s. Finishing job.", audit.score)
-    return {"messages": [AIMessage(content=f"QA Passed. Finishing job (score: {audit.score})")], "response_metadata": {"nodes": nodes}}
+    return {
+        "messages": [
+            AIMessage(content=f"QA Passed. Finishing job (score: {audit.score})")
+        ],
+        "response_metadata": {"nodes": nodes},
+    }
 
 
 async def manage_memory_node(state: State) -> dict:
