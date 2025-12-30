@@ -34,6 +34,13 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
         yaml_data, vault_url, vault_token, vault_mount_point, "tools.yaml"
     )
 
+class ToolFunctionConfig(BaseModel):
+    function: str
+    enabled: bool = True
+
+class LocalToolConfig(BaseModel):
+    module: str
+    tools: list[ToolFunctionConfig] = Field(default_factory=list)
 
 class GithubSettings(BaseModel):
     """Settings for GitHub integration."""
@@ -76,7 +83,7 @@ class ToolSettings(BaseSettings):
     """
 
     # model_config for pydantic-settings
-    model_config = SettingsConfigDict(extra='ignore', env_nested_delimiter='__')
+    model_config = SettingsConfigDict(extra='allow', env_nested_delimiter='__')
 
     @classmethod
     def settings_customise_sources(
@@ -92,6 +99,9 @@ class ToolSettings(BaseSettings):
             lambda: yaml_config_settings_source(settings_cls),
             env_settings,
         )
+    
+    # Local Tools
+    local_tools: list[LocalToolConfig] = Field(default_factory=list)
 
     # MCP Client Configuration
     mcp_servers: Optional[Dict[str, Any]] = None

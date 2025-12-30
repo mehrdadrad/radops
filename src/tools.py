@@ -3,6 +3,7 @@ This module provides a registry for all the tools available to the RadOps assist
 """
 import asyncio
 import logging
+import importlib
 from typing import List
 
 from langchain_core.tools import BaseTool
@@ -10,44 +11,6 @@ from core.mcp_client import MCPClient
 
 from config.tools import tool_settings as settings
 from core.vector_store import vector_store_factory
-from services.tools.aws.diagnostics import (
-    aws__analyze_reachability,
-    aws__check_recent_changes,
-    aws__get_ec2_health,
-    aws__query_logs,
-)
-from services.tools.aws.ec2 import aws__list_ec2_instances, aws__manage_ec2_instance
-from services.tools.aws.network import (
-    aws__manage_vpc,
-    aws__manage_subnet,
-    aws__manage_internet_gateway,
-    aws__manage_route_table,
-    aws__manage_route,
-)
-from services.tools.aws.troubleshooting import (
-    aws__get_cloudformation_stack_events,
-    aws__get_target_group_health,
-    aws__simulate_iam_policy,
-)
-from services.tools.network.checkhost.check_host_net import (
-    network__check_host,
-    network__get_check_host_nodes,
-)
-from services.tools.network.geoip.geoip import network__get_geoip_location
-from services.tools.github.issue import github_create_issue, github_list_issues
-from services.tools.github.pull_request import (
-    github_create_pull_request,
-    github_list_pull_requests,
-)
-from services.tools.jira.jira_tools import jira_create_ticket, jira_search_issues
-from services.tools.network.lg.lg import (
-    network__verizon_looking_glass,
-    network__verizon_looking_glass_locations,
-)
-from services.tools.network.peeringdb.peeringdb import (
-    network__get_asn_peering_info,
-    network__get_peering_exchange_info,
-)
 from services.tools.system.config.secrets import secret__set_user_secrets
 from services.tools.system.history.history_tools import (
     create_history_deletion_tool,
@@ -79,38 +42,63 @@ class ToolRegistry:
         ]
         self.weaviate_client = None
 
+    def _import_and_add_tool(self, tools: List[BaseTool], module_path: str, func_name: str):
+        try:
+            module = importlib.import_module(module_path)
+            tool_func = getattr(module, func_name)
+            tools.append(tool_func)
+            logger.debug(f"Loaded tool '{func_name}' from '{module_path}'")
+        except Exception as e:
+            logger.error(f"Failed to load tool '{func_name}' from '{module_path}': {e}")
+
+    def _load_tools_from_config(self) -> List[BaseTool]:
+        """Loads local tools defined in the configuration."""
+        tools = []
+        # Check if 'local_tools' is defined in settings
+        local_tools_config = getattr(settings, "local_tools", None)
+        if not local_tools_config:
+            return []
+
+        for tool_def in local_tools_config:
+            # Support both dict and object access
+            if isinstance(tool_def, dict):
+                module_path = tool_def.get("module")
+                group_tools = tool_def.get("tools")
+
+                if group_tools and isinstance(group_tools, list):
+                    for item in group_tools:
+                        if isinstance(item, dict):
+                            func_name = item.get("function")
+                            enabled = item.get("enabled", True)
+                            if enabled and module_path and func_name:
+                                self._import_and_add_tool(tools, module_path, func_name)
+                else:
+                    func_name = tool_def.get("function")
+                    enabled = tool_def.get("enabled", True)
+                    if enabled and module_path and func_name:
+                        self._import_and_add_tool(tools, module_path, func_name)
+            else:
+                module_path = getattr(tool_def, "module", None)
+                group_tools = getattr(tool_def, "tools", None)
+
+                if group_tools and isinstance(group_tools, list):
+                    for item in group_tools:
+                        func_name = getattr(item, "function", None)
+                        enabled = getattr(item, "enabled", True)
+                        if enabled and module_path and func_name:
+                            self._import_and_add_tool(tools, module_path, func_name)
+                else:
+                    func_name = getattr(tool_def, "function", None)
+                    enabled = getattr(tool_def, "enabled", True)
+                    if enabled and module_path and func_name:
+                        self._import_and_add_tool(tools, module_path, func_name)
+
+        return tools
+
     async def get_all_tools(self) -> List[BaseTool]:
         """Gathers and returns all available tools."""
-        local_tools = [
-            network__get_asn_peering_info,
-            network__get_peering_exchange_info,
-            network__verizon_looking_glass,
-            network__verizon_looking_glass_locations,
-            network__get_geoip_location,
-            jira_create_ticket,
-            jira_search_issues,
-            network__check_host,
-            network__get_check_host_nodes,
-            github_list_issues,
-            github_create_issue,
-            github_create_pull_request,
-            github_list_pull_requests,
-            aws__analyze_reachability,
-            aws__query_logs,
-            aws__check_recent_changes,
-            aws__get_ec2_health,
-            aws__list_ec2_instances,
-            aws__manage_ec2_instance,
-            aws__get_cloudformation_stack_events,
-            aws__get_target_group_health,
-            aws__simulate_iam_policy,
-            aws__manage_vpc,
-            aws__manage_subnet,
-            aws__manage_internet_gateway,
-            aws__manage_route_table,
-            aws__manage_route,
-            system__submit_work
-        ]
+        local_tools = self._load_tools_from_config()
+        local_tools = local_tools + [system__submit_work]
 
         mcp_tools = []
         async def _load_client(client):

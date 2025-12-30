@@ -3,7 +3,7 @@ logging:
 
 agent:
   supervisor:
-    llm_profile: anthropic-main
+    llm_profile: openai-main
   auditor:
     enabled: true
     llm_profile: openai-main
@@ -77,6 +77,18 @@ vector_store:
       grpc_secure: false
     chroma:
       persist_dir: ./chroma_db_data
+    pinecone:
+      index_name: radops
+      api_key: vault:system#pinecone_key
+    qdrant:
+      url: https://93c5b57d-d6ef-46d0-aca1-6d33cd4cb9f9.us-east4-0.gcp.cloud.qdrant.io
+      port: 6333
+      api_key: vault:system#qdrant_key
+    milvus:
+      uri: https://in03-3ada559110f49ce.serverless.gcp-us-west1.cloud.zilliz.com
+      user: db_3ada559110f49ce
+      password: vault:system#milvus_password
+      token: vault:system#milvus_token
 
 memory:
   redis:
@@ -91,6 +103,7 @@ memory:
 mem0:
   llm_profile: "openai-summary"
   embedding_profile: "openai-embedding-small"
+  limit: 3
   excluded_tools:
     - router_configuration_retriever
     - set_user_secrets
@@ -103,7 +116,6 @@ mem0:
     # config:
     #   path: ./mem0_db_data
 
-
 llm:
   default_profile: "openai-main" # Set a default profile for general use
   profiles:
@@ -112,7 +124,7 @@ llm:
       #model: "gpt-3.5-turbo-16k"
       model: "gpt-4o-mini"
       temperature: 0.0
-      max_tokens: 2000
+      max_tokens: 3000
       api_key: vault:system#openai_key
     openai-summary:
       provider: "openai"
@@ -129,6 +141,7 @@ llm:
       provider: "openai"
       model: "text-embedding-3-small"
       api_key: vault:system#openai_key
+      dimensions: 1536
     ollama-main:
       provider: "ollama"
       model: "gpt-oss:20b"
