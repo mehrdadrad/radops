@@ -29,6 +29,8 @@ from tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
+QA_REJECTION_PREFIX = "QA REJECTION"
+
 
 async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     """Builds and runs the LangGraph application."""
@@ -312,7 +314,7 @@ def auditor_node(state):
         # Check for previous rejections to prevent infinite loops
         previous_rejections = [
             m for m in messages
-            if isinstance(m, HumanMessage) and "QA REJECTION" in str(m.content)
+            if isinstance(m, HumanMessage) and QA_REJECTION_PREFIX in str(m.content)
         ]
         if len(previous_rejections) >= 2:
             logger.info(
@@ -324,7 +326,7 @@ def auditor_node(state):
             }
 
         first_failure = failed_verifications[0]
-        feedback = f"QA REJECTION: {first_failure.missing_information}. {first_failure.correction_instruction}"
+        feedback = f"{QA_REJECTION_PREFIX}: {first_failure.missing_information}. {first_failure.correction_instruction}"
         logger.info(
             f"QA Rejected with feedback (Score {audit.score}): {feedback}"
         )
@@ -366,7 +368,9 @@ async def manage_memory_node(state: State) -> dict:
     # Add to memory if we have a request-response pair
     human_messages = [
         msg for msg in state["messages"]
-        if isinstance(msg, HumanMessage) and getattr(msg, "name", None) != "supervisor"
+        if isinstance(msg, HumanMessage)
+        and getattr(msg, "name", None) != "supervisor"
+        and not str(msg.content).startswith(QA_REJECTION_PREFIX)
     ]
     last_human_message = (
         human_messages[-2]
@@ -379,7 +383,9 @@ async def manage_memory_node(state: State) -> dict:
         (
             msg
             for msg in reversed(state["messages"])
-            if isinstance(msg, AIMessage) and not msg.tool_calls
+            if isinstance(msg, AIMessage)
+            and not msg.tool_calls
+            and not str(msg.content).startswith("QA Passed")
         ),
         None,
     )
@@ -460,7 +466,7 @@ def route_workflow(state: State) -> str:
 
 def route_auditor(state):
     last_msg = state["messages"][-1]
-    if "QA REJECTION" in last_msg.content:
+    if QA_REJECTION_PREFIX in last_msg.content:
         return "supervisor"
     else:
         return "approved"

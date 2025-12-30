@@ -306,4 +306,5 @@ class MilvusVectorStoreManager:
         self.stop_periodic_sync()
         if self._client:
             self._client.close()
-        logger.info("Milvus manager closed.")
+            self._client = None
+            logger.info("Milvus manager closed.")

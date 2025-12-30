@@ -43,6 +43,7 @@ class PineconeVectorStoreManager:
         self._config = settings.vector_store.providers["pinecone"]
         self._api_key = self._config.get("api_key")
         self._index_name = self._config.get("index_name")
+        self._closed = False
 
         if not self._api_key or not self._index_name:
             raise ValueError(
@@ -312,6 +313,9 @@ class PineconeVectorStoreManager:
 
     def close(self):
         """Closes client connections and stops background threads."""
+        if self._closed:
+            return
         self.stop_periodic_sync()
+        self._closed = True
         # Pinecone client doesn't strictly require a close, but good practice if available
         logger.info("Pinecone manager closed.")

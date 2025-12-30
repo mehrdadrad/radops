@@ -44,12 +44,16 @@ async def lifespan(fastapi_app: FastAPI):
     checkpointer, redis_client, tool_registry = None, None, None
     try:
         async with get_checkpointer() as (cp, rc):
-            checkpointer, redis_client = cp, rc
-            tool_registry = ToolRegistry(checkpointer=checkpointer)
-            fastapi_app.state.graph = await run_graph(checkpointer, tool_registry=tool_registry)
-            fastapi_app.state.checkpointer = checkpointer
-            fastapi_app.state.redis_client = redis_client
-            yield
+            try:
+                checkpointer, redis_client = cp, rc
+                tool_registry = ToolRegistry(checkpointer=checkpointer)
+                fastapi_app.state.graph = await run_graph(checkpointer, tool_registry=tool_registry)
+                fastapi_app.state.checkpointer = checkpointer
+                fastapi_app.state.redis_client = redis_client
+                yield
+            except Exception as e:
+                logging.error("Fatal error during startup: %s", e)
+                sys.exit(1)
     finally:
         logging.info("Application shutdown: Cleaning up resources.")
         if redis_client:

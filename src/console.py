@@ -61,6 +61,8 @@ async def main():
                     continue
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
+    except Exception as e:
+        logging.error("Fatal error: %s", e)
 
     finally:
         try:

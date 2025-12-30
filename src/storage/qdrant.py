@@ -436,5 +436,6 @@ class QdrantVectorStoreManager:
         self.stop_periodic_sync()
         if self._client:
             self._client.close()
-        logger.info("Qdrant manager closed.")
+            self._client = None
+            logger.info("Qdrant manager closed.")
         
