@@ -7,6 +7,7 @@ from core.llm import embedding_factory
 from storage.chromadb import ChromaVectorStoreManager
 from storage.protocols import VectorStoreManager
 from storage.pinecone import PineconeVectorStoreManager
+from storage.milvus import MilvusVectorStoreManager
 from storage.qdrant import QdrantVectorStoreManager
 from storage.weaviatedb import WeaviateVectorStoreManager
 
@@ -55,6 +56,10 @@ def vector_store_factory() -> list[VectorStoreManager]:
             )
         elif provider == "qdrant":
             manager = QdrantVectorStoreManager(
+                profile.name, sync_locations, embeddings_model
+            )
+        elif provider == "milvus":
+            manager = MilvusVectorStoreManager(
                 profile.name, sync_locations, embeddings_model
             )
         else:

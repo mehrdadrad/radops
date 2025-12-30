@@ -249,6 +249,7 @@ dependencies = [
     "zstandard==0.25.0",
     "langchain-pinecone>=0.2.13",
     "langchain-qdrant>=1.1.0",
+    "langchain-milvus>=0.3.2",
 ]
 
 [project.optional-dependencies]

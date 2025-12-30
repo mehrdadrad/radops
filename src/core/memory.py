@@ -1,5 +1,10 @@
 import asyncio
 import logging
+import os
+
+# Suppress gRPC warnings associated with Mem0/Vector Stores
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "0"
 
 from mem0 import AsyncMemory
 
@@ -32,6 +37,7 @@ class Mem0Manager:
                 "weaviate": ["collection_name", "cluster_url"],
                 "pinecone": ["api_key", "index_name", "environment"],
                 "qdrant": ["collection_name", "url", "host", "port", "api_key", "path"],
+                "milvus": ["collection_name", "uri", "token", "user", "password"],
             }
             for field in provider_fields_map.get(mem0_config.vector_store.provider, []):
                 if value := getattr(mem0_config.vector_store.config, field, None):

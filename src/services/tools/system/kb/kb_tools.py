@@ -9,6 +9,7 @@ from langchain_qdrant import QdrantVectorStore
 from qdrant_client.http import models
 from storage.protocols import VectorStoreManager
 from weaviate.classes.query import Filter
+from langchain_milvus import Milvus
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,8 @@ def _generic_retriever(query: str, vector_store: Any, **kwargs: Any) -> str:
             return retriever_weaviate(vector_store, query, **kwargs)
         elif isinstance(vector_store, QdrantVectorStore):
             return retriever_qdrant(vector_store, query, **kwargs)
+        elif isinstance(vector_store, Milvus):
+            return retriever_milvus(vector_store, query, **kwargs)
         else:
             return retriever_chroma(vector_store, query, **kwargs)
     except Exception as e:
@@ -177,4 +180,18 @@ def retriever_qdrant(vector_store: Any, query: str, **kwargs: Any):
         k=3,
         filter=filter
     )
+    return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
+
+def retriever_milvus(vector_store: Any, query: str, **kwargs: Any):
+    expr_list = []
+    for key, value in kwargs.items():
+        if value:
+            expr_list.append(f'{key} == "{value}"')
+
+    expr = None
+    if expr_list:
+        expr = " and ".join(expr_list)
+
+    docs = vector_store.similarity_search(query=query, k=3, expr=expr)
+
     return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
