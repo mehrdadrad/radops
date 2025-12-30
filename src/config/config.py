@@ -45,6 +45,7 @@ class LLMProfileSettings(BaseModel):
     base_url: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    dimensions: Optional[int] = None
 
 
 class LLMSettings(BaseModel):

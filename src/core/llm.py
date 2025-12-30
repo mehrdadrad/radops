@@ -126,6 +126,7 @@ def embedding_factory(profile_name: str) -> Embeddings:
                 model=profile_settings.model,
                 api_key=profile_settings.api_key,
                 base_url=profile_settings.base_url,
+                dimensions=profile_settings.dimensions,
             )
         case "ollama":
             return OllamaEmbeddings(

@@ -5,6 +5,8 @@ from typing import Any, Optional
 from pydantic.v1 import BaseModel, Field, create_model
 from config.config import settings
 from langchain_weaviate.vectorstores import WeaviateVectorStore
+from langchain_qdrant import QdrantVectorStore
+from qdrant_client.http import models
 from storage.protocols import VectorStoreManager
 from weaviate.classes.query import Filter
 
@@ -31,6 +33,8 @@ def _generic_retriever(query: str, vector_store: Any, **kwargs: Any) -> str:
     try:
         if isinstance(vector_store, WeaviateVectorStore):
             return retriever_weaviate(vector_store, query, **kwargs)
+        elif isinstance(vector_store, QdrantVectorStore):
+            return retriever_qdrant(vector_store, query, **kwargs)
         else:
             return retriever_chroma(vector_store, query, **kwargs)
     except Exception as e:
@@ -152,4 +156,25 @@ def retriever_weaviate(vector_store: Any, query: str, **kwargs: Any):
 
     docs = retriever.invoke(query)
 
-    return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])    
+    return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
+
+def retriever_qdrant(vector_store: Any, query: str, **kwargs: Any):
+    must_conditions = []
+    for key, value in kwargs.items():
+        if value:
+            must_conditions.append(
+                models.FieldCondition(
+                    key=f"metadata.{key}",
+                    match=models.MatchValue(value=value)
+                )
+            )
+
+    filter = None
+    if must_conditions:
+        filter = models.Filter(must=must_conditions)
+    docs = vector_store.similarity_search(
+        query=query,
+        k=3,
+        filter=filter
+    )
+    return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
