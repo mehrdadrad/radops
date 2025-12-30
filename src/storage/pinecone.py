@@ -45,14 +45,20 @@ class PineconeVectorStoreManager:
         self._index_name = self._config.get("index_name")
 
         if not self._api_key or not self._index_name:
-            raise ValueError("Pinecone 'api_key' and 'index_name' are required in vector_store.providers.pinecone config.")
+            raise ValueError(
+                "Pinecone 'api_key' and 'index_name' are required in "
+                "vector_store.providers.pinecone config."
+            )
 
         try:
             self._pc = Pinecone(api_key=self._api_key)
             # Ensure index exists or access it.
-            # Note: Creating an index is a heavy operation, we assume it exists or user creates it.
+            # Note: Creating an index is a heavy operation, we assume it exists
+            # or user creates it.
             self._index = self._pc.Index(self._index_name)
-            logger.info("Successfully connected to Pinecone Index: %s", self._index_name)
+            logger.info(
+                "Successfully connected to Pinecone Index: %s", self._index_name
+            )
         except Exception as e:
             logger.error(f"Failed to connect to Pinecone: {e}", exc_info=True)
             raise
@@ -133,12 +139,67 @@ class PineconeVectorStoreManager:
             logger.error(f"No vector store found for namespace '{collection}'.")
             return
 
+        # Get dimension for dummy vector
+        dimension = 1536
+        try:
+            stats = self._index.describe_index_stats()
+            dimension = (
+                stats.get("dimension", 1536)
+                if isinstance(stats, dict)
+                else getattr(stats, "dimension", 1536)
+            )
+        except Exception as e:
+            logger.debug(f"Could not get index stats: {e}")
+
         docs_to_upsert = [
             doc for doc in changed_docs if doc.content is not None
         ]
         docs_to_delete = [doc for doc in changed_docs if doc.content is None]
 
-        # 1. Handle deletions
+        # Filter out documents that are already up-to-date in Pinecone
+        if docs_to_upsert:
+            docs_that_need_update = []
+            # Use a non-zero vector to avoid errors with Cosine similarity
+            dummy_vector = [0.01] * dimension
+            for doc in docs_to_upsert:
+                source = os.path.basename(doc.path)
+                try:
+                    # Check if any vector exists with the same source
+                    # Query by source only, then compare timestamp manually
+                    results = self._index.query(
+                        vector=dummy_vector,
+                        top_k=1,
+                        filter={
+                            "source": source
+                        },
+                        namespace=collection,
+                        include_metadata=True
+                    )
+                    
+                    needs_update = True
+                    if results.matches:
+                        metadata = results.matches[0].metadata or {}
+                        stored_mod = metadata.get("last_modification")
+                        
+                        if stored_mod is not None:
+                            # Compare as integers to handle float storage in Pinecone
+                            if int(float(stored_mod)) == int(doc.last_modified):
+                                needs_update = False
+                                logger.debug(
+                                    "Skipping '%s': up-to-date (ts: %s)", 
+                                    source, int(stored_mod)
+                                )
+                    
+                    if needs_update:
+                        docs_that_need_update.append(doc)
+                except Exception as e:
+                    logger.warning(
+                        f"Error checking existence of '{source}' in Pinecone: {e}"
+                    )
+                    docs_that_need_update.append(doc)
+            docs_to_upsert = docs_that_need_update
+
+        # Handle deletions
         if docs_to_delete:
             deleted_sources = [
                 os.path.basename(doc.path) for doc in docs_to_delete
@@ -148,9 +209,15 @@ class PineconeVectorStoreManager:
                 f"{', '.join(sorted(deleted_sources))}"
             )
             # Pinecone delete with filter
-            vectorstore.delete(filter={"source": {"$in": deleted_sources}})
+            try:
+                vectorstore.delete(filter={"source": {"$in": deleted_sources}})
+            except Exception as e:
+                logger.warning(
+                    f"Error deleting from Pinecone namespace "
+                    f"'{collection}': {e}"
+                )
 
-        # 2. Handle upserts: Delete existing chunks for these files first to avoid duplicates
+        # Handle upserts: Delete existing chunks for these files first to avoid duplicates
         if docs_to_upsert:
             upsert_sources = [
                 os.path.basename(doc.path) for doc in docs_to_upsert
@@ -159,10 +226,15 @@ class PineconeVectorStoreManager:
                 f"Upserting {len(upsert_sources)} files in namespace '{collection}': "
                 f"{', '.join(sorted(upsert_sources))}"
             )
-            # Delete existing vectors for these sources before re-adding
-            vectorstore.delete(filter={"source": {"$in": upsert_sources}})
+            try:
+                vectorstore.delete(filter={"source": {"$in": upsert_sources}})
+            except Exception as e:
+                logger.warning(
+                    f"Error deleting existing vectors in Pinecone "
+                    f"namespace '{collection}': {e}"
+                )
 
-        # 3. Prepare and add new/updated documents
+        # Prepare and add new/updated documents
         documents_to_add = []
         for loaded_doc in docs_to_upsert:
             file_name = os.path.basename(loaded_doc.path)
