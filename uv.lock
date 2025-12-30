@@ -1813,6 +1813,19 @@ wheels = [
 ]
 
 [[package]]
+name = "langchain-milvus"
+version = "0.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "pymilvus" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/75/e0/155f9646eee49c69f5745f51e2e96edcdc3410460da3737f742d70eb75f7/langchain_milvus-0.3.2.tar.gz", hash = "sha256:f5f00a1b5d0745ca23a8115bf607973d0b357096682e6b9f40aa6fe6a96c6f09", size = 34821, upload-time = "2025-12-18T14:10:16.782Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e4/4c/91e357035b876f3783daa7df853d83b18d9a0f6a4bd4ea948fba871754b6/langchain_milvus-0.3.2-py3-none-any.whl", hash = "sha256:b5e6c0150b68548629b212cc462cafd46cb7755a692e8849cb61233506802ff5", size = 38163, upload-time = "2025-12-18T14:10:15.647Z" },
+]
+
+[[package]]
 name = "langchain-ollama"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3740,6 +3753,23 @@ wheels = [
 ]
 
 [[package]]
+name = "pymilvus"
+version = "2.6.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "orjson" },
+    { name = "pandas" },
+    { name = "protobuf" },
+    { name = "python-dotenv" },
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/64/a3/66781567d1067f1fbf7dc5dc12f6af1c4b05bf17f81fe6d6b644353b9b72/pymilvus-2.6.6.tar.gz", hash = "sha256:2522617ea34dcc9adaad0128d230f0306962a122f08366a24dd0e84bdada1f60", size = 1380350, upload-time = "2025-12-30T09:11:28.477Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/ab/890c3e258c09981a4df875fe762166b92111fc1f9fb1e646025ebe3acb1b/pymilvus-2.6.6-py3-none-any.whl", hash = "sha256:0e61daa573b0025650f072493cb978a9ada9cdb1d450594707592174b1f297c0", size = 285098, upload-time = "2025-12-30T09:11:27.099Z" },
+]
+
+[[package]]
 name = "pynacl"
 version = "1.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -4076,6 +4106,7 @@ dependencies = [
     { name = "langchain-community" },
     { name = "langchain-core" },
     { name = "langchain-mcp-adapters" },
+    { name = "langchain-milvus" },
     { name = "langchain-ollama" },
     { name = "langchain-openai" },
     { name = "langchain-pinecone" },
@@ -4327,6 +4358,7 @@ requires-dist = [
     { name = "langchain-community", specifier = "==0.4.1" },
     { name = "langchain-core", specifier = "==1.1.0" },
     { name = "langchain-mcp-adapters", specifier = "==0.1.13" },
+    { name = "langchain-milvus", specifier = ">=0.3.2" },
     { name = "langchain-ollama", specifier = "==1.0.0" },
     { name = "langchain-openai", specifier = "==1.0.3" },
     { name = "langchain-pinecone", specifier = ">=0.2.13" },
@@ -4826,6 +4858,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/05/04/74127fc843314818edfa81b5540e26dd537353b123a4edc563109d8f17dd/s3transfer-0.16.0.tar.gz", hash = "sha256:8e990f13268025792229cd52fa10cb7163744bf56e719e0b9cb925ab79abf920", size = 153827, upload-time = "2025-12-01T02:30:59.114Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fc/51/727abb13f44c1fcf6d145979e1535a35794db0f6e450a0cb46aa24732fe2/s3transfer-0.16.0-py3-none-any.whl", hash = "sha256:18e25d66fed509e3868dc1572b3f427ff947dd2c56f844a5bf09481ad3f3b2fe", size = 86830, upload-time = "2025-12-01T02:30:57.729Z" },
+]
+
+[[package]]
+name = "setuptools"
+version = "80.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/5d/3bf57dcd21979b887f014ea83c24ae194cfcd12b9e0fda66b957c69d1fca/setuptools-80.9.0.tar.gz", hash = "sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c", size = 1319958, upload-time = "2025-05-27T00:56:51.443Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/dc/17031897dae0efacfea57dfd3a82fdd2a2aeb58e0ff71b77b87e44edc772/setuptools-80.9.0-py3-none-any.whl", hash = "sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922", size = 1201486, upload-time = "2025-05-27T00:56:49.664Z" },
 ]
 
 [[package]]
