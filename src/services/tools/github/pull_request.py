@@ -1,5 +1,5 @@
 # pull_request.py
-from typing import Annotated
+from typing import Annotated, Optional
 
 from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field
@@ -16,6 +16,8 @@ class GitHubBaseInput(BaseModel):
     user_id: Annotated[str, InjectedState("user_id")] = Field(
         description="The user's ID to retrieve credentials for GitHub."
     )
+    org: Optional[str] = Field(default=None, description="The GitHub organization or user. Defaults to user's configured org.")
+    repo: Optional[str] = Field(default=None, description="The GitHub repository name. Defaults to user's configured repo.")
 
 class CreatePullRequestInput(GitHubBaseInput):
     """Input for the github_create_pull_request tool."""
@@ -32,19 +34,28 @@ class ListPullRequestsInput(GitHubBaseInput):
     direction: str = Field(default='desc', description="The direction of the sort. Can be either 'asc' or 'desc'.")
 
 @tool(args_schema=CreatePullRequestInput)
-def github_create_pull_request(user_id: Annotated[str, InjectedState("user_id")], title: str, body: str, head: str, base: str, draft: bool = False) -> dict:
+def github_create_pull_request(
+    user_id: Annotated[str, InjectedState("user_id")],
+    title: str,
+    body: str,
+    head: str,
+    base: str,
+    draft: bool = False,
+    org: Optional[str] = None,
+    repo: Optional[str] = None
+) -> dict:
     """
     Create a new pull request.
 
     Returns:
         A dictionary containing the new pull request's number and URL, or an error message.
     """
-    repo, error = get_github_repo(user_id)
-    if not repo:
+    repo_obj, error = get_github_repo(user_id, org, repo)
+    if not repo_obj:
         return error
     
     try:
-        pr = repo.create_pull(
+        pr = repo_obj.create_pull(
             title=title,
             body=body,
             head=head,
@@ -74,19 +85,26 @@ def github_create_pull_request(user_id: Annotated[str, InjectedState("user_id")]
         return {"error": repr(e)}
 
 @tool(args_schema=ListPullRequestsInput)
-def github_list_pull_requests(user_id: Annotated[str, InjectedState("user_id")], state: str = 'open', sort: str = 'created', direction: str = 'desc') -> list:
+def github_list_pull_requests(
+    user_id: Annotated[str, InjectedState("user_id")],
+    state: str = 'open',
+    sort: str = 'created',
+    direction: str = 'desc',
+    org: Optional[str] = None,
+    repo: Optional[str] = None
+) -> list:
     """
     List pull requests in the repository.
 
     Returns:
         A list of dictionaries, each representing a pull request.
     """
-    repo, error = get_github_repo(user_id)
-    if not repo:
+    repo_obj, error = get_github_repo(user_id, org, repo)
+    if not repo_obj:
         return [error]
         
     try:
-        pulls = repo.get_pulls(state=state, sort=sort, direction=direction)
+        pulls = repo_obj.get_pulls(state=state, sort=sort, direction=direction)
         
         pr_list = []
         for pr in pulls:
