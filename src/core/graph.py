@@ -568,25 +568,49 @@ def filter_tools(
 
 def sanitize_tool_calls(messages: list) -> list:
     """
-    Sanitizes messages to ensure AIMessages with tool_calls are followed by ToolMessages.
-    If not, the tool_calls are removed to prevent API errors (400).
+    Sanitizes messages to ensure AIMessages with tool_calls are followed by matching ToolMessages.
+    It handles invalid_tool_calls and removes orphaned ToolMessages to prevent API errors (400).
     """
     sanitized = []
-    for i, msg in enumerate(messages):
-        if isinstance(msg, AIMessage) and msg.tool_calls:
-            is_followed_by_tool = False
-            if i + 1 < len(messages):
-                next_msg = messages[i + 1]
-                if isinstance(next_msg, ToolMessage):
-                    is_followed_by_tool = True
-            
-            if not is_followed_by_tool:
+    i = 0
+    n = len(messages)
+    
+    while i < n:
+        msg = messages[i]
+        
+        if isinstance(msg, AIMessage):
+            if getattr(msg, "invalid_tool_calls", None):
                 content = msg.content if msg.content else "..."
                 sanitized.append(AIMessage(content=content, id=msg.id))
-            else:
-                sanitized.append(msg)
+                i += 1
+                continue
+            
+            if msg.tool_calls:
+                expected_ids = {tc['id'] for tc in msg.tool_calls}
+                
+                tool_messages = []
+                j = i + 1
+                while j < n and isinstance(messages[j], ToolMessage):
+                    tool_messages.append(messages[j])
+                    j += 1
+                
+                found_ids = {tm.tool_call_id for tm in tool_messages}
+                
+                if expected_ids.issubset(found_ids):
+                    sanitized.append(msg)
+                    sanitized.extend([tm for tm in tool_messages if tm.tool_call_id in expected_ids])
+                else:
+                    content = msg.content if msg.content else "..."
+                    sanitized.append(AIMessage(content=content, id=msg.id))
+                
+                i = j
+                continue
+
+        if isinstance(msg, ToolMessage):
+            i += 1
         else:
             sanitized.append(msg)
+            i += 1
     return sanitized
 
 def detect_tool_loop(state, limit=3):
