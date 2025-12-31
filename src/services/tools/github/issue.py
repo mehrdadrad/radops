@@ -15,6 +15,8 @@ class GitHubBaseInput(BaseModel):
     user_id: Annotated[str, InjectedState("user_id")] = Field(
         description="The user's ID to retrieve credentials for GitHub."
     )
+    org: Optional[str] = Field(default=None, description="The GitHub organization or user. Defaults to user's configured org.")
+    repo: Optional[str] = Field(default=None, description="The GitHub repository name. Defaults to user's configured repo.")
 
 class ListIssuesInput(GitHubBaseInput):
     """Input for the github_list_issues tool."""
@@ -34,7 +36,9 @@ def github_list_issues(
     user_id: Annotated[str, InjectedState("user_id")],
     assignee: Optional[str] = None,
     labels: Optional[List[str]] = None,
-    state: str = 'open'
+    state: str = 'open',
+    org: Optional[str] = None,
+    repo: Optional[str] = None
 ) -> list:
     """
     Finds open bugs or tasks assigned to the agent.
@@ -42,8 +46,8 @@ def github_list_issues(
     Returns:
         A list of dictionaries, each representing an issue.
     """
-    repo, error = get_github_repo(user_id)
-    if not repo:
+    repo_obj, error = get_github_repo(user_id, org, repo)
+    if not repo_obj:
         return [error]
         
     try:
@@ -51,7 +55,7 @@ def github_list_issues(
         if assignee:
             kwargs['assignee'] = assignee
 
-        issues = repo.get_issues(**kwargs)
+        issues = repo_obj.get_issues(**kwargs)
         
         issue_list = []
         for issue in issues:
@@ -72,7 +76,9 @@ def github_create_issue(
     title: str,
     body: str,
     assignee: Optional[str] = None,
-    labels: Optional[List[str]] = None
+    labels: Optional[List[str]] = None,
+    org: Optional[str] = None,
+    repo: Optional[str] = None
 ) -> dict:
     """
     Allows the agent to report bugs or break down a large task into smaller tickets.
@@ -80,15 +86,15 @@ def github_create_issue(
     Returns:
         A dictionary containing the new issue's number and URL, or an error message.
     """
-    repo, error = get_github_repo(user_id)
-    if not repo:
+    repo_obj, error = get_github_repo(user_id, org, repo)
+    if not repo_obj:
         return error
     
     if not assignee:
         assignee = NotSet
 
     try:
-        issue = repo.create_issue(
+        issue = repo_obj.create_issue(
             title=title,
             body=body,
             assignee=assignee,

@@ -152,12 +152,13 @@ AUDITOR_PROMPT = (
         "6. Assign a score between 0.0 and 1.0. 1.0 means fully satisfied, 0.0 means completely failed.\n"
         "7. If you mark a verification as is_success=False, you MUST provide a detailed missing_information description.\n"
         "8. EXCEPTION: If the User Request is conversational or does not require technical tools, and the Supervisor responded appropriately, APPROVE the result even if Tool Evidence is empty.\n"
-        "9. If `Tool Evidence` is empty, check `Memory Evidence`"
+        "9. If `Tool Evidence` is empty, check `Memory Evidence`\n"
         "10. If the Tool Evidence confirms the core action was successful, do NOT reject based on extra details in the Supervisor's summary unless they are factually wrong.\n"
         "11. If the Supervisor includes details that seem to be derived from the raw tool output (e.g., expanding 'Content' to 'Content Delivery Network', or fields present in JSON), accept them. Do not be pedantic about exact string matches.\n"
         "12. IMPORTANT: The Supervisor/Worker summary does NOT need to match the Tool Evidence textually. Workers often rephrase or transform data. If the task is completed, APPROVE.\n"
         "13. Do NOT reject solely because the Tool Evidence is empty. If the Supervisor provides a valid response, assume it is correct.\n"
-        "14. If the Supervisor answers based on 'Relevant Memories' (e.g., recalling past actions), and the answer is consistent with those memories, APPROVE."
+        "14. If the Supervisor answers based on 'Relevant Memories' (e.g., recalling past actions), and the answer is consistent with those memories, APPROVE.\n"
+        "15. QUANTITY MISMATCH: If the user requested a specific number of items (e.g., 'get 10 issues') but fewer were returned (e.g., 3), and the Supervisor explains that these are the only ones available, APPROVE the result."
     )
 
 EXTENSION_PROMPT = """
