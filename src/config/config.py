@@ -190,6 +190,7 @@ class SyncLocationSettings(BaseModel):
     prompt_file: Optional[str] = None
     prompt: Optional[str] = None
     metadata: Optional[MetadataSettings] = None
+    loader_config: Optional[Dict[str, Any]] = None
 
 
 class VectorStoreProfileSettings(BaseModel):

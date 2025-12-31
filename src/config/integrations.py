@@ -1,7 +1,7 @@
 """Handles integration settings for the application."""
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -39,6 +39,11 @@ class SlackSettings(BaseModel):
     app_token: Optional[str] = None
     log_level: str = "INFO"
 
+class GithubProfileSettings(BaseModel):
+    """Settings for a single GitHub integration profile."""
+    token: str = None
+    base_url: Optional[str] = None
+
 class IntegrationSettings(BaseSettings):
     """
     Centralized integrations settings.
@@ -64,6 +69,8 @@ class IntegrationSettings(BaseSettings):
 
     # Slack
     slack: SlackSettings = Field(default_factory=SlackSettings)
+    # Github
+    github: Dict[str, GithubProfileSettings] = Field(default_factory=dict)
 
 
 # Instantiate the settings

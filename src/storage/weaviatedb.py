@@ -14,6 +14,7 @@ from langchain_weaviate.vectorstores import WeaviateVectorStore as Weaviate
 from config.config import SyncLocationSettings, settings
 from integrations.fs.fs_loader import FileSystemLoader
 from integrations.google.gdrive_loader import GoogleDriveLoader
+from integrations.github.github_loader import GithubLoader
 from storage.protocols import LoadedDocument
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,6 @@ class WeaviateVectorStoreManager:
         self._embeddings = embeddings
         self._sync_interval = sync_interval
         self._name = name
-        self._stop_event = threading.Event()
         self._vectorstores = {}
         self._loaders = []
 
@@ -79,7 +79,7 @@ class WeaviateVectorStoreManager:
                 self._vectorstores[location.collection] = Weaviate(
                     self._client, location.collection, "text",
                     embedding=embeddings,
-                    attributes=["source", "device", "location", "last_modification"]
+                    attributes=["source", "last_modification"]
                 )
             elif location.type == "gdrive":
                 loader = GoogleDriveLoader(
@@ -91,7 +91,21 @@ class WeaviateVectorStoreManager:
                 self._vectorstores[location.collection] = Weaviate(
                     self._client, location.collection, "text",
                     embedding=embeddings,
-                    attributes=["source", "device", "location", "last_modification"]
+                    attributes=["source", "last_modification"]
+                )
+            elif location.type == "github":
+                loader = GithubLoader(
+                    repo_names=location.path.split(","),
+                    loader_config=location.loader_config,
+                    poll_interval=location.sync_interval
+                )
+                self._loaders.append(
+                    {"loader": loader, "collection": location.collection}
+                )
+                self._vectorstores[location.collection] = Weaviate(
+                    self._client, location.collection, "text",
+                    embedding=embeddings,
+                    attributes=["source", "last_modification"]
                 )
             else:
                 logger.warning(f"Unsupported sync location type: {location.type}")
@@ -190,10 +204,22 @@ class WeaviateVectorStoreManager:
                     f"Collection '{collection}' not found for granular update. "
                     "Performing full refresh logic instead."
                 )
-                self._update_vector_store(docs_to_upsert, full_refresh=True)
+                self._update_vector_store(changed_docs, collection, full_refresh=True)
                 return
 
             collection_obj = self._client.collections.get(collection)
+
+            # Check for schema compatibility
+            try:
+                if "source" not in {p.name for p in collection_obj.config.get().properties}:
+                    logger.warning(
+                        f"Collection '{collection}' is missing 'source' property. "
+                        "Performing full refresh to fix schema."
+                    )
+                    self._update_vector_store(changed_docs, collection, full_refresh=True)
+                    return
+            except Exception as e:
+                logger.warning(f"Failed to validate schema for '{collection}': {e}")
 
             # 1. Handle deletions
             if docs_to_delete:

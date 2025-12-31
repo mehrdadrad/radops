@@ -18,6 +18,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from config.config import SyncLocationSettings, settings
 from integrations.fs.fs_loader import FileSystemLoader
 from integrations.google.gdrive_loader import GoogleDriveLoader
+from integrations.github.github_loader import GithubLoader
 from storage.protocols import LoadedDocument
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,12 @@ class QdrantVectorStoreManager:
         if location.type == "gdrive":
             return GoogleDriveLoader(
                 folder_ids=[location.path],
+                poll_interval=location.sync_interval
+            )
+        if location.type == "github":
+            return GithubLoader(
+                repo_names=location.path.split(","),
+                loader_config=location.loader_config,
                 poll_interval=location.sync_interval
             )
 

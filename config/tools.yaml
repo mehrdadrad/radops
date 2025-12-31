@@ -75,6 +75,29 @@ local_tools:
         enabled: true
       - function: aws__manage_route
         enabled: true
+  - module: services.tools.nautobot.ipam
+    tools:
+      - function: nautobot__get_prefix_details
+        enabled: true
+      - function: nautobot__get_ip_by_host
+        enabled: true
+  - module: services.tools.nautobot.dcim
+    tools:
+      - function: nautobot__get_location_by_name
+        enabled: true
+      - function: nautobot__get_platform_by_name
+        enabled: true
+  - module: services.tools.nautobot.devices
+    tools:
+      - function: nautobot__get_device_details
+        enabled: true
+      - function: nautobot__get_device_interfaces
+        enabled: true
+  - module: services.tools.nautobot.circuits
+    tools:
+      - function: nautobot__get_circuit_by_id
+        enabled: true
+
 
 mcp_servers:
   aws-network-mcp-server:
@@ -144,3 +167,8 @@ aws:
   region: us-west-2
   access_key_id: vault:tools/aws#ACCESS_KEY_ID
   secret_access_key: vault:tools/aws#SECRET_ACCESS_KEY
+
+nautobot:
+  url: https://demo.nautobot.com/
+  token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  verify_ssl: false

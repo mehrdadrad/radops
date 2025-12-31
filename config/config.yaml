@@ -17,6 +17,7 @@ agent:
       system_prompt_file: "../config/prompts/network_agent_prompt.txt"
       allow_tools:
         - system__.*
+        - nautobot__.*
         - kb.*
         - network.*
     cloud_agent:
@@ -32,6 +33,7 @@ agent:
       system_prompt_file: "../config/prompts/support_agent_prompt.txt"
       allow_tools:
         - system__.*
+        - nautobot__.*
         - kb.*
         - jira.*
         - pagerduty.*
@@ -42,7 +44,7 @@ agent:
 vector_store:
   profiles:
     - name: vs01 
-      provider: weaviate
+      provider: pinecone
       embedding_profile: "openai-embedding-small"
       sync_locations: 
         - name: router config
@@ -67,6 +69,23 @@ vector_store:
           metadata:
             delimiter: _
             structure: []
+        - name: github codes
+          type: github
+          path: mehrdadrad/bpf-examples
+          collection: github_codes_kb3
+          sync_interval: 300
+          prompt_file: "../config/prompts/kb_github_prompt.txt"
+          metadata:
+            delimiter: _
+            structure: 
+              - name: "filename"
+                description: "The specific filename to filter the search. Use this if the user specifies a filename."
+          loader_config:
+            integration_profile: github_default
+            branch: "main"
+            file_extensions: [".c", ".h", ".yaml", ".md", ".sh"]
+            exclude_patterns: ["**/tests/", "**/package-lock.json"]
+
   providers:
     weaviate:
       http_host: localhost
