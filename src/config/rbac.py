@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from config.utils import load_yaml_config
+from config.utils import get_config_path, load_yaml_config
 
 
 def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, Any]:
@@ -12,7 +12,7 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
     A settings source that loads variables from a YAML file
     at the project's root.
     """
-    config_path = os.path.join(os.path.dirname(__file__), '..', '..','config', 'rbac.yaml')
+    config_path = get_config_path("rbac.yaml")
     return load_yaml_config(config_path)
 
 

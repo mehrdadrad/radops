@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from config.config import settings as app_settings
-from config.utils import load_yaml_config, process_vault_secrets
+from config.utils import get_config_path, load_yaml_config, process_vault_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +17,7 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
     A settings source that loads variables from a YAML file
     at the project's root and resolves any vault secrets.
     """
-    config_path = os.path.join(
-        os.path.dirname(__file__), '..', '..', 'config', 'integrations.yaml'
-    )
+    config_path = get_config_path("integrations.yaml")
 
     yaml_data = load_yaml_config(config_path)
 

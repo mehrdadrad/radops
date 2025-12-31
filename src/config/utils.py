@@ -1,5 +1,7 @@
 """Shared configuration utilities."""
 import logging
+import os
+import sys
 from typing import Any, Dict, Optional
 
 import hvac
@@ -9,6 +11,19 @@ from pydantic_settings import BaseSettings
 from libs.vault_resolver import resolve_vault_secrets
 
 logger = logging.getLogger(__name__)
+
+
+def get_config_path(filename: str) -> str:
+    """Resolves the path to a configuration file."""
+    base_dir = os.environ.get("RADOPS_CONFIG_DIR")
+    if not base_dir:
+        base_dir = os.path.join(os.path.dirname(__file__), "..", "..", "config")
+
+    config_path = os.path.join(base_dir, filename)
+    if not os.path.exists(config_path):
+        logger.error("Configuration file not found: %s", config_path)
+        sys.exit(1)
+    return config_path
 
 
 def load_yaml_config(file_path: str) -> Dict[str, Any]:
