@@ -1,65 +1,47 @@
-# RadOps - AI-powered Network Operations
+# RadOps - AI-Powered Network Operations
 
-A sophisticated AI-powered network operations assistant designed to help with network diagnostics, troubleshooting, and infrastructure management. Built with LangGraph and LangChain, it leverages Large Language Models (LLMs) to provide intelligent responses and execute tools securely.
+RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline diagnostics, troubleshooting, and infrastructure management. Unlike standard chatbots, RadOps understands the *lifespan* of information, validates its own work via a QA Auditor, and integrates directly with live infrastructure.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
 [![Tests](https://github.com/mehrdadrad/radops/actions/workflows/tests.yml/badge.svg)](https://github.com/mehrdadrad/radops/actions/workflows/tests.yml)
 
-## Features
+## 🚀 Key Highlights
 
-*   **Intelligent Agent**: Uses LLMs (OpenAI, Ollama, DeepSeek) to understand and process user requests.
-*   **Network Tools**:
-    *   PeeringDB integration for ASN and exchange information.
-    *   Network diagnostics (Ping, Traceroute, etc.).
-    *   Looking Glass integration.
-*   **Tools**:    
-    *   **Jira**: Create and search issues.
-    *   **GitHub**: Manage issues and pull requests.
-*   **Integrations**:
-    *   **Slack**: Receive requests and interact directly via Slack.
-    *   **CI/CD**: Easy integration via WebSockets for automated pipelines.    
-*   **Knowledge Base (RAG)**:
-    *   Ingests documentation from File System and Google Drive.
-    *   Supports Vector Stores like Weaviate and Chroma.
-*   **Memory & Context**:
-    *   **Short-term**: Redis-backed conversation history.
-    *   **Long-term**: Mem0 integration for personalized user memory.
-*   **Security**:
-    *   **RBAC**: Role-Based Access Control for tool execution.
-    *   **Vault**: HashiCorp Vault integration for secure secret management.
+* **🛡️ Guardrailed Orchestration**: Uses a Supervisor-Worker architecture with strict sequential logic to prevent execution errors.
+* **🧠 3-Tier Cognitive Memory**: Distinguishes between **Working Memory**, **Ephemeral Facts** , and **Core Knowledge** (Permanent Architecture rules).
+* **✅ Trust-but-Verify Auditing**: A dedicated **QA Auditor Node** verifies actual tool outputs against the user request to catch hallucinations before they reach you.
+* **📂 Declarative RAG & BYODB**: "Bring Your Own Database." Supports top vector databases with zero-code, config-driven knowledge tool generation.
+* **🔌 Resilient Connectivity**: Built on the **Model Context Protocol (MCP)** with self-healing clients that survive server restarts.
+* **👀 Deep Observability**: Full tracing of Agent Logic, Tool Execution, and LLM Streaming via OpenTelemetry.
 
-## Prerequisites
+## 🛠️ Prerequisites
 
-*   Python 3.10+
-*   Redis (for conversation memory)
-*   HashiCorp Vault (for secret management)
-*   Weaviate or Chroma (for vector store)
+* **Python 3.10+**
+* **Redis** (for conversation checkpointing)
+* **HashiCorp Vault** (for secure credential management)
+* **Vector Database** (One of: Weaviate, Pinecone, Qdrant, Milvus, ChromaDB)
 
-## Installation
+## 📦 Installation
 
-1.  Clone the repository.
-2.  Install dependencies:
+1.  Clone the repository:
     ```bash
-    pip install -r requirements.txt
+    git clone https://github.com/mehrdadrad/radops.git
+    cd radops
     ```
 
-## Configuration
+2.  Install dependencies (using `uv` for speed):
+    ```bash
+    uv pip install -e .
+    ```
 
-The application is highly configurable via YAML files in the `config/` directory.
+## 🤝 Contribute
+We welcome contributions! Please follow these steps:
 
-*   **`config.yaml`**: Configure LLM providers, Vector Store settings, Memory backends, and Vault connection.
-*   **`rbac.yaml`**: Define users, roles, and allowed tools per role.
-*   **`tools.yaml`**: Configure credentials and settings for external tools.
+1.  Fork the project on GitHub.
+2.  Create a new feature branch (`git checkout -b feature/amazing-feature`).
+3.  Commit your changes.
+4.  Push to the branch and open a **Pull Request**.
 
-For a detailed guide on configuration, please refer to docs/configuration_guide.md.
-
-## Usage
-
-To start the application:
-
-```bash
-python src/console.py
-```
-
-You will be prompted to enter a username (which maps to roles in `rbac.yaml`) to start the session.
+---
+*Built with LangGraph, Mem0, and Passion.*
