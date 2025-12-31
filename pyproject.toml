@@ -250,6 +250,7 @@ dependencies = [
     "langchain-pinecone>=0.2.13",
     "langchain-qdrant>=1.1.0",
     "langchain-milvus>=0.3.2",
+    "pynautobot>=3.0.0",
 ]
 
 [project.optional-dependencies]

@@ -3807,6 +3807,20 @@ wheels = [
 ]
 
 [[package]]
+name = "pynautobot"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b6/a8/2f9f9d652f35e8f0f09f35fb5d204659515fe2a4385f8c30eecebb5569dc/pynautobot-3.0.0.tar.gz", hash = "sha256:cc0b5ccfd9edc4f7fa9777845ce895bf0f6a6e41610a8bc05c2459463351b0b7", size = 33587, upload-time = "2025-11-14T16:55:18.862Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/cd/8c1e495fbe21298dc484fc4a3c294388fda55d9467579885e170895411dc/pynautobot-3.0.0-py3-none-any.whl", hash = "sha256:b24c636517dfdbebdc258d283a99af079e0c278e69d705767db3e8455413590f", size = 41319, upload-time = "2025-11-14T16:55:17.874Z" },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.2.5"
 source = { registry = "https://pypi.org/simple" }
@@ -4187,6 +4201,7 @@ dependencies = [
     { name = "pyjwt" },
     { name = "pylint" },
     { name = "pynacl" },
+    { name = "pynautobot" },
     { name = "pyparsing" },
     { name = "pypika" },
     { name = "pyproject-hooks" },
@@ -4440,6 +4455,7 @@ requires-dist = [
     { name = "pylint", specifier = "==4.0.4" },
     { name = "pylint", marker = "extra == 'dev'" },
     { name = "pynacl", specifier = "==1.6.1" },
+    { name = "pynautobot", specifier = ">=3.0.0" },
     { name = "pyparsing", specifier = "==3.2.5" },
     { name = "pypika", specifier = "==0.48.9" },
     { name = "pyproject-hooks", specifier = "==1.2.0" },
