@@ -143,7 +143,7 @@ class FileSystemLoader(DataLoader):
                 logger.info("Found %d updated documents. Triggering callback.", len(updated_docs))
                 callback(updated_docs)
             self._stop_event.wait(self.poll_interval)
-        logger.info("Watcher stopped.")
+        logger.info("Filesystem watcher stopped.")
 
     def watcher(self, callback: Callable[[List[LoadedDocument]], None]) -> None:
         """Starts a background thread to watch for file changes."""
@@ -165,7 +165,7 @@ class FileSystemLoader(DataLoader):
     def stop_watcher(self):
         """Stops the background watcher thread."""
         if self._watcher_thread and self._watcher_thread.is_alive():
-            logger.info("Stopping watcher...")
+            logger.info("Stopping filesystem watcher...")
             self._stop_event.set()
             self._watcher_thread.join()
 

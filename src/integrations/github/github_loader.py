@@ -1,3 +1,6 @@
+"""
+GitHub loader module for loading and syncing files from GitHub repositories.
+"""
 import base64
 import fnmatch
 import logging
@@ -7,7 +10,7 @@ from typing import Callable, List, Optional, Dict, Any
 
 from github import Github, Auth
 from github.GithubException import GithubException
-from config.integrations import integration_settings 
+from config.integrations import integration_settings
 
 from storage.protocols import LoadedDocument
 
@@ -19,6 +22,7 @@ class GithubLoader:
     Loader for GitHub repositories.
     Supports loading files from one or more repositories and syncing changes.
     """
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(
         self,
@@ -53,148 +57,196 @@ class GithubLoader:
             auth = Auth.Token(self.access_token)
             self.client = Github(auth=auth)
         else:
-            logger.warning("No GitHub access token provided. Using unauthenticated client (rate limited).")
+            logger.warning(
+                "No GitHub access token provided. "
+                "Using unauthenticated client (rate limited)."
+            )
             self.client = Github()
 
     def _get_access_token(self, profile_name: str) -> Optional[str]:
         if not profile_name:
             return None
         try:
+            # pylint: disable=no-member
             profile = integration_settings.github.get(profile_name)
             if profile:
                 return profile.token
             return None
-        except Exception as e:
-            logger.error(f"Error loading integration token: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Error loading integration token: %s", e)
             return None
 
     def _is_valid_extension(self, filename: str) -> bool:
         return any(filename.endswith(ext) for ext in self.file_extensions)
 
     def _is_excluded(self, filename: str) -> bool:
-        return any(fnmatch.fnmatch(filename, pattern) for pattern in self.exclude_patterns)
+        return any(
+            fnmatch.fnmatch(filename, pattern)
+            for pattern in self.exclude_patterns
+        )
+
+    def _load_repo(self, repo_name: str) -> List[LoadedDocument]:
+        """Loads data from a single repository."""
+        documents = []
+        logger.info("Loading data from GitHub repo: %s", repo_name)
+        try:
+            repo = self.client.get_repo(repo_name)
+            target_branch = self.branch or repo.default_branch
+
+            try:
+                branch_obj = repo.get_branch(target_branch)
+                sha = branch_obj.commit.sha
+                commit_date = branch_obj.commit.commit.author.date
+                last_modified_fallback = commit_date.replace(
+                    tzinfo=timezone.utc
+                ).timestamp()
+                tree = repo.get_git_tree(sha=sha, recursive=True)
+            except GithubException as e:
+                logger.error("Failed to get tree for %s: %s", repo_name, e)
+                return []
+
+            for element in tree.tree:
+                if (element.type == "blob" and
+                        self._is_valid_extension(element.path) and
+                        not self._is_excluded(element.path)):
+                    try:
+                        blob = repo.get_git_blob(element.sha)
+                        if blob.encoding == "base64":
+                            content = base64.b64decode(
+                                blob.content
+                            ).decode("utf-8")
+                        else:
+                            content = blob.content
+
+                        documents.append(
+                            LoadedDocument(
+                                path=f"{repo_name}/{element.path}",
+                                content=content,
+                                last_modified=last_modified_fallback,
+                            )
+                        )
+                    except Exception as e:  # pylint: disable=broad-exception-caught
+                        logger.warning(
+                            "Failed to process file %s in %s: %s",
+                            element.path, repo_name, e
+                        )
+
+            self._last_sync_time[repo_name] = datetime.now(timezone.utc)
+
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Error accessing repo %s: %s", repo_name, e)
+
+        return documents
 
     def load_data(self) -> List[LoadedDocument]:
         """Loads data from the configured repositories."""
         documents = []
         for repo_name in self.repo_names:
-            logger.info(f"Loading data from GitHub repo: {repo_name}")
-            try:
-                repo = self.client.get_repo(repo_name)
-                target_branch = self.branch or repo.default_branch
-                
-                try:
-                    branch_obj = repo.get_branch(target_branch)
-                    sha = branch_obj.commit.sha
-                    last_modified_fallback = branch_obj.commit.commit.author.date.replace(tzinfo=timezone.utc).timestamp()
-                    tree = repo.get_git_tree(sha=sha, recursive=True)
-                except GithubException as e:
-                    logger.error(f"Failed to get tree for {repo_name}: {e}")
-                    continue
+            documents.extend(self._load_repo(repo_name))
+        return documents
 
-                for element in tree.tree:
-                    if element.type == "blob" and self._is_valid_extension(element.path) and not self._is_excluded(element.path):
+    def _check_repo_updates(self, repo_name: str) -> List[LoadedDocument]:
+        """Checks for updates in a single repository."""
+        changed_docs = []
+        try:
+            logger.info("Checking for updates in GitHub repo: %s", repo_name)
+            repo = self.client.get_repo(repo_name)
+            last_sync = self._last_sync_time.get(repo_name)
+
+            if not last_sync:
+                return []
+
+            target_branch = self.branch or repo.default_branch
+            commits = repo.get_commits(sha=target_branch, since=last_sync)
+            if commits.totalCount == 0:
+                return []
+
+            logger.info("Detected changes in %s, fetching updates...", repo_name)
+
+            processed_files = set()
+
+            for commit in commits:
+                for file in commit.files:
+                    if file.filename in processed_files:
+                        continue
+
+                    if (not self._is_valid_extension(file.filename) or
+                            self._is_excluded(file.filename)):
+                        continue
+
+                    processed_files.add(file.filename)
+                    full_path = f"{repo_name}/{file.filename}"
+                    commit_date = commit.commit.author.date
+                    timestamp = commit_date.replace(
+                        tzinfo=timezone.utc
+                    ).timestamp()
+
+                    if file.status == "removed":
+                        changed_docs.append(
+                            LoadedDocument(
+                                path=full_path,
+                                content=None,
+                                last_modified=timestamp
+                            )
+                        )
+                    else:
                         try:
-                            blob = repo.get_git_blob(element.sha)
-                            if blob.encoding == "base64":
-                                content = base64.b64decode(blob.content).decode("utf-8")
-                            else:
-                                content = blob.content
-
-                            documents.append(
+                            content_file = repo.get_contents(
+                                file.filename, ref=commit.sha
+                            )
+                            content = content_file.decoded_content.decode("utf-8")
+                            changed_docs.append(
                                 LoadedDocument(
-                                    path=f"{repo_name}/{element.path}",
+                                    path=full_path,
                                     content=content,
-                                    last_modified=last_modified_fallback,
+                                    last_modified=timestamp
                                 )
                             )
-                        except Exception as e:
-                            logger.warning(f"Failed to process file {element.path} in {repo_name}: {e}")
+                        except Exception as e:  # pylint: disable=broad-exception-caught
+                            logger.warning(
+                                "Failed to fetch updated file %s: %s",
+                                file.filename, e
+                            )
 
-                self._last_sync_time[repo_name] = datetime.now(timezone.utc)
+            self._last_sync_time[repo_name] = datetime.now(timezone.utc)
 
-            except Exception as e:
-                logger.error(f"Error accessing repo {repo_name}: {e}")
-        
-        return documents
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Error in GitHub watcher for %s: %s", repo_name, e)
+
+        return changed_docs
+
+    def _watch_loop(self, callback: Callable[[List[LoadedDocument]], None]):
+        """The loop that polls for changes."""
+        logger.info("Starting watcher for GitHub repos...")
+        while not self._stop_event.is_set():
+            if self._stop_event.wait(self.poll_interval):
+                break
+            for repo_name in self.repo_names:
+                changed_docs = self._check_repo_updates(repo_name)
+                if changed_docs:
+                    callback(changed_docs)
+        logger.info("GitHub watcher stopped.")
 
     def watcher(self, callback: Callable[[List[LoadedDocument]], None]):
         """Starts a background thread to poll for changes."""
-        def _poll():
-            while not self._stop_event.is_set():
-                if self._stop_event.wait(self.poll_interval):
-                    break
-                for repo_name in self.repo_names:
-                    try:
-                        logger.info(f"Checking for updates in GitHub repo: {repo_name}")
-                        repo = self.client.get_repo(repo_name)
-                        last_sync = self._last_sync_time.get(repo_name)
-                        
-                        if not last_sync:
-                            continue
+        if self._thread and self._thread.is_alive():
+            logger.info("GitHub watcher is already running.")
+            return
 
-                        target_branch = self.branch or repo.default_branch
-                        commits = repo.get_commits(sha=target_branch, since=last_sync)
-                        if commits.totalCount == 0:
-                            continue
-
-                        logger.info(f"Detected changes in {repo_name}, fetching updates...")
-                        
-                        changed_docs = []
-                        processed_files = set()
-
-                        for commit in commits:
-                            for file in commit.files:
-                                if file.filename in processed_files:
-                                    continue
-                                
-                                if not self._is_valid_extension(file.filename) or self._is_excluded(file.filename):
-                                    continue
-
-                                processed_files.add(file.filename)
-                                full_path = f"{repo_name}/{file.filename}"
-
-                                if file.status == "removed":
-                                    changed_docs.append(
-                                        LoadedDocument(
-                                            path=full_path,
-                                            content=None,
-                                            last_modified=commit.commit.author.date.replace(tzinfo=timezone.utc).timestamp()
-                                        )
-                                    )
-                                else:
-                                    try:
-                                        content_file = repo.get_contents(file.filename, ref=commit.sha)
-                                        content = content_file.decoded_content.decode("utf-8")
-                                        changed_docs.append(
-                                            LoadedDocument(
-                                                path=full_path,
-                                                content=content,
-                                                last_modified=commit.commit.author.date.replace(tzinfo=timezone.utc).timestamp()
-                                            )
-                                        )
-                                    except Exception as e:
-                                        logger.warning(f"Failed to fetch updated file {file.filename}: {e}")
-
-                        if changed_docs:
-                            callback(changed_docs)
-                        
-                        self._last_sync_time[repo_name] = datetime.now(timezone.utc)
-
-                    except Exception as e:
-                        logger.error(f"Error in GitHub watcher for {repo_name}: {e}")
-
-        self._thread = threading.Thread(target=_poll, daemon=True)
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._watch_loop, args=(callback,), daemon=True)
         self._thread.start()
 
     def stop_watcher(self):
         """Stops the watcher thread."""
-        self._stop_event.set()
-        if self._thread:
+        if self._thread and self._thread.is_alive():
+            logger.info("Stopping Github watcher...")
+            self._stop_event.set()
             self._thread.join()
 
     def close(self):
         """Closes resources."""
         self.stop_watcher()
         if hasattr(self.client, "close"):
+            logger.info("GitHub loader closed.")
             self.client.close()
