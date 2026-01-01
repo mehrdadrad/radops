@@ -1,6 +1,8 @@
+"""
+This module implements the WeaviateVectorStoreManager for managing Weaviate vector stores.
+"""
 import logging
 import os
-import threading
 from functools import partial
 from pathlib import Path
 from typing import List
@@ -41,24 +43,24 @@ class WeaviateVectorStoreManager:
                            Set to 0 to disable periodic syncing.
         """
 
-        self._config = settings.vector_store.providers["weaviate"]
+        config = settings.vector_store.providers["weaviate"]
         try:
             self._client = weaviate.connect_to_custom(
-                http_host=self._config.get("http_host", "localhost"),
-                http_port=self._config.get("http_port", 8080),
-                http_secure=self._config.get("http_secure", False),
-                grpc_host=self._config.get("grpc_host", "localhost"),
-                grpc_port=self._config.get("grpc_port", 50051),
-                grpc_secure=self._config.get("grpc_secure", False),
+                http_host=config.get("http_host", "localhost"),
+                http_port=config.get("http_port", 8080),
+                http_secure=config.get("http_secure", False),
+                grpc_host=config.get("grpc_host", "localhost"),
+                grpc_port=config.get("grpc_port", 50051),
+                grpc_secure=config.get("grpc_secure", False),
             )
             if self._client.is_ready():
                 meta = self._client.get_meta()
                 server_version = meta.get("version", "unknown")
                 logger.info("Successfully connected to Weaviate.")
-                logger.info(f"  - Weaviate Server Version: {server_version}")
-                logger.info(f"  - Weaviate Client Version: {weaviate.__version__}")
+                logger.info("  - Weaviate Server Version: %s", server_version)
+                logger.info("  - Weaviate Client Version: %s", weaviate.__version__)
         except Exception as e:
-            logger.error(f"Failed to connect to Weaviate: {e}", exc_info=True)
+            logger.error("Failed to connect to Weaviate: %s", e, exc_info=True)
             raise
 
         self._sync_locations = sync_locations
@@ -69,6 +71,10 @@ class WeaviateVectorStoreManager:
         self._loaders = []
 
         for location in self._sync_locations:
+            # Ensure the collection exists with the correct schema
+            if not self._client.collections.exists(location.collection):
+                self._create_collection(location.collection)
+
             if location.type == "fs":
                 loader = FileSystemLoader(
                     path=location.path, poll_interval=location.sync_interval
@@ -108,7 +114,7 @@ class WeaviateVectorStoreManager:
                     attributes=["source", "last_modification"]
                 )
             else:
-                logger.warning(f"Unsupported sync location type: {location.type}")
+                logger.warning("Unsupported sync location type: %s", location.type)
 
         self._initial_sync()
 
@@ -129,7 +135,7 @@ class WeaviateVectorStoreManager:
         """
         logger.info("Performing initial data synchronization for all locations...")
         for loader in self._loaders:
-            logger.info(f"Loading initial data for {loader['collection']}...")
+            logger.info("Loading initial data for %s...", loader['collection'])
             self._update_vector_store(
                 loader["loader"].load_data(),
                 loader['collection'],
@@ -143,150 +149,206 @@ class WeaviateVectorStoreManager:
         full_refresh: bool = False
     ):
         """
-        Updates the Weaviate collection. Can perform a full refresh or a granular update.
+        Updates the Weaviate collection.
         """
-        docs_to_upsert = []
         if full_refresh:
-            # Clear existing collection for a full refresh
-            if self._client.collections.exists(collection):
-                logger.info(f"Clearing Weaviate collection: {collection}")
-                self._client.collections.delete(collection)
-
-            # Re-create collection
-            logger.info(f"Creating new Weaviate collection: {collection}")
-
-            location_config = next(
-                (loc for loc in self._sync_locations
-                 if loc.collection == collection),
-                None
-            )
-            custom_metadata_properties = []
-            if (location_config and
-                    location_config.metadata and
-                    location_config.metadata.structure):
-                for prop_setting in location_config.metadata.structure:
-                    custom_metadata_properties.append(
-                        wvc.config.Property(
-                            name=prop_setting.name,
-                            description=prop_setting.description,
-                            data_type=wvc.config.DataType.TEXT)
-                    )
-            else:
-                logger.warning(
-                    f"No metadata structure found for collection '{collection}' "
-                    "in config.yaml. No custom properties will be created."
-                )
-
-            try:
-                self._client.collections.create(
-                    name=collection,
-                    properties=[
-                        wvc.config.Property(
-                            name="text", data_type=wvc.config.DataType.TEXT),
-                        wvc.config.Property(
-                            name="source", data_type=wvc.config.DataType.TEXT),
-                        wvc.config.Property(
-                            name="last_modification", data_type=wvc.config.DataType.NUMBER),
-                    ] + custom_metadata_properties,
-                )
-            except Exception as e:
-                logger.error(f"Failed to create collection: {e}", exc_info=True)
-                return
-            # For a full refresh, all changed docs are candidates for upserting
-            docs_to_upsert = [doc for doc in changed_docs if doc.content is not None]
+            self._perform_full_refresh(collection, changed_docs)
         else:
-            # Granular update: separate deleted from modified/added files
-            docs_to_upsert = [doc for doc in changed_docs if doc.content is not None]
-            docs_to_delete = [doc for doc in changed_docs if doc.content is None]
+            self._perform_granular_update(collection, changed_docs)
 
-            if not self._client.collections.exists(collection):
+    def _perform_full_refresh(self, collection: str, changed_docs: List[LoadedDocument]):
+        """Performs a full refresh of the collection."""
+        if self._client.collections.exists(collection):
+            logger.info("Clearing Weaviate collection: %s", collection)
+            self._client.collections.delete(collection)
+
+        self._create_collection(collection)
+
+        docs_to_upsert = [doc for doc in changed_docs if doc.content is not None]
+        if docs_to_upsert:
+            self._add_documents_to_collection(collection, docs_to_upsert)
+
+    def _perform_granular_update(self, collection: str, changed_docs: List[LoadedDocument]):
+        """Performs a granular update of the collection."""
+        docs_to_upsert = [doc for doc in changed_docs if doc.content is not None]
+        docs_to_delete = [doc for doc in changed_docs if doc.content is None]
+
+        if not self._client.collections.exists(collection):
+            logger.warning(
+                "Collection '%s' not found for granular update. "
+                "Performing full refresh logic instead.",
+                collection
+            )
+            self._perform_full_refresh(collection, changed_docs)
+            return
+
+        collection_obj = self._client.collections.get(collection)
+
+        # Check for schema compatibility
+        try:
+            if "source" not in {p.name for p in collection_obj.config.get().properties}:
                 logger.warning(
-                    f"Collection '{collection}' not found for granular update. "
-                    "Performing full refresh logic instead."
+                    "Collection '%s' is missing 'source' property. "
+                    "Performing full refresh to fix schema.",
+                    collection
                 )
-                self._update_vector_store(changed_docs, collection, full_refresh=True)
+                self._perform_full_refresh(collection, changed_docs)
                 return
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning("Failed to validate schema for '%s': %s", collection, e)
 
-            collection_obj = self._client.collections.get(collection)
+        if docs_to_delete:
+            self._delete_documents(collection_obj, docs_to_delete)
 
-            # Check for schema compatibility
+        if docs_to_upsert:
+            docs_to_add = self._filter_upserts(collection_obj, docs_to_upsert)
+            if docs_to_add:
+                self._add_documents_to_collection(collection, docs_to_add)
+
+    def _create_collection(self, collection: str):
+        """Creates a new Weaviate collection with configured properties."""
+        logger.info("Creating new Weaviate collection: %s", collection)
+
+        location_config = next(
+            (loc for loc in self._sync_locations
+             if loc.collection == collection),
+            None
+        )
+        custom_metadata_properties = []
+        if (location_config and
+                location_config.metadata and
+                location_config.metadata.structure):
+            for prop_setting in location_config.metadata.structure:
+                custom_metadata_properties.append(
+                    wvc.config.Property(
+                        name=prop_setting.name,
+                        description=prop_setting.description,
+                        data_type=wvc.config.DataType.TEXT)
+                )
+        else:
+            logger.warning(
+                "No metadata structure found for collection '%s' "
+                "in config.yaml. No custom properties will be created.",
+                collection
+            )
+
+        try:
+            self._client.collections.create(
+                name=collection,
+                properties=[
+                    wvc.config.Property(
+                        name="text", data_type=wvc.config.DataType.TEXT),
+                    wvc.config.Property(
+                        name="source", data_type=wvc.config.DataType.TEXT),
+                    wvc.config.Property(
+                        name="last_modification", data_type=wvc.config.DataType.NUMBER),
+                ] + custom_metadata_properties,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Failed to create collection: %s", e, exc_info=True)
+
+    def _delete_documents(self, collection_obj, docs_to_delete: List[LoadedDocument]):
+        """Deletes documents from the collection."""
+        deleted_sources = [os.path.basename(doc.path) for doc in docs_to_delete]
+        logger.info(
+            "Removing %d deleted files from vector store: %s",
+            len(deleted_sources),
+            ', '.join(sorted(deleted_sources))
+        )
+        collection_obj.data.delete_many(
+            where=wvc.query.Filter.by_property("source").contains_any(deleted_sources)
+        )
+
+    def _filter_upserts(
+        self, collection_obj, docs_to_upsert: List[LoadedDocument]
+    ) -> List[LoadedDocument]:
+        """Filters documents that need to be updated and cleans up old versions."""
+        existing_docs_map = {}
+
+        # Batch the checking to avoid hitting limits with large number of chunks
+        # and to handle potential truncation if a file has many chunks.
+        batch_size = 10
+        limit = 1000
+
+        for i in range(0, len(docs_to_upsert), batch_size):
+            batch = docs_to_upsert[i : i + batch_size]
+            batch_sources = [os.path.basename(doc.path) for doc in batch]
+
             try:
-                if "source" not in {p.name for p in collection_obj.config.get().properties}:
-                    logger.warning(
-                        f"Collection '{collection}' is missing 'source' property. "
-                        "Performing full refresh to fix schema."
-                    )
-                    self._update_vector_store(changed_docs, collection, full_refresh=True)
-                    return
-            except Exception as e:
-                logger.warning(f"Failed to validate schema for '{collection}': {e}")
-
-            # 1. Handle deletions
-            if docs_to_delete:
-                deleted_sources = [os.path.basename(doc.path) for doc in docs_to_delete]
-                logger.info(
-                    f"Removing {len(deleted_sources)} deleted files from vector store: "
-                    f"{', '.join(sorted(deleted_sources))}"
-                )
-                collection_obj.data.delete_many(
-                    where=wvc.query.Filter.by_property("source").contains_any(deleted_sources)
-                )
-
-            # 2. Handle upserts: check last_modified to avoid redundant updates
-            if docs_to_upsert:
-                upsert_sources = [os.path.basename(doc.path) for doc in docs_to_upsert]
-
-                # Fetch existing docs to compare last_modified timestamps
                 response = collection_obj.query.fetch_objects(
-                    filters=wvc.query.Filter.by_property("source").contains_any(upsert_sources),
-                    return_properties=["source", "last_modification"]
+                    filters=wvc.query.Filter.by_property("source").contains_any(batch_sources),
+                    return_properties=["source", "last_modification"],
+                    limit=limit
                 )
-                existing_docs_map = {
-                    obj.properties['source']: obj.properties['last_modification']
+
+                batch_map = {
+                    obj.properties["source"]: obj.properties["last_modification"]
                     for obj in response.objects
                 }
+                existing_docs_map.update(batch_map)
 
-                docs_that_need_update = []
-                for doc in docs_to_upsert:
-                    source_name = os.path.basename(doc.path)
-                    if (source_name not in existing_docs_map or
-                            doc.last_modified != existing_docs_map.get(source_name, 0)):
-                        docs_that_need_update.append(doc)
-                    else:
-                        logger.debug(
-                            f"Skipping update for '{source_name}', "
-                            "last_modified timestamp is unchanged."
-                        )
+                # If we hit the limit, some files might be missing due to truncation.
+                # Check missing files individually to be safe.
+                if len(response.objects) >= limit:
+                    missing_sources = set(batch_sources) - set(batch_map.keys())
+                    for source in missing_sources:
+                        try:
+                            single_res = collection_obj.query.fetch_objects(
+                                filters=wvc.query.Filter.by_property("source").equal(source),
+                                return_properties=["source", "last_modification"],
+                                limit=1
+                            )
+                            if single_res.objects:
+                                obj = single_res.objects[0]
+                                existing_docs_map[obj.properties["source"]] = obj.properties["last_modification"]
+                        except Exception as e:
+                            logger.warning("Error checking individual file %s: %s", source, e)
 
-                if docs_that_need_update:
-                    sources_to_update = [
-                        os.path.basename(doc.path) for doc in docs_that_need_update
-                    ]
-                    logger.info(
-                        f"Upserting {len(sources_to_update)} files in vector store: "
-                        f"{', '.join(sorted(sources_to_update))}"
-                    )
-                    collection_obj.data.delete_many(
-                        where=wvc.query.Filter.by_property("source").contains_any(sources_to_update)
-                    )
-                    docs_to_upsert = docs_that_need_update  # Only process documents that need updating
-                else:
-                    docs_to_upsert = []  # No documents to update
+            except Exception as e:
+                logger.warning("Error fetching existing docs for batch: %s", e)
 
-        # 3. Prepare and add new documents
+        docs_that_need_update = []
+        for doc in docs_to_upsert:
+            source_name = os.path.basename(doc.path)
+            if (source_name not in existing_docs_map or
+                    doc.last_modified != existing_docs_map.get(source_name, 0)):
+                docs_that_need_update.append(doc)
+            else:
+                logger.debug(
+                    "Skipping update for '%s', last_modified timestamp is unchanged.",
+                    source_name
+                )
+
+        if docs_that_need_update:
+            sources_to_update = [
+                os.path.basename(doc.path) for doc in docs_that_need_update
+            ]
+            logger.info(
+                "Upserting %d files in vector store",
+                len(sources_to_update)
+            )
+            collection_obj.data.delete_many(
+                where=wvc.query.Filter.by_property("source").contains_any(sources_to_update)
+            )
+            return docs_that_need_update
+
+        return []
+
+    def _add_documents_to_collection(self, collection: str, docs_to_add: List[LoadedDocument]):
+        """Prepares and adds documents to the collection."""
+        location_config = next(
+            (loc for loc in self._sync_locations
+             if loc.collection == collection),
+            None
+        )
+
         documents_to_add = []
-        for loaded_doc in docs_to_upsert:
+        for loaded_doc in docs_to_add:
             file_name = os.path.basename(loaded_doc.path)
             metadata = {
                 "source": file_name,
                 "last_modification": loaded_doc.last_modified
             }
-
-            location_config = next(
-                (loc for loc in self._sync_locations
-                 if loc.collection == collection),
-                None
-            )
 
             try:
                 if (location_config and
@@ -301,25 +363,44 @@ class WeaviateVectorStoreManager:
                             metadata[prop_setting.name] = parts[i]
             except (ValueError, AttributeError) as e:
                 logger.warning(
-                    f"Could not extract metadata from filename '{file_name}': {e}"
+                    "Could not extract metadata from filename '%s': %s",
+                    file_name, e
                 )
 
             doc = Document(page_content=loaded_doc.content, metadata=metadata)
             documents_to_add.append(doc)
 
         if documents_to_add:
+            chunk_size = 500
+            chunk_overlap = 50
+            if location_config and location_config.loader_config:
+                chunk_size = location_config.loader_config.get("chunk_size", 500)
+                chunk_overlap = location_config.loader_config.get("chunk_overlap", 50)
+
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=500, chunk_overlap=50
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap
             )
             docs: List[Document] = text_splitter.split_documents(
                 documents_to_add
             )
-            logger.info(f"Adding {len(docs)} document chunks to the vector store...")
-            self._vectorstores[collection].add_documents(docs)
+            logger.info(
+                "Adding %d document chunks to the vector store...",
+                len(docs)
+            )
+            try:
+                ids = self._vectorstores[collection].add_documents(docs)
+                logger.debug("Successfully added documents to the vector store %s", ids)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("An error occurred while adding documents: %s", e)
+        else:
+            logger.info("No documents to add to the vector store.")
 
     def start_periodic_sync(self):
         """Starts the background thread for periodic synchronization."""
-        logger.info(f"Starting periodic synchronization watcher every {self._sync_interval} seconds.")
+        logger.info(
+            "Starting periodic synchronization watcher every %s seconds.",
+            self._sync_interval
+        )
         for loader in self._loaders:
             # Use functools.partial to create a callback with the collection
             # name pre-filled. The loader's watcher expects a callback that
@@ -347,6 +428,7 @@ class WeaviateVectorStoreManager:
         return self._vectorstores[collection]
 
     def name(self) -> str:
+        """Returns the name of the vector store manager."""
         return self._name
 
     def close(self):
