@@ -307,7 +307,7 @@ def auditor_node(state):
             ],
             "response_metadata": {"nodes": nodes},
         }
-    
+
     failed_verifications = [v for v in audit.verifications if not v.is_success]
 
     if failed_verifications:
@@ -326,7 +326,10 @@ def auditor_node(state):
             }
 
         first_failure = failed_verifications[0]
-        feedback = f"{QA_REJECTION_PREFIX}: {first_failure.missing_information}. {first_failure.correction_instruction}"
+        feedback = (
+            f"{QA_REJECTION_PREFIX}: {first_failure.missing_information}. "
+            f"{first_failure.correction_instruction}"
+        )
         logger.info(
             f"QA Rejected with feedback (Score {audit.score}): {feedback}"
         )
@@ -395,7 +398,7 @@ async def manage_memory_node(state: State) -> dict:
             {"role": "assistant", "content": last_ai_message.content},
         ]
         await mem0.add(
-            messages=interaction_messages, 
+            messages=interaction_messages,
             user_id=user_id,
         )
         logger.info("Mem0: Added interaction for user '%s'.", user_id)
@@ -574,26 +577,26 @@ def sanitize_tool_calls(messages: list) -> list:
     sanitized = []
     i = 0
     n = len(messages)
-    
+
     while i < n:
         msg = messages[i]
-        
+
         if isinstance(msg, AIMessage):
             if getattr(msg, "invalid_tool_calls", None):
                 content = msg.content if msg.content else "..."
                 sanitized.append(AIMessage(content=content, id=msg.id))
                 i += 1
                 continue
-            
+
             if msg.tool_calls:
                 expected_ids = {tc['id'] for tc in msg.tool_calls}
-                
+
                 tool_messages = []
                 j = i + 1
                 while j < n and isinstance(messages[j], ToolMessage):
                     tool_messages.append(messages[j])
                     j += 1
-                
+
                 found_ids = {tm.tool_call_id for tm in tool_messages}
                 
                 if expected_ids.issubset(found_ids):
@@ -602,7 +605,7 @@ def sanitize_tool_calls(messages: list) -> list:
                 else:
                     content = msg.content if msg.content else "..."
                     sanitized.append(AIMessage(content=content, id=msg.id))
-                
+
                 i = j
                 continue
 

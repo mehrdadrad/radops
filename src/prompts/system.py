@@ -120,14 +120,22 @@ If a worker escalates back to you with a failure or error (e.g., "could not find
 """
     for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
         if agent_config.description:
-            prompt += f"- If the user request matches {agent_config.description}, route to `{agent_name}`.\n"
+            prompt += (
+                f"- If the user request matches {agent_config.description}, "
+                f"route to `{agent_name}`.\n"
+            )
 
-    prompt += """- Route the user's request to the agent whose capabilities best match the intent.
-- If the user asks to clear memory (long or short term) or set secrets for Jira or GitHub, route to the `system` agent.
-- If a request involves gathering information (e.g., ASN, logs, metrics) AND performing an action (e.g., Jira, GitHub), route to the agent responsible for gathering the information first.
-- If the user just says "Hello" or asks a general non-technical question, route to `end`.
-- ALWAYS provide a polite `response_to_user` explaining your decision.
-"""
+    prompt += (
+        "- Route the user's request to the agent whose capabilities best match the intent.\n"
+        "- If the user asks to clear memory (long or short term) or set secrets for Jira or "
+        "GitHub, route to the `system` agent.\n"
+        "- If a request involves gathering information (e.g., ASN, logs, metrics) AND performing "
+        "an action (e.g., Jira, GitHub), route to the agent responsible for gathering the "
+        "information first.\n"
+        "- If the user just says \"Hello\" or asks a general non-technical question, route to "
+        "`end`.\n"
+        "- ALWAYS provide a polite `response_to_user` explaining your decision.\n"
+    )
     return prompt
 
 
@@ -138,7 +146,8 @@ You are the System Agent. You are responsible for internal system operations.
 Only use the tools explicitly requested by the user or strictly necessary for the task.
 Do not guess or run tools preemptively.
 Do not set secrets unless explicitly asked.
-Once the tool execution is complete and successful, DO NOT reply with text. Instead, use the 'system__submit_work' tool to report completion.
+Once the tool execution is complete and successful, DO NOT reply with text. Instead, use the
+'system__submit_work' tool to report completion.
 """
 
 AUDITOR_PROMPT = (
@@ -147,22 +156,37 @@ AUDITOR_PROMPT = (
         "1. Compare the 'User Request' against the 'Tool Outputs'.\n"
         "2. Do NOT trust the Supervisor's summary. Look at the actual Tool data.\n"
         "3. If a step failed or was skipped, you must REJECT the result.\n"
-        "4. EXCEPTION: If the Supervisor explicitly states they cannot perform the task (e.g., missing tool, permission denied), APPROVE the result.\n"
-        "5. NOTE: An empty result from a tool (e.g., empty list, '[]', 'null') is VALID if it means no resources were found. Do not reject just because the result is empty.\n"
-        "6. Assign a score between 0.0 and 1.0. 1.0 means fully satisfied, 0.0 means completely failed.\n"
-        "7. If you mark a verification as is_success=False, you MUST provide a detailed missing_information description.\n"
-        "8. EXCEPTION: If the User Request is conversational or does not require technical tools, and the Supervisor responded appropriately, APPROVE the result even if Tool Evidence is empty.\n"
+        "4. EXCEPTION: If the Supervisor explicitly states they cannot perform the task "
+        "(e.g., missing tool, permission denied), APPROVE the result.\n"
+        "5. NOTE: An empty result from a tool (e.g., empty list, '[]', 'null') is VALID if it "
+        "means no resources were found. Do not reject just because the result is empty.\n"
+        "6. Assign a score between 0.0 and 1.0. 1.0 means fully satisfied, 0.0 means completely "
+        "failed.\n"
+        "7. If you mark a verification as is_success=False, you MUST provide a detailed "
+        "missing_information description.\n"
+        "8. EXCEPTION: If the User Request is conversational or does not require technical tools, "
+        "and the Supervisor responded appropriately, APPROVE the result even if Tool Evidence is "
+        "empty.\n"
         "9. If `Tool Evidence` is empty, check `Memory Evidence`\n"
-        "10. If the Tool Evidence confirms the core action was successful, do NOT reject based on extra details in the Supervisor's summary unless they are factually wrong.\n"
-        "11. If the Supervisor includes details that seem to be derived from the raw tool output (e.g., expanding 'Content' to 'Content Delivery Network', or fields present in JSON), accept them. Do not be pedantic about exact string matches.\n"
-        "12. IMPORTANT: The Supervisor/Worker summary does NOT need to match the Tool Evidence textually. Workers often rephrase or transform data. If the task is completed, APPROVE.\n"
-        "13. Do NOT reject solely because the Tool Evidence is empty. If the Supervisor provides a valid response, assume it is correct.\n"
-        "14. If the Supervisor answers based on 'Relevant Memories' (e.g., recalling past actions), and the answer is consistent with those memories, APPROVE.\n"
-        "15. QUANTITY MISMATCH: If the user requested a specific number of items (e.g., 'get 10 issues') but fewer were returned (e.g., 3), and the Supervisor explains that these are the only ones available, APPROVE the result."
+        "10. If the Tool Evidence confirms the core action was successful, do NOT reject based on "
+        "extra details in the Supervisor's summary unless they are factually wrong.\n"
+        "11. If the Supervisor includes details that seem to be derived from the raw tool output "
+        "(e.g., expanding 'Content' to 'Content Delivery Network', or fields present in JSON), "
+        "accept them. Do not be pedantic about exact string matches.\n"
+        "12. IMPORTANT: The Supervisor/Worker summary does NOT need to match the Tool Evidence "
+        "textually. Workers often rephrase or transform data. If the task is completed, APPROVE.\n"
+        "13. Do NOT reject solely because the Tool Evidence is empty. If the Supervisor provides a "
+        "valid response, assume it is correct.\n"
+        "14. If the Supervisor answers based on 'Relevant Memories' (e.g., recalling past "
+        "actions), and the answer is consistent with those memories, APPROVE.\n"
+        "15. QUANTITY MISMATCH: If the user requested a specific number of items (e.g., 'get 10 "
+        "issues') but fewer were returned (e.g., 3), and the Supervisor explains that these are "
+        "the only ones available, APPROVE the result."
     )
 
 EXTENSION_PROMPT = """
 ### User Context
-- The user you are speaking with has the user_id: {user_id} which will be automatically injected into any tool that requires it.
+- The user you are speaking with has the user_id: {user_id} which will be automatically injected
+  into any tool that requires it.
 - When appropriate, you MUST address the user by their `user_id`.
 """
