@@ -107,8 +107,18 @@ class QdrantVectorStoreManager:
             if not loader:
                 continue
 
+            poll_interval = (
+                location.sync_interval
+                if location.sync_interval is not None
+                else self._sync_interval
+            )
+
             self._loaders.append(
-                {"loader": loader, "collection": collection_name}
+                {
+                    "loader": loader,
+                    "collection": collection_name,
+                    "poll_interval": poll_interval
+                }
             )
 
             self._ensure_collection_exists(collection_name)
@@ -124,21 +134,26 @@ class QdrantVectorStoreManager:
 
     def _create_loader(self, location: SyncLocationSettings):
         """Creates a loader based on location type."""
+        poll_interval = (
+            location.sync_interval
+            if location.sync_interval is not None
+            else self._sync_interval
+        )
         if location.type == "fs":
             return FileSystemLoader(
                 path=location.path,
-                poll_interval=location.sync_interval
+                poll_interval=poll_interval
             )
         if location.type == "gdrive":
             return GoogleDriveLoader(
                 folder_ids=[location.path],
-                poll_interval=location.sync_interval
+                poll_interval=poll_interval
             )
         if location.type == "github":
             return GithubLoader(
                 repo_names=location.path.split(","),
                 loader_config=location.loader_config,
-                poll_interval=location.sync_interval
+                poll_interval=poll_interval
             )
 
         logger.warning("Unsupported sync location type: %s", location.type)
@@ -427,16 +442,22 @@ class QdrantVectorStoreManager:
 
     def start_periodic_sync(self):
         """Starts the background thread for periodic synchronization."""
-        logger.info(
-            "Starting periodic synchronization watcher every %s seconds.",
-            self._sync_interval
-        )
         for loader_info in self._loaders:
+            if loader_info['poll_interval'] == 0:
+                logger.info(
+                    "Skipping periodic synchronization watcher, collection: %s",
+                    loader_info['collection']
+                )
+                continue
             update_callback = partial(
                 self._update_vector_store,
                 collection=loader_info['collection']
             )
             loader_info["loader"].watcher(callback=update_callback)
+            logger.info(
+                "Starting periodic synchronization watcher, collection: %s",
+                loader_info['collection']
+            )
 
     def stop_periodic_sync(self):
         """Stops the background synchronization thread gracefully."""

@@ -186,7 +186,7 @@ class SyncLocationSettings(BaseModel):
     type: str
     path: str
     collection: str
-    sync_interval: int
+    sync_interval: Optional[int] = None
     prompt_file: Optional[str] = None
     prompt: Optional[str] = None
     metadata: Optional[MetadataSettings] = None

@@ -77,12 +77,21 @@ class WeaviateVectorStoreManager:
             if not self._client.collections.exists(location.collection):
                 self._create_collection(location.collection)
 
+            poll_interval = (
+                location.sync_interval
+                if location.sync_interval is not None
+                else self._sync_interval
+            )
             if location.type == "fs":
                 loader = FileSystemLoader(
-                    path=location.path, poll_interval=location.sync_interval
+                    path=location.path, poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": location.collection}
+                    {
+                        "loader": loader,
+                        "collection": location.collection,
+                        "poll_interval": poll_interval
+                    }
                 )
                 self._vectorstores[location.collection] = Weaviate(
                     self._client, location.collection, "text",
@@ -91,10 +100,14 @@ class WeaviateVectorStoreManager:
                 )
             elif location.type == "gdrive":
                 loader = GoogleDriveLoader(
-                    folder_ids=[location.path], poll_interval=location.sync_interval
+                    folder_ids=[location.path], poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": location.collection}
+                    {
+                        "loader": loader,
+                        "collection": location.collection,
+                        "poll_interval": poll_interval
+                    }
                 )
                 self._vectorstores[location.collection] = Weaviate(
                     self._client, location.collection, "text",
@@ -105,10 +118,14 @@ class WeaviateVectorStoreManager:
                 loader = GithubLoader(
                     repo_names=location.path.split(","),
                     loader_config=location.loader_config,
-                    poll_interval=location.sync_interval
+                    poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": location.collection}
+                    {
+                        "loader": loader,
+                        "collection": location.collection,
+                        "poll_interval": poll_interval
+                    }
                 )
                 self._vectorstores[location.collection] = Weaviate(
                     self._client, location.collection, "text",
@@ -279,7 +296,9 @@ class WeaviateVectorStoreManager:
 
             try:
                 response = collection_obj.query.fetch_objects(
-                    filters=wvc.query.Filter.by_property("source").contains_any(batch_sources),
+                    filters=wvc.query.Filter.by_property("source").contains_any(
+                        batch_sources
+                    ),
                     return_properties=["source", "last_modification"],
                     limit=limit
                 )
@@ -303,7 +322,9 @@ class WeaviateVectorStoreManager:
                             )
                             if single_res.objects:
                                 obj = single_res.objects[0]
-                                existing_docs_map[obj.properties["source"]] = obj.properties["last_modification"]
+                                existing_docs_map[obj.properties["source"]] = (
+                                    obj.properties["last_modification"]
+                                )
                         except Exception as e:
                             logger.warning("Error checking individual file %s: %s", source, e)
 
@@ -400,19 +421,25 @@ class WeaviateVectorStoreManager:
 
     def start_periodic_sync(self):
         """Starts the background thread for periodic synchronization."""
-        logger.info(
-            "Starting periodic synchronization watcher every %s seconds.",
-            self._sync_interval
-        )
         for loader in self._loaders:
             # Use functools.partial to create a callback with the collection
             # name pre-filled. The loader's watcher expects a callback that
             # only takes one argument (the documents).
+            if loader['poll_interval'] == 0:
+                logger.info(
+                    "Skipping periodic synchronization watcher, collection: %s",
+                    loader['collection']
+                )
+                continue
             update_callback = partial(
                 self._update_vector_store,
                 collection=loader['collection']
             )
             loader["loader"].watcher(callback=update_callback)
+            logger.info(
+                "Starting periodic synchronization watcher, collection: %s",
+                loader['collection']
+            )
 
     def stop_periodic_sync(self):
         """Stops the background synchronization thread gracefully."""

@@ -69,7 +69,9 @@ class MilvusVectorStoreManager:
         try:
             self._client = MilvusClient(**self._connection_args)
             logger.info("Successfully connected to Milvus.")
-            logger.info(f"  - Milvus Server Version: {self._client.get_server_version()}")
+            logger.info(
+                f"  - Milvus Server Version: {self._client.get_server_version()}"
+            )
             logger.info(f"  - Milvus Client Version: {pymilvus.__version__}")
         except Exception as e:
             logger.error(f"Failed to connect to Milvus: {e}", exc_info=True)
@@ -86,30 +88,47 @@ class MilvusVectorStoreManager:
         for location in self._sync_locations:
             collection_name = location.collection
 
+            poll_interval = (
+                location.sync_interval
+                if location.sync_interval is not None
+                else self._sync_interval
+            )
             if location.type == "fs":
                 loader = FileSystemLoader(
                     path=location.path,
-                    poll_interval=location.sync_interval
+                    poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": collection_name}
+                    {
+                        "loader": loader,
+                        "collection": collection_name,
+                        "poll_interval": poll_interval
+                    }
                 )
             elif location.type == "gdrive":
                 loader = GoogleDriveLoader(
                     folder_ids=[location.path],
-                    poll_interval=location.sync_interval
+                    poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": collection_name}
+                    {
+                        "loader": loader,
+                        "collection": collection_name,
+                        "poll_interval": poll_interval
+                    }
                 )
             elif location.type == "github":
                 loader = GithubLoader(
                     repo_names=location.path.split(","),
                     loader_config=location.loader_config,
-                    poll_interval=location.sync_interval
+                    poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": collection_name}
+                    {
+                        "loader": loader,
+                        "collection": collection_name,
+                        "poll_interval": poll_interval
+                    }
                 )
             else:
                 logger.warning(f"Unsupported sync location type: {location.type}")
@@ -295,16 +314,20 @@ class MilvusVectorStoreManager:
 
     def start_periodic_sync(self):
         """Starts the background thread for periodic synchronization."""
-        logger.info(
-            f"Starting periodic synchronization watcher every "
-            f"{self._sync_interval} seconds."
-        )
         for loader_info in self._loaders:
+            if loader_info['poll_interval'] == 0:
+                logger.info(
+                    f"Skipping periodic synchronization watcher, collection: {loader_info['collection']}"
+                )
+                continue
             update_callback = partial(
                 self._update_vector_store,
                 collection=loader_info['collection']
             )
             loader_info["loader"].watcher(callback=update_callback)
+            logger.info(
+                f"Starting periodic synchronization watcher, collection: {loader_info['collection']}"
+            )
 
     def stop_periodic_sync(self):
         """Stops the background synchronization thread gracefully."""

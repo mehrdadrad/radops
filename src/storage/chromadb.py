@@ -66,13 +66,22 @@ class ChromaVectorStoreManager:
         self._loaders = []
 
         for location in self._sync_locations:
+            poll_interval = (
+                location.sync_interval
+                if location.sync_interval is not None
+                else self._sync_interval
+            )
             if location.type == "fs":
                 loader = FileSystemLoader(
                     path=location.path,
-                    poll_interval=location.sync_interval
+                    poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": location.collection}
+                    {
+                        "loader": loader,
+                        "collection": location.collection,
+                        "poll_interval": poll_interval
+                    }
                 )
                 self._vectorstores[location.collection] = Chroma(
                     client=self._client,
@@ -82,10 +91,14 @@ class ChromaVectorStoreManager:
             elif location.type == "gdrive":
                 loader = GoogleDriveLoader(
                     folder_ids=[location.path],
-                    poll_interval=location.sync_interval
+                    poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": location.collection}
+                    {
+                        "loader": loader,
+                        "collection": location.collection,
+                        "poll_interval": poll_interval
+                    }
                 )
                 self._vectorstores[location.collection] = Chroma(
                     client=self._client,
@@ -96,10 +109,14 @@ class ChromaVectorStoreManager:
                 loader = GithubLoader(
                     repo_names=location.path.split(","),
                     loader_config=location.loader_config,
-                    poll_interval=location.sync_interval
+                    poll_interval=poll_interval
                 )
                 self._loaders.append(
-                    {"loader": loader, "collection": location.collection}
+                    {
+                        "loader": loader,
+                        "collection": location.collection,
+                        "poll_interval": poll_interval
+                    }
                 )
                 self._vectorstores[location.collection] = Chroma(
                     client=self._client,
@@ -265,16 +282,22 @@ class ChromaVectorStoreManager:
 
     def start_periodic_sync(self):
         """Starts the background thread for periodic synchronization."""
-        logger.info(
-            "Starting periodic synchronization watcher every %s seconds.",
-            self._sync_interval
-        )
         for loader_info in self._loaders:
+            if loader_info['poll_interval'] == 0:
+                logger.info(
+                    "Skipping periodic synchronization watcher, collection: %s",
+                    loader_info['collection']
+                )
+                continue
             update_callback = partial(
                 self._update_vector_store,
                 collection=loader_info['collection']
             )
             loader_info["loader"].watcher(callback=update_callback)
+            logger.info(
+                "Starting periodic synchronization watcher, collection: %s",
+                loader_info['collection']
+            )
 
     def stop_periodic_sync(self):
         """Stops the background synchronization thread gracefully."""
