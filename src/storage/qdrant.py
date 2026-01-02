@@ -34,7 +34,8 @@ class QdrantVectorStoreManager:
         name: str,
         sync_locations: list[SyncLocationSettings],
         embeddings,
-        sync_interval: int = 60
+        sync_interval: int = 60,
+        skip_initial_sync: bool = False
     ):
         """
         Initializes the manager, connects to Qdrant, and synchronizes the vector store.
@@ -45,6 +46,7 @@ class QdrantVectorStoreManager:
             embeddings: The embeddings model to use for vectorization.
             sync_interval: The interval in seconds for the loader to check for file changes.
                            Set to 0 to disable periodic syncing.
+            skip_initial_sync: If True, skips the initial data synchronization.
         """
         self._name = name
         self._sync_locations = sync_locations
@@ -56,7 +58,8 @@ class QdrantVectorStoreManager:
         self._client = self._connect_to_qdrant()
         self._initialize_collections()
 
-        self._initial_sync()
+        if not skip_initial_sync:
+            self._initial_sync()
 
         if self._sync_interval > 0:
             self.start_periodic_sync()

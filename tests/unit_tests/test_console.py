@@ -168,3 +168,36 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
 
         mock_log_error.assert_called_with("An error occurred: %s", error)
         mock_print.assert_any_call("Goodbye!")
+
+    @patch("console.input")
+    @patch("console.print")
+    @patch("console.get_checkpointer")
+    @patch("console.run_graph", new_callable=AsyncMock)
+    @patch("console.astream_graph_updates")
+    @patch("console.mem0_manager")
+    @patch("console.telemetry")
+    @patch("console.ToolRegistry")
+    async def test_console_skip_sync(
+        self,
+        mock_tool_registry,
+        mock_telemetry,
+        mock_mem0,
+        mock_astream,
+        mock_run_graph,
+        mock_get_cp,
+        mock_print,
+        mock_input,
+    ):
+        """Test console startup with skip_initial_sync enabled."""
+        mock_cp_ctx = AsyncMock()
+        mock_cp_ctx.__aenter__.return_value = (MagicMock(), AsyncMock())
+        mock_get_cp.return_value = mock_cp_ctx
+        mock_tool_registry.return_value.close = AsyncMock()
+
+        mock_input.side_effect = ["user", "quit"]
+
+        await main(skip_initial_sync=True)
+
+        # Verify ToolRegistry was initialized with skip_initial_sync=True
+        _, kwargs = mock_tool_registry.call_args
+        self.assertTrue(kwargs.get("skip_initial_sync"))

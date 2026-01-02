@@ -38,6 +38,16 @@ class TestMilvusVectorStoreManager(unittest.TestCase):
         self.mock_milvus_client.assert_called()
         self.assertEqual(manager.name(), "test_manager")
 
+    def test_initialization_skip_sync(self):
+        loc = SyncLocationSettings(
+            name="test", type="fs", path="/tmp", collection="test_coll", sync_interval=0
+        )
+        manager = MilvusVectorStoreManager(
+            "test_manager", [loc], MagicMock(), sync_interval=0, skip_initial_sync=True
+        )
+        
+        self.mock_fs_loader.return_value.load_data.assert_not_called()
+
     def test_update_vector_store(self):
         loc = SyncLocationSettings(
             name="test", type="fs", path="/tmp", collection="test_coll", sync_interval=0

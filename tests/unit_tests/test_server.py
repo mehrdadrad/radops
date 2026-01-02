@@ -125,3 +125,30 @@ class TestServer(unittest.TestCase):
 
                 eot = websocket.receive_text()
                 self.assertEqual(eot, "\x03")
+
+    @patch("server.SKIP_INITIAL_SYNC", True)
+    @patch("server.get_checkpointer")
+    @patch("server.run_graph", new_callable=AsyncMock)
+    @patch("server.mem0_manager")
+    @patch("server.telemetry")
+    @patch("server.ToolRegistry")
+    def test_lifespan_skip_sync(
+        self, mock_tool_registry, mock_telemetry, mock_mem0, mock_run_graph, mock_get_cp
+    ):
+        """Test lifespan with SKIP_INITIAL_SYNC env var."""
+        mock_redis = AsyncMock()
+        mock_cp_ctx = AsyncMock()
+        mock_cp_ctx.__aenter__.return_value = (MagicMock(), mock_redis)
+        mock_cp_ctx.__aexit__.return_value = None
+        mock_get_cp.return_value = mock_cp_ctx
+        
+        mock_run_graph.return_value = MagicMock()
+        mock_mem0.close = AsyncMock()
+        mock_tool_registry.return_value.close = AsyncMock()
+
+        with TestClient(app):
+            pass
+            
+        # Verify ToolRegistry called with skip_initial_sync=True
+        _, kwargs = mock_tool_registry.call_args
+        self.assertTrue(kwargs.get("skip_initial_sync"))

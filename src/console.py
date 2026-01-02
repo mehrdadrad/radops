@@ -2,6 +2,7 @@
 This module provides a command-line interface for interacting with the RadOps assistant.
 """
 import asyncio
+import argparse
 import logging
 import warnings
 from libs.logger import initialize_logger
@@ -22,7 +23,7 @@ async def ainput(prompt: str = "") -> str:
     """Async wrapper for input function."""
     return await asyncio.to_thread(input, prompt)
 
-async def main():
+async def main(skip_initial_sync: bool = False):
     """
     The main function for the console application.
     """
@@ -30,7 +31,7 @@ async def main():
     tool_registry = None
     try:
         async with get_checkpointer() as (checkpointer, redis_client):
-            tool_registry = ToolRegistry(checkpointer=checkpointer)
+            tool_registry = ToolRegistry(checkpointer=checkpointer, skip_initial_sync=skip_initial_sync)
             graph = await run_graph(checkpointer, tool_registry=tool_registry)
             user_id = await ainput("Please enter your username: ")
             if not user_id:
@@ -80,7 +81,11 @@ async def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="RadOps Console")
+    parser.add_argument("--skip-initial-sync", action="store_true", help="Skip the initial vector store synchronization.")
+    args = parser.parse_args()
+
     try:
-        asyncio.run(main())
+        asyncio.run(main(skip_initial_sync=args.skip_initial_sync))
     except KeyboardInterrupt:
         pass

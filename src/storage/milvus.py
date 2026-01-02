@@ -37,7 +37,8 @@ class MilvusVectorStoreManager:
         name: str,
         sync_locations: list[SyncLocationSettings],
         embeddings,
-        sync_interval: int = 60
+        sync_interval: int = 60,
+        skip_initial_sync: bool = False
     ):
         """
         Initializes the manager, connects to Milvus, and synchronizes the vector store.
@@ -48,6 +49,7 @@ class MilvusVectorStoreManager:
             embeddings: The embeddings model to use for vectorization.
             sync_interval: The interval in seconds for the loader to check for file changes.
                            Set to 0 to disable periodic syncing.
+            skip_initial_sync: If True, skips the initial data synchronization.
         """
         self._config = settings.vector_store.providers["milvus"]
         self._uri = self._config.get("uri")
@@ -121,7 +123,8 @@ class MilvusVectorStoreManager:
                 auto_id=True,
             )
 
-        self._initial_sync()
+        if not skip_initial_sync:
+            self._initial_sync()
 
         if self._sync_interval > 0:
             self.start_periodic_sync()

@@ -29,7 +29,8 @@ class PineconeVectorStoreManager:
         name: str,
         sync_locations: list[SyncLocationSettings],
         embeddings,
-        sync_interval: int = 60
+        sync_interval: int = 60,
+        skip_initial_sync: bool = False
     ):
         """
         Initializes the manager, connects to Pinecone, and synchronizes the vector store.
@@ -40,6 +41,7 @@ class PineconeVectorStoreManager:
             embeddings: The embeddings model to use for vectorization.
             sync_interval: The interval in seconds for the loader to check for file changes.
                            Set to 0 to disable periodic syncing.
+            skip_initial_sync: If True, skips the initial data synchronization.
         """
         self._config = settings.vector_store.providers["pinecone"]
         self._api_key = self._config.get("api_key")
@@ -120,7 +122,8 @@ class PineconeVectorStoreManager:
             else:
                 logger.warning("Unsupported sync location type: %s", location.type)
 
-        self._initial_sync()
+        if not skip_initial_sync:
+            self._initial_sync()
 
         if self._sync_interval > 0:
             self.start_periodic_sync()

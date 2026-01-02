@@ -32,9 +32,9 @@ class ToolRegistry:
     A registry for all the tools available to the RadOps assistant.
     """
 
-    def __init__(self, checkpointer):
+    def __init__(self, checkpointer, skip_initial_sync: bool = False):
         self.checkpointer = checkpointer
-        self.vector_store_managers = vector_store_factory()
+        self.vector_store_managers = vector_store_factory(skip_initial_sync=skip_initial_sync)
         self.mcp_clients = [
             MCPClient(name, config)
             for name, config in settings.mcp_servers.items()

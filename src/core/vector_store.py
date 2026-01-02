@@ -13,7 +13,7 @@ from storage.weaviatedb import WeaviateVectorStoreManager
 
 logger = logging.getLogger(__name__)
 
-def vector_store_factory() -> list[VectorStoreManager]:
+def vector_store_factory(skip_initial_sync: bool = False) -> list[VectorStoreManager]:
     """Creates and configures vector store managers based on settings.
 
     This factory reads the `settings.vector_store.profiles` to determine which
@@ -22,6 +22,9 @@ def vector_store_factory() -> list[VectorStoreManager]:
 
     An `atexit` handler is registered for each manager to ensure proper
     cleanup and connection closing on application exit.
+
+    Args:
+        skip_initial_sync: If True, skips the initial data synchronization.
 
     Returns:
         A list of initialized VectorStoreManager instances.
@@ -44,23 +47,28 @@ def vector_store_factory() -> list[VectorStoreManager]:
 
         if provider == "chroma":
             manager = ChromaVectorStoreManager(
-                profile.name, sync_locations, embeddings_model
+                profile.name, sync_locations, embeddings_model,
+                skip_initial_sync=skip_initial_sync
             )
         elif provider == "weaviate":
             manager = WeaviateVectorStoreManager(
-                profile.name, sync_locations, embeddings_model
+                profile.name, sync_locations, embeddings_model,
+                skip_initial_sync=skip_initial_sync
             )  # type: ignore
         elif provider == "pinecone":
             manager = PineconeVectorStoreManager(
-                profile.name, sync_locations, embeddings_model
+                profile.name, sync_locations, embeddings_model,
+                skip_initial_sync=skip_initial_sync
             )
         elif provider == "qdrant":
             manager = QdrantVectorStoreManager(
-                profile.name, sync_locations, embeddings_model
+                profile.name, sync_locations, embeddings_model,
+                skip_initial_sync=skip_initial_sync
             )
         elif provider == "milvus":
             manager = MilvusVectorStoreManager(
-                profile.name, sync_locations, embeddings_model
+                profile.name, sync_locations, embeddings_model,
+                skip_initial_sync=skip_initial_sync
             )
         else:
             raise ValueError(f"Unsupported vector store provider: {provider}")
