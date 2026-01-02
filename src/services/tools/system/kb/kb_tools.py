@@ -16,10 +16,16 @@ logger = logging.getLogger(__name__)
 def create_dynamic_input(dynamic_fields: dict[str, str]) -> type[BaseModel]:
     """Dynamically creates the Pydantic input model for the router tool."""
     fields = {
-        "query": (str, Field(description="The main search query for the router configuration, excluding device and location information.")),
+        "query": (str, Field(
+            description="The main search query for the router configuration, "
+                        "excluding device and location information."
+        )),
     }
     for name, description in dynamic_fields.items():
-        fields[name] = (Optional[str], Field(default=None, description=f"The {name} to filter by. {description}"))
+        fields[name] = (
+            Optional[str],
+            Field(default=None, description=f"The {name} to filter by. {description}")
+        )
 
     return create_model(
         'DynamicRouterSearchInput',
@@ -29,10 +35,18 @@ def create_dynamic_input(dynamic_fields: dict[str, str]) -> type[BaseModel]:
 
 # This is a placeholder for your actual knowledge base retrieval logic.
 # You would replace this with your function that queries your KB.
-def _generic_retriever(query: str, vector_store: Any, retrieval_config: Optional[dict] = None, **kwargs: Any) -> str:
+def _generic_retriever(
+    query: str,
+    vector_store: Any,
+    retrieval_config: Optional[dict] = None,
+    **kwargs: Any
+) -> str:
     if retrieval_config is None:
         retrieval_config = {}
-    logging.info(f"Searching for query: '{query}' with filters: '{kwargs}' and config: '{retrieval_config}'")
+    logging.info(
+        f"Searching for query: '{query}' with filters: '{kwargs}' "
+        f"and config: '{retrieval_config}'"
+    )
     try:
         if isinstance(vector_store, WeaviateVectorStore):
             return retriever_weaviate(vector_store, query, retrieval_config, **kwargs)
@@ -56,7 +70,10 @@ def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[Bas
                 break
 
         if not matching_vector_store_manager:
-            logger.error(f"Vector store manager for profile '{vector_store_profile.name}' not found. Skipping tool creation for this profile.")
+            logger.error(
+                f"Vector store manager for profile '{vector_store_profile.name}' "
+                "not found. Skipping tool creation for this profile."
+            )
             continue           
                     
         for sync_location in vector_store_profile.sync_locations:
@@ -65,12 +82,18 @@ def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[Bas
             tool_name = f"kb_{sync_name.replace(' ', '_')}"
 
             dynamic_properties = sync_location.metadata.structure
-            dynamic_fields = {prop.name: prop.description for prop in dynamic_properties}
+            dynamic_fields = {
+                prop.name: prop.description for prop in dynamic_properties
+            }
 
             vector_store = matching_vector_store_manager.get_vectorstore(collection_name)
             retrieval_config = getattr(sync_location, "retrieval_config", {})
 
-            retriever_func = partial(_generic_retriever, vector_store=vector_store, retrieval_config=retrieval_config)
+            retriever_func = partial(
+                _generic_retriever,
+                vector_store=vector_store,
+                retrieval_config=retrieval_config
+            )
 
             if sync_location.prompt_file:
                 with open(sync_location.prompt_file, "r", encoding="utf-8") as f:
@@ -87,7 +110,9 @@ def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[Bas
                 args_schema=create_dynamic_input(dynamic_fields),
                 description=docstring,
             )
-            logger.info(f"Created tool: {tool_name}, collection: {collection_name}, sync_name: {sync_name}")
+            logger.info(
+                f"Created tool: {tool_name}, collection: {collection_name}, sync_name: {sync_name}"
+            )
             tools.append(dyn_tool)
 
     return tools
@@ -102,7 +127,9 @@ def retriever_chroma(vector_store: Any, query: str, retrieval_config: dict, **kw
 
     filter = None
     if filter_conditions:
-        filter = {'$and': filter_conditions} if len(filter_conditions) > 1 else filter_conditions[0]
+        filter = (
+            {'$and': filter_conditions} if len(filter_conditions) > 1 else filter_conditions[0]
+        )
 
     search_type = retrieval_config.get("search_type", "similarity")
     search_kwargs = {k: v for k, v in retrieval_config.items() if k != "search_type"}
@@ -119,7 +146,10 @@ def retriever_chroma(vector_store: Any, query: str, retrieval_config: dict, **kw
         search_kwargs=search_kwargs,
     )
     docs = retriever.invoke(query)
-    return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
+    return "\n---\n".join([
+        f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content
+        for doc in docs
+    ])
 
 def retriever_weaviate(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
     filters = None
@@ -153,7 +183,8 @@ def retriever_weaviate(vector_store: Any, query: str, retrieval_config: dict, **
     elif search_type == "mmr":
         if "fetch_k" not in search_kwargs: search_kwargs["fetch_k"] = 20
         if "lambda_mult" not in search_kwargs: search_kwargs["lambda_mult"] = 0.5
-    elif search_type == "similarity_score_threshold" and "score_threshold" not in search_kwargs:
+    elif (search_type == "similarity_score_threshold" and
+          "score_threshold" not in search_kwargs):
         search_kwargs["score_threshold"] = 0.25
             
     retriever = vector_store.as_retriever(
@@ -163,7 +194,10 @@ def retriever_weaviate(vector_store: Any, query: str, retrieval_config: dict, **
 
     docs = retriever.invoke(query)
 
-    return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
+    return "\n---\n".join([
+        f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content
+        for doc in docs
+    ])
 
 def retriever_qdrant(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
     must_conditions = []
@@ -189,7 +223,10 @@ def retriever_qdrant(vector_store: Any, query: str, retrieval_config: dict, **kw
         filter=filter,
         **search_params
     )
-    return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
+    return "\n---\n".join([
+        f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content
+        for doc in docs
+    ])
 
 def retriever_milvus(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
     expr_list = []
@@ -206,4 +243,7 @@ def retriever_milvus(vector_store: Any, query: str, retrieval_config: dict, **kw
 
     docs = vector_store.similarity_search(query=query, k=k, expr=expr, **search_params)
 
-    return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
+    return "\n---\n".join([
+        f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content
+        for doc in docs
+    ])
