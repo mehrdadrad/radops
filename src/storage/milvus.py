@@ -37,7 +37,7 @@ class MilvusVectorStoreManager:
         name: str,
         sync_locations: list[SyncLocationSettings],
         embeddings,
-        sync_interval: int = 10
+        sync_interval: int = 60
     ):
         """
         Initializes the manager, connects to Milvus, and synchronizes the vector store.
@@ -156,6 +156,12 @@ class MilvusVectorStoreManager:
             logger.error(f"No vector store found for collection '{collection}'.")
             return
 
+        location_config = next(
+            (loc for loc in self._sync_locations
+             if loc.collection == collection),
+            None
+        )
+
         # Check if collection exists to avoid errors on first run
         collection_exists = self._client.has_collection(collection)
 
@@ -244,12 +250,6 @@ class MilvusVectorStoreManager:
                 "last_modification": loaded_doc.last_modified
             }
 
-            location_config = next(
-                (loc for loc in self._sync_locations
-                 if loc.collection == collection),
-                None
-            )
-
             try:
                 if (location_config and
                         location_config.metadata and
@@ -273,8 +273,14 @@ class MilvusVectorStoreManager:
             documents_to_add.append(doc)
 
         if documents_to_add:
+            chunk_size = 500
+            chunk_overlap = 50
+            if location_config and location_config.loader_config:
+                chunk_size = location_config.loader_config.get("chunk_size", 500)
+                chunk_overlap = location_config.loader_config.get("chunk_overlap", 50)
+
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=500, chunk_overlap=50
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap
             )
             docs: List[Document] = text_splitter.split_documents(
                 documents_to_add

@@ -331,6 +331,12 @@ class QdrantVectorStoreManager:
             )
         )
 
+        location_config = next(
+            (loc for loc in self._sync_locations
+             if loc.collection == collection),
+            None
+        )
+
         # Prepare and add new/updated documents
         documents_to_add = []
         for loaded_doc in docs:
@@ -338,8 +344,14 @@ class QdrantVectorStoreManager:
             documents_to_add.append(doc)
 
         if documents_to_add:
+            chunk_size = 500
+            chunk_overlap = 50
+            if location_config and location_config.loader_config:
+                chunk_size = location_config.loader_config.get("chunk_size", 500)
+                chunk_overlap = location_config.loader_config.get("chunk_overlap", 50)
+
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=500, chunk_overlap=50
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap
             )
             docs_chunks: List[Document] = text_splitter.split_documents(
                 documents_to_add

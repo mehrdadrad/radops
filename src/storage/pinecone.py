@@ -29,7 +29,7 @@ class PineconeVectorStoreManager:
         name: str,
         sync_locations: list[SyncLocationSettings],
         embeddings,
-        sync_interval: int = 10
+        sync_interval: int = 60
     ):
         """
         Initializes the manager, connects to Pinecone, and synchronizes the vector store.
@@ -62,7 +62,7 @@ class PineconeVectorStoreManager:
                 "Successfully connected to Pinecone Index: %s", self._index_name
             )
         except Exception as e:
-            logger.error(f"Failed to connect to Pinecone: {e}", exc_info=True)
+            logger.error("Failed to connect to Pinecone: %s", e, exc_info=True)
             raise
 
         self._sync_locations = sync_locations
@@ -118,7 +118,7 @@ class PineconeVectorStoreManager:
                     namespace=namespace
                 )
             else:
-                logger.warning(f"Unsupported sync location type: {location.type}")
+                logger.warning("Unsupported sync location type: %s", location.type)
 
         self._initial_sync()
 
@@ -141,7 +141,7 @@ class PineconeVectorStoreManager:
         for loader_info in self._loaders:
             loader = loader_info["loader"]
             collection_name = loader_info["collection"]
-            logger.info(f"Loading initial data for namespace '{collection_name}'...")
+            logger.info("Loading initial data for namespace '%s'...", collection_name)
             self._update_vector_store(loader.load_data(), collection_name)
 
     def _update_vector_store(
@@ -152,8 +152,14 @@ class PineconeVectorStoreManager:
         """
         vectorstore = self._vectorstores.get(collection)
         if not vectorstore:
-            logger.error(f"No vector store found for namespace '{collection}'.")
+            logger.error("No vector store found for namespace '%s'.", collection)
             return
+
+        location_config = next(
+            (loc for loc in self._sync_locations
+             if loc.collection == collection),
+            None
+        )
 
         # Get dimension for dummy vector
         dimension = 1536
@@ -210,7 +216,7 @@ class PineconeVectorStoreManager:
                         docs_that_need_update.append(doc)
                 except Exception as e:
                     logger.warning(
-                        f"Error checking existence of '{source}' in Pinecone: {e}"
+                        "Error checking existence of '%s' in Pinecone: %s", source, e
                     )
                     docs_that_need_update.append(doc)
             docs_to_upsert = docs_that_need_update
@@ -221,16 +227,17 @@ class PineconeVectorStoreManager:
                 os.path.basename(doc.path) for doc in docs_to_delete
             ]
             logger.info(
-                f"Removing {len(deleted_sources)} deleted files from namespace '{collection}': "
-                f"{', '.join(sorted(deleted_sources))}"
+                "Removing %d deleted files from namespace '%s': %s",
+                len(deleted_sources),
+                collection,
+                ', '.join(sorted(deleted_sources))
             )
             # Pinecone delete with filter
             try:
                 vectorstore.delete(filter={"source": {"$in": deleted_sources}})
             except Exception as e:
                 logger.warning(
-                    f"Error deleting from Pinecone namespace "
-                    f"'{collection}': {e}"
+                    "Error deleting from Pinecone namespace '%s': %s", collection, e
                 )
 
         # Handle upserts: Delete existing chunks for these files first to avoid duplicates
@@ -239,15 +246,18 @@ class PineconeVectorStoreManager:
                 os.path.basename(doc.path) for doc in docs_to_upsert
             ]
             logger.info(
-                f"Upserting {len(upsert_sources)} files in namespace '{collection}': "
-                f"{', '.join(sorted(upsert_sources))}"
+                "Upserting %d files in namespace '%s': %s",
+                len(upsert_sources),
+                collection,
+                ', '.join(sorted(upsert_sources))
             )
             try:
                 vectorstore.delete(filter={"source": {"$in": upsert_sources}})
             except Exception as e:
                 logger.warning(
-                    f"Error deleting existing vectors in Pinecone "
-                    f"namespace '{collection}': {e}"
+                    "Error deleting existing vectors in Pinecone namespace '%s': %s",
+                    collection,
+                    e
                 )
 
         # Prepare and add new/updated documents
@@ -258,12 +268,6 @@ class PineconeVectorStoreManager:
                 "source": file_name,
                 "last_modification": loaded_doc.last_modified
             }
-
-            location_config = next(
-                (loc for loc in self._sync_locations
-                 if loc.collection == collection),
-                None
-            )
 
             try:
                 if (location_config and
@@ -280,30 +284,35 @@ class PineconeVectorStoreManager:
                             metadata[prop_setting.name] = parts[i]
             except (ValueError, AttributeError) as e:
                 logger.warning(
-                    f"Could not extract metadata from filename "
-                    f"'{file_name}': {e}"
+                    "Could not extract metadata from filename '%s': %s", file_name, e
                 )
 
             doc = Document(page_content=loaded_doc.content, metadata=metadata)
             documents_to_add.append(doc)
 
         if documents_to_add:
+            chunk_size = 500
+            chunk_overlap = 50
+            if location_config and location_config.loader_config:
+                chunk_size = location_config.loader_config.get("chunk_size", 500)
+                chunk_overlap = location_config.loader_config.get("chunk_overlap", 50)
+
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=500, chunk_overlap=50
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap
             )
             docs: List[Document] = text_splitter.split_documents(
                 documents_to_add
             )
             logger.info(
-                f"Adding {len(docs)} document chunks to namespace '{collection}'..."
+                "Adding %d document chunks to namespace '%s'...", len(docs), collection
             )
             vectorstore.add_documents(docs)
 
     def start_periodic_sync(self):
         """Starts the background thread for periodic synchronization."""
         logger.info(
-            f"Starting periodic synchronization watcher every "
-            f"{self._sync_interval} seconds."
+            "Starting periodic synchronization watcher every %s seconds.",
+            self._sync_interval
         )
         for loader_info in self._loaders:
             update_callback = partial(

@@ -1,3 +1,6 @@
+"""
+This module implements the ChromaVectorStoreManager for managing ChromaDB vector stores.
+"""
 import logging
 import os
 import threading
@@ -29,7 +32,7 @@ class ChromaVectorStoreManager:
         name: str,
         sync_locations: list[SyncLocationSettings],
         embeddings,
-        sync_interval: int = 10
+        sync_interval: int = 60
     ):
         """
         Initializes the manager, connects to ChromaDB, and synchronizes the vector store.
@@ -47,9 +50,9 @@ class ChromaVectorStoreManager:
                 path=self._config.get("path", ".chromadb")
             )
             logger.info("Successfully connected to ChromaDB.")
-            logger.info(f"  - ChromaDB Version: {chromadb.__version__}")
+            logger.info("  - ChromaDB Version: %s", chromadb.__version__)
         except Exception as e:
-            logger.error(f"Failed to connect to ChromaDB: {e}", exc_info=True)
+            logger.error("Failed to connect to ChromaDB: %s", e, exc_info=True)
             raise
 
         self._sync_locations = sync_locations
@@ -102,7 +105,7 @@ class ChromaVectorStoreManager:
                     embedding_function=embeddings
                 )
             else:
-                logger.warning(f"Unsupported sync location type: {location.type}")
+                logger.warning("Unsupported sync location type: %s", location.type)
 
         self._initial_sync()
 
@@ -125,7 +128,7 @@ class ChromaVectorStoreManager:
         for loader_info in self._loaders:
             loader = loader_info["loader"]
             collection_name = loader_info["collection"]
-            logger.info(f"Loading initial data for {collection_name}...")
+            logger.info("Loading initial data for %s...", collection_name)
             self._update_vector_store(loader.load_data(), collection_name)
 
     def _update_vector_store(
@@ -136,8 +139,14 @@ class ChromaVectorStoreManager:
         """
         vectorstore = self._vectorstores.get(collection)
         if not vectorstore:
-            logger.error(f"No vector store found for collection '{collection}'.")
+            logger.error("No vector store found for collection '%s'.", collection)
             return
+
+        location_config = next(
+            (loc for loc in self._sync_locations
+             if loc.collection == collection),
+            None
+        )
 
         docs_to_upsert = [
             doc for doc in changed_docs if doc.content is not None
@@ -150,8 +159,9 @@ class ChromaVectorStoreManager:
                 os.path.basename(doc.path) for doc in docs_to_delete
             ]
             logger.info(
-                f"Removing {len(deleted_sources)} deleted files from vector "
-                f"store: {', '.join(sorted(deleted_sources))}"
+                "Removing %d deleted files from vector store: %s",
+                len(deleted_sources),
+                ', '.join(sorted(deleted_sources))
             )
             vectorstore.delete(where={"source": {"$in": deleted_sources}})
 
@@ -179,8 +189,8 @@ class ChromaVectorStoreManager:
                     docs_that_need_update.append(doc)
                 else:
                     logger.debug(
-                        f"Skipping update for '{source_name}', "
-                        "last_modified timestamp is unchanged."
+                        "Skipping update for '%s', last_modified timestamp is unchanged.",
+                        source_name
                     )
 
             if docs_that_need_update:
@@ -188,8 +198,9 @@ class ChromaVectorStoreManager:
                     os.path.basename(doc.path) for doc in docs_that_need_update
                 ]
                 logger.info(
-                    f"Upserting {len(sources_to_update)} files in vector "
-                    f"store: {', '.join(sorted(sources_to_update))}"
+                    "Upserting %d files in vector store: %s",
+                    len(sources_to_update),
+                    ', '.join(sorted(sources_to_update))
                 )
                 # In Chroma, `add_documents` acts as an upsert if IDs are same.
                 # To be safe and mimic Weaviate's delete-then-add for updates,
@@ -210,12 +221,6 @@ class ChromaVectorStoreManager:
                 "last_modification": loaded_doc.last_modified
             }
 
-            location_config = next(
-                (loc for loc in self._sync_locations
-                 if loc.collection == collection),
-                None
-            )
-
             try:
                 if (location_config and
                         location_config.metadata and
@@ -231,30 +236,36 @@ class ChromaVectorStoreManager:
                             metadata[prop_setting.name] = parts[i]
             except (ValueError, AttributeError) as e:
                 logger.warning(
-                    f"Could not extract metadata from filename "
-                    f"'{file_name}': {e}"
+                    "Could not extract metadata from filename '%s': %s",
+                    file_name, e
                 )
 
             doc = Document(page_content=loaded_doc.content, metadata=metadata)
             documents_to_add.append(doc)
 
         if documents_to_add:
+            chunk_size = 500
+            chunk_overlap = 50
+            if location_config and location_config.loader_config:
+                chunk_size = location_config.loader_config.get("chunk_size", 500)
+                chunk_overlap = location_config.loader_config.get("chunk_overlap", 50)
+
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=500, chunk_overlap=50
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap
             )
             docs: List[Document] = text_splitter.split_documents(
                 documents_to_add
             )
             logger.info(
-                f"Adding {len(docs)} document chunks to the vector store..."
+                "Adding %d document chunks to the vector store...", len(docs)
             )
             vectorstore.add_documents(docs)
 
     def start_periodic_sync(self):
         """Starts the background thread for periodic synchronization."""
         logger.info(
-            f"Starting periodic synchronization watcher every "
-            f"{self._sync_interval} seconds."
+            "Starting periodic synchronization watcher every %s seconds.",
+            self._sync_interval
         )
         for loader_info in self._loaders:
             update_callback = partial(
@@ -275,6 +286,7 @@ class ChromaVectorStoreManager:
         return self._vectorstores.get(collection)
 
     def name(self) -> str:
+        """Returns the name of the vector store manager."""
         return self._name
 
     def close(self):
