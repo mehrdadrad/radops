@@ -29,17 +29,19 @@ def create_dynamic_input(dynamic_fields: dict[str, str]) -> type[BaseModel]:
 
 # This is a placeholder for your actual knowledge base retrieval logic.
 # You would replace this with your function that queries your KB.
-def _generic_retriever(query: str, vector_store: Any, **kwargs: Any) -> str:
-    logging.info(f"Searching for query: '{query}' with filters: '{kwargs}'")
+def _generic_retriever(query: str, vector_store: Any, retrieval_config: Optional[dict] = None, **kwargs: Any) -> str:
+    if retrieval_config is None:
+        retrieval_config = {}
+    logging.info(f"Searching for query: '{query}' with filters: '{kwargs}' and config: '{retrieval_config}'")
     try:
         if isinstance(vector_store, WeaviateVectorStore):
-            return retriever_weaviate(vector_store, query, **kwargs)
+            return retriever_weaviate(vector_store, query, retrieval_config, **kwargs)
         elif isinstance(vector_store, QdrantVectorStore):
-            return retriever_qdrant(vector_store, query, **kwargs)
+            return retriever_qdrant(vector_store, query, retrieval_config, **kwargs)
         elif isinstance(vector_store, Milvus):
-            return retriever_milvus(vector_store, query, **kwargs)
+            return retriever_milvus(vector_store, query, retrieval_config, **kwargs)
         else:
-            return retriever_chroma(vector_store, query, **kwargs)
+            return retriever_chroma(vector_store, query, retrieval_config, **kwargs)
     except Exception as e:
         logging.error(f"An error occurred during knowledge base retrieval: {e}")
         return "Sorry, an error occurred while searching for the requested information. Please try again later."
@@ -66,8 +68,9 @@ def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[Bas
             dynamic_fields = {prop.name: prop.description for prop in dynamic_properties}
 
             vector_store = matching_vector_store_manager.get_vectorstore(collection_name)
+            retrieval_config = getattr(sync_location, "retrieval_config", {})
 
-            retriever_func = partial(_generic_retriever, vector_store=vector_store)
+            retriever_func = partial(_generic_retriever, vector_store=vector_store, retrieval_config=retrieval_config)
 
             if sync_location.prompt_file:
                 with open(sync_location.prompt_file, "r", encoding="utf-8") as f:
@@ -90,7 +93,7 @@ def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[Bas
     return tools
 
 
-def retriever_chroma(vector_store: Any, query: str, **kwargs: Any):
+def retriever_chroma(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
     filter_conditions = []
 
     for key, value in kwargs.items():
@@ -101,16 +104,15 @@ def retriever_chroma(vector_store: Any, query: str, **kwargs: Any):
     if filter_conditions:
         filter = {'$and': filter_conditions} if len(filter_conditions) > 1 else filter_conditions[0]
 
-    search_type = "similarity"
-    search_kwargs = None
+    search_type = retrieval_config.get("search_type", "similarity")
+    search_kwargs = {k: v for k, v in retrieval_config.items() if k != "search_type"}
 
-    match search_type:
-        case "similarity":
-            search_kwargs={"k": 3, "filter":filter}
-        case "similarity_score_threshold":
-            search_kwargs={"k": 3, "filter":filter, "score_threshold":0.25}
-        case _:
-            raise ValueError("unknown search type")            
+    if "k" not in search_kwargs:
+        search_kwargs["k"] = 3
+    search_kwargs["filter"] = filter
+
+    if search_type == "similarity_score_threshold" and "score_threshold" not in search_kwargs:
+        search_kwargs["score_threshold"] = 0.25
 
     retriever = vector_store.as_retriever(
         search_type=search_type,
@@ -119,7 +121,7 @@ def retriever_chroma(vector_store: Any, query: str, **kwargs: Any):
     docs = retriever.invoke(query)
     return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
 
-def retriever_weaviate(vector_store: Any, query: str, **kwargs: Any):
+def retriever_weaviate(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
     filters = None
     all_filters = []
 
@@ -139,19 +141,21 @@ def retriever_weaviate(vector_store: Any, query: str, **kwargs: Any):
     # Max Marginal Relevance (MMR): Balances relevance and diversity, useful for avoiding redundancy and ensuring diverse results.
     # Similarity Score Threshold: Retrieves only highly relevant documents based on a similarity score threshold, filtering out less relevant ones.    
 
-    search_type = "similarity"
-    search_kwargs = None
+    search_type = retrieval_config.get("search_type", "similarity")
+    search_kwargs = {k: v for k, v in retrieval_config.items() if k != "search_type"}
 
-    match search_type:
-        case "similarity":
-            search_kwargs={"k": 3, "filters":filters, "alpha":0.25}
-        case "mmr":
-            {"k": 3, "filters":filters, "fetch_k":20, "lambda_mult":0.5}    
-        case "similarity_score_threshold":
-            search_kwargs={"k": 3, "filters":filters, "score_threshold":0.25}
-        case _:
-            raise ValueError("unknown search type")            
+    if "k" not in search_kwargs:
+        search_kwargs["k"] = 3
+    search_kwargs["filters"] = filters
 
+    if search_type == "similarity" and "alpha" not in search_kwargs:
+        search_kwargs["alpha"] = 0.25
+    elif search_type == "mmr":
+        if "fetch_k" not in search_kwargs: search_kwargs["fetch_k"] = 20
+        if "lambda_mult" not in search_kwargs: search_kwargs["lambda_mult"] = 0.5
+    elif search_type == "similarity_score_threshold" and "score_threshold" not in search_kwargs:
+        search_kwargs["score_threshold"] = 0.25
+            
     retriever = vector_store.as_retriever(
         search_type=search_type,
         search_kwargs=search_kwargs,
@@ -161,7 +165,7 @@ def retriever_weaviate(vector_store: Any, query: str, **kwargs: Any):
 
     return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
 
-def retriever_qdrant(vector_store: Any, query: str, **kwargs: Any):
+def retriever_qdrant(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
     must_conditions = []
     for key, value in kwargs.items():
         if value:
@@ -175,14 +179,19 @@ def retriever_qdrant(vector_store: Any, query: str, **kwargs: Any):
     filter = None
     if must_conditions:
         filter = models.Filter(must=must_conditions)
+
+    k = retrieval_config.get("k", 3)
+    search_params = {k: v for k, v in retrieval_config.items() if k != "k"}
+
     docs = vector_store.similarity_search(
         query=query,
-        k=3,
-        filter=filter
+        k=k,
+        filter=filter,
+        **search_params
     )
     return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])
 
-def retriever_milvus(vector_store: Any, query: str, **kwargs: Any):
+def retriever_milvus(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
     expr_list = []
     for key, value in kwargs.items():
         if value:
@@ -192,6 +201,9 @@ def retriever_milvus(vector_store: Any, query: str, **kwargs: Any):
     if expr_list:
         expr = " and ".join(expr_list)
 
-    docs = vector_store.similarity_search(query=query, k=3, expr=expr)
+    k = retrieval_config.get("k", 3)
+    search_params = {k: v for k, v in retrieval_config.items() if k != "k"}
+
+    docs = vector_store.similarity_search(query=query, k=k, expr=expr, **search_params)
 
     return "\n---\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content for doc in docs])

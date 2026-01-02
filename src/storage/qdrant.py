@@ -230,7 +230,7 @@ class QdrantVectorStoreManager:
                         ),
                         models.FieldCondition(
                             key="metadata.last_modification",
-                            match=models.MatchValue(value=doc.last_modified)
+                            match=models.MatchValue(value=int(doc.last_modified))
                         )
                     ]
                 ),
@@ -370,7 +370,7 @@ class QdrantVectorStoreManager:
         file_name = os.path.basename(loaded_doc.path)
         metadata = {
             "source": file_name,
-            "last_modification": loaded_doc.last_modified
+            "last_modification": int(loaded_doc.last_modified)
         }
 
         location_config = next(

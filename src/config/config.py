@@ -191,6 +191,7 @@ class SyncLocationSettings(BaseModel):
     prompt: Optional[str] = None
     metadata: Optional[MetadataSettings] = None
     loader_config: Optional[Dict[str, Any]] = None
+    retrieval_config: Optional[Dict[str, Any]] = None
 
 
 class VectorStoreProfileSettings(BaseModel):

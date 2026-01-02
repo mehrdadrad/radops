@@ -201,9 +201,8 @@ class ChromaVectorStoreManager:
                     os.path.basename(doc.path) for doc in docs_that_need_update
                 ]
                 logger.info(
-                    "Upserting %d files in vector store: %s",
-                    len(sources_to_update),
-                    ', '.join(sorted(sources_to_update))
+                    "Upserting %d files in vector store",
+                    len(sources_to_update)
                 )
                 # In Chroma, `add_documents` acts as an upsert if IDs are same.
                 # To be safe and mimic Weaviate's delete-then-add for updates,

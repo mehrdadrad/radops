@@ -239,9 +239,15 @@ class PineconeVectorStoreManager:
             try:
                 vectorstore.delete(filter={"source": {"$in": deleted_sources}})
             except Exception as e:
-                logger.warning(
-                    "Error deleting from Pinecone namespace '%s': %s", collection, e
-                )
+                if "Namespace not found" in str(e):
+                    logger.debug(
+                        "Namespace '%s' not found during deletion (expected on first run).",
+                        collection
+                    )
+                else:
+                    logger.warning(
+                        "Error deleting from Pinecone namespace '%s': %s", collection, e
+                    )
 
         # Handle upserts: Delete existing chunks for these files first to avoid duplicates
         if docs_to_upsert:
@@ -249,19 +255,24 @@ class PineconeVectorStoreManager:
                 os.path.basename(doc.path) for doc in docs_to_upsert
             ]
             logger.info(
-                "Upserting %d files in namespace '%s': %s",
+                "Upserting %d files in namespace '%s'",
                 len(upsert_sources),
-                collection,
-                ', '.join(sorted(upsert_sources))
+                collection
             )
             try:
                 vectorstore.delete(filter={"source": {"$in": upsert_sources}})
             except Exception as e:
-                logger.warning(
-                    "Error deleting existing vectors in Pinecone namespace '%s': %s",
-                    collection,
-                    e
-                )
+                if "Namespace not found" in str(e):
+                    logger.debug(
+                        "Namespace '%s' not found during deletion (expected on first run).",
+                        collection
+                    )
+                else:
+                    logger.warning(
+                        "Error deleting existing vectors in Pinecone namespace '%s': %s",
+                        collection,
+                        e
+                    )
 
         # Prepare and add new/updated documents
         documents_to_add = []
