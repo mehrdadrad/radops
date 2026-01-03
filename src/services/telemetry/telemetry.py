@@ -18,6 +18,8 @@ from wsgiref.simple_server import WSGIServer
 # To export to an OTLP collector (e.g., Jaeger, Prometheus, Loki) you would use the following exporters.
 # The PrometheusMetricReader is used to expose a /metrics endpoint directly from the app.
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.prometheus import PrometheusMetricReader, start_http_server
 
 from config.config import settings
@@ -56,7 +58,7 @@ class Telemetry:
                 return
 
             self.service_name = "radops"
-            self.otel_endpoint = otel_endpoint
+            self.otel_endpoint = otel_endpoint or settings.opentelemetry.get("endpoint")
             self.enable_tracing = enable_tracing
             self.enable_metrics = enable_metrics
             self.enable_logging = enable_logging
@@ -96,12 +98,23 @@ class Telemetry:
 
         # --- Metrics Setup ---
         if self.enable_metrics:
-            address = settings.opentelemetry.get("prometheus", {}).get("address", "localhost")
-            port = settings.opentelemetry.get("prometheus", {}).get("port", 9464)
-            logger.info(f"Starting Prometheus server on {address}:{port}")
-            self.server, _ = start_http_server(port=port, addr=address)
-            metric_reader = PrometheusMetricReader()
-            meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
+            metric_readers = []
+            if self.otel_endpoint:
+                logger.info(f"Using OTLP endpoint for metrics: {self.otel_endpoint}")
+                otlp_exporter = OTLPMetricExporter(endpoint=self.otel_endpoint, insecure=True)
+                metric_readers.append(PeriodicExportingMetricReader(otlp_exporter))
+
+            prom_config = settings.opentelemetry.get("prometheus")
+            # Enable Prometheus if explicitly configured OR if no OTLP endpoint is set (default fallback)
+            if prom_config is not None or not self.otel_endpoint:
+                prom_config = prom_config or {}
+                address = prom_config.get("address", "localhost")
+                port = prom_config.get("port", 9464)
+                logger.info(f"Starting Prometheus server on {address}:{port}")
+                self.server, _ = start_http_server(port=port, addr=address)
+                metric_readers.append(PrometheusMetricReader())
+
+            meter_provider = MeterProvider(resource=resource, metric_readers=metric_readers)
             metrics.set_meter_provider(meter_provider)
         else:
             print("Metrics are disabled.")
