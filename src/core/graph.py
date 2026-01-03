@@ -147,7 +147,7 @@ def create_agent(
         telemetry.update_counter(
             "agent.invocations.total", attributes={"agent": agent_name}
         )
-        llm = llm_factory(effective_llm_profile)
+        llm = llm_factory(effective_llm_profile, agent_name=agent_name)
         llm_with_tools = llm.bind_tools(tools)
 
         user_id = state.get("user_id", "User")
@@ -179,7 +179,7 @@ def supervisor_node(state: State) -> dict:
         settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
     )
     logger.info("Supervisor LLM profile: %s", llm_profile)
-    llm = llm_factory(llm_profile)
+    llm = llm_factory(llm_profile, agent_name=node_name)
     llm_structured = llm.with_structured_output(SupervisorAgentOutput)
 
     # Sanitize messages to remove orphaned ToolMessages caused by truncation
@@ -240,7 +240,7 @@ def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
     llm_profile = (
         settings.agent.system.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
     )
-    llm = llm_factory(llm_profile)
+    llm = llm_factory(llm_profile, agent_name=node_name)
     llm_with_tools = llm.bind_tools(tools)
 
     user_id = state.get("user_id", "User")
@@ -283,7 +283,7 @@ def auditor_node(state):
     supervisor_response = messages[-1].content if isinstance(messages[-1], AIMessage) else ""
     relevant_memories = state.get("relevant_memories", "")
 
-    llm = llm_factory(llm_profile)
+    llm = llm_factory(llm_profile, agent_name=agent_name)
     llm_structured = llm.with_structured_output(AuditReport)
     audit = llm_structured.invoke([
         SystemMessage(content=AUDITOR_PROMPT),
@@ -294,6 +294,8 @@ def auditor_node(state):
     ])
 
     nodes = state["response_metadata"].get("nodes", []) + [agent_name]
+
+    telemetry.update_histogram("agent.auditor.score", audit.score)
 
     if audit.score >= settings.agent.auditor.threshold:
         logger.info(
@@ -441,7 +443,13 @@ async def authorize_tools(request, handler) -> ToolMessage:
     user_id = request.state.get("user_id")
 
     if is_tool_authorized(tool_name, user_id):
-        return await handler(request)
+        start_time = time.perf_counter()
+        response = await handler(request)
+        duration = time.perf_counter() - start_time
+        telemetry.update_histogram(
+            "agent.tool.duration_seconds", duration, attributes={"tool": tool_name}
+        )
+        return response
 
     error_message = f"unauthorized tool call: {tool_name}"
     return ToolMessage(
@@ -663,7 +671,7 @@ async def summarize_conversation(state: State):
     # This handles ToolCall serialization correctly, avoiding "must contain a function key" errors.
     token_count_profile = settings.agent.supervisor.llm_profile or settings.llm.default_profile
     try:
-        llm = llm_factory(token_count_profile)
+        llm = llm_factory(token_count_profile, agent_name="memory")
         tokens = llm.get_num_tokens_from_messages(messages)
     except Exception as e:
         logger.warning("Failed to count tokens with profile '%s': %s", token_count_profile, e)
@@ -699,7 +707,7 @@ async def summarize_conversation(state: State):
 
     if summary_profile in settings.llm.profiles:
         try:
-            llm = llm_factory(summary_profile)
+            llm = llm_factory(summary_profile, agent_name="memory")
             summary_response = await llm.ainvoke(
                 SUMMARIZATION_PROMPT.format(conversation_history=history_text)
             )

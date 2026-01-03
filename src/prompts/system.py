@@ -46,7 +46,7 @@ def generate_agent_manifest(
         "   - **Differentiation:** [When to use this agent over others]\n\n"
         f"System Prompt:\n{prompt_text}"
     )
-    content = llm_factory(llm_profile).invoke(prompt).content
+    content = llm_factory(llm_profile, agent_name="system_manifest").invoke(prompt).content
 
     if cache_file:
         try:

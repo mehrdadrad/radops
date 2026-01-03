@@ -1,4 +1,4 @@
-import asyncio
+"""Module for LLM factory and configuration."""
 import logging
 from typing import Any
 
@@ -11,6 +11,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 from config.config import settings
+from services.telemetry.telemetry import telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +31,37 @@ _shared_http_aclient = httpx.AsyncClient(limits=limits)
 class LLMCallbackHandler(BaseCallbackHandler):
     """Callback handler to log LLM errors and warnings."""
 
+    def __init__(self, agent_name: str = None):
+        self.agent_name = agent_name
+
     def on_llm_error(self, error: BaseException, **kwargs: Any) -> Any:
         logger.error("LLM Error detected: %s", error)
+        attributes = {}
+        if self.agent_name:
+            attributes["agent"] = self.agent_name
+        telemetry.update_counter("agent.llm.errors", attributes=attributes)
+
     def on_tool_error(self, error: BaseException, **kwargs: Any) -> Any:
         logger.error("Tool Error detected: %s", error)
+        attributes = {}
+        if self.agent_name:
+            attributes["agent"] = self.agent_name
+        telemetry.update_counter("agent.tool.errors", attributes=attributes)
+
     def on_chain_error(self, error: BaseException, **kwargs):
         logger.error("Chain Error detected: %s", error)
-    
+
     def on_llm_end(self, response: Any, **kwargs: Any) -> Any:
         """Check for truncation when LLM finishes."""
+        if response.llm_output and "token_usage" in response.llm_output:
+            usage = response.llm_output["token_usage"]
+            total_tokens = usage.get("total_tokens", 0)
+            if total_tokens > 0:
+                attributes = {}
+                if self.agent_name:
+                    attributes["agent"] = self.agent_name
+                telemetry.update_counter("agent.llm.tokens.total", total_tokens, attributes=attributes)
+
         if hasattr(response, "generations"):
             for generations in response.generations:
                 for gen in generations:
@@ -53,11 +76,11 @@ async def close_shared_client():
         try:
             await _shared_http_aclient.aclose()
             logger.info("Shared HTTP async client closed.")
-        except Exception as e:
-            logger.error(f"Error closing shared HTTP async client: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Error closing shared HTTP async client: %s", e)
 
 
-def llm_factory(profile_name: str) -> BaseChatModel:
+def llm_factory(profile_name: str, agent_name: str = None) -> BaseChatModel:
     """
     Factory function to get a configured LLM based on a profile.
 
@@ -67,10 +90,10 @@ def llm_factory(profile_name: str) -> BaseChatModel:
     try:
         profile_settings = settings.llm.profiles[profile_name]
         provider = profile_settings.provider
-    except KeyError:
-        raise ValueError(f"Unsupported LLM profile: {profile_name}")
-    except AttributeError:
-        raise ValueError(f"Profile '{profile_name}' is missing a 'provider' attribute.")
+    except KeyError as exc:
+        raise ValueError(f"Unsupported LLM profile: {profile_name}") from exc
+    except AttributeError as exc:
+        raise ValueError(f"Profile '{profile_name}' is missing a 'provider' attribute.") from exc
 
     temperature = (
         profile_settings.temperature
@@ -78,7 +101,7 @@ def llm_factory(profile_name: str) -> BaseChatModel:
         else 0.7
     )
 
-    callbacks = [LLMCallbackHandler()]
+    callbacks = [LLMCallbackHandler(agent_name=agent_name)]
 
     match provider:
         case "openai" | "deepseek":
@@ -104,6 +127,7 @@ def llm_factory(profile_name: str) -> BaseChatModel:
         case "ollama":
             return ChatOllama(
                 model=profile_settings.model,
+                temperature=temperature,
                 base_url=profile_settings.base_url,
                 callbacks=callbacks,
             )
@@ -124,10 +148,10 @@ def embedding_factory(profile_name: str) -> Embeddings:
     try:
         profile_settings = settings.llm.profiles[profile_name]
         provider = profile_settings.provider
-    except KeyError:
-        raise ValueError(f"Unsupported LLM profile for embeddings: {profile_name}")
-    except AttributeError:
-        raise ValueError(f"Profile '{profile_name}' is missing a 'provider' attribute.")
+    except KeyError as exc:
+        raise ValueError(f"Unsupported LLM profile for embeddings: {profile_name}") from exc
+    except AttributeError as exc:
+        raise ValueError(f"Profile '{profile_name}' is missing a 'provider' attribute.") from exc
 
     match provider:
         case "openai" | "deepseek":
@@ -147,3 +171,4 @@ def embedding_factory(profile_name: str) -> Embeddings:
                 f"Unsupported embedding provider in profile '{profile_name}': "
                 f"{provider}"
             )
+        
