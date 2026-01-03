@@ -1,3 +1,4 @@
+"""Module for managing graph checkpointers (persistence)."""
 import logging
 from contextlib import asynccontextmanager
 
@@ -23,8 +24,8 @@ async def get_checkpointer():
             }
 
         logging.info("Persistence is enabled. Connecting to Redis ...")
-        logging.info(f"  - {settings.memory.redis.endpoint}")
-        logging.info(f"  - TTL config: {ttl_config}")
+        logging.info("  - %s", settings.memory.redis.endpoint)
+        logging.info("  - TTL config: %s", ttl_config)
 
         redis_client = None
         try:
@@ -34,10 +35,11 @@ async def get_checkpointer():
             ) as checkpointer:
                 await checkpointer.asetup()
                 yield checkpointer, redis_client
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logging.warning(
-                f"Redis connection failed: {e}. "
-                "Falling back to in-memory persistence."
+                "Redis connection failed: %s. "
+                "Falling back to in-memory persistence.",
+                e
             )
             yield MemorySaver(), None
     else:

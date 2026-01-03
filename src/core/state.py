@@ -1,3 +1,4 @@
+"""Module for defining the state and output models for the agent."""
 import logging
 from enum import Enum
 from typing import Annotated, Any, Literal, TypedDict
@@ -19,6 +20,7 @@ WorkerEnum = Enum("WorkerEnum", members, type=str)
 
 
 class State(TypedDict):
+    """Represents the state of the agent execution graph."""
     messages: Annotated[list, add_messages]
     summary: str
     user_id: str
@@ -29,6 +31,7 @@ class State(TypedDict):
 
 
 class WorkerAgentOutput(BaseModel):
+    """Output model for worker agents."""
     success: bool = Field(
         description="True if the task was completed successfully, False otherwise."
     )
@@ -42,6 +45,7 @@ class WorkerAgentOutput(BaseModel):
 
 
 class SupervisorAgentOutput(BaseModel):
+    """Output model for the supervisor agent."""
     detected_requirements: list[str] = Field(
         description=(
             "A list of specific requirements extracted from the user's request."
@@ -50,7 +54,8 @@ class SupervisorAgentOutput(BaseModel):
     completed_steps: list[str] = Field(
         description=(
             "A list of steps that have been successfully completed so far. "
-            "Include steps where the tool ran successfully but returned no results (e.g., 'not found')."
+            "Include steps where the tool ran successfully but returned no "
+            "results (e.g., 'not found')."
         )
     )
     failed_steps: list[str] = Field(
@@ -80,10 +85,16 @@ class SupervisorAgentOutput(BaseModel):
     response_to_user: str = Field(
         description=(
             "Communication to the user. Follow these strict rules:"
-            "1. **Planning Step:** explain how do you want to break up the task and what agent will be responsible for each step. **DO NOT** repeat the data found by the previous agent."
-            "2. **Intermediate Step:** If you are routing to a worker (Network/Cloud), provide a BRIEF status update only (e.g., 'ASN info gathered, now checking Cloud'). **DO NOT** repeat the data found by the previous agent."
-            "3. **Final Step:** If you are routing to 'end'/'finish', provide the complete, detailed summary of ALL gathered information."
-            "4. **Final Step:** provide a verification based on the 'is_fully_completed' is false or true at the end of the conversation."
+            "1. **Planning Step:** explain how do you want to break up the task and what agent "
+            "will be responsible for each step. **DO NOT** repeat the data found by the previous "
+            "agent."
+            "2. **Intermediate Step:** If you are routing to a worker (Network/Cloud), provide a "
+            "BRIEF status update only (e.g., 'ASN info gathered, now checking Cloud'). **DO NOT** "
+            "repeat the data found by the previous agent."
+            "3. **Final Step:** If you are routing to 'end'/'finish', provide the complete, "
+            "detailed summary of ALL gathered information."
+            "4. **Final Step:** provide a verification based on the 'is_fully_completed' is false "
+            "or true at the end of the conversation."
         )
     )
     instructions_for_worker: str = Field(
@@ -101,13 +112,15 @@ class SupervisorAgentOutput(BaseModel):
 
     @model_validator(mode='after')
     def prevent_insanity_loop(self):
+        """Prevents the supervisor from routing back to a failed worker."""
         if self.next_worker != 'end':
             for failure in self.failed_steps:
                 if self.next_worker.replace("_", " ") in failure.lower():
                     raise ValueError(
                         f"STOP: You are assigning '{self.next_worker}' to a task, "
                         f"but they already failed: '{failure}'. "
-                        "Do not retry. Mark 'is_fully_completed' = True (because we gave up) and route to 'end'."
+                        "Do not retry. Mark 'is_fully_completed' = True (because we gave up) "
+                        "and route to 'end'."
                     )
         if self.next_worker == 'end':
             total_attempted = len(self.completed_steps) + len(self.failed_steps)
@@ -115,9 +128,10 @@ class SupervisorAgentOutput(BaseModel):
                 pass
 
         return self
-    
+
     @model_validator(mode='after')
     def validate_worker_instructions(self):
+        """Validates that instructions for the worker are descriptive enough."""
         if self.next_worker != 'end' and len(self.instructions_for_worker.strip()) < 5:
             raise ValueError(
                 "Instructions for the worker must be descriptive."
@@ -126,24 +140,38 @@ class SupervisorAgentOutput(BaseModel):
 
 
 class VerificationResult(BaseModel):
+    """Result of a single verification step by the auditor."""
     is_success: bool = Field(
-        description="True ONLY if the 'actual_evidence' fully satisfies the 'original_requirement'."
+        description=(
+            "True ONLY if the 'actual_evidence' fully satisfies the 'original_requirement'."
+        )
     )
     missing_information: str = Field(
-        description="If is_success is False, describe EXACTLY what is missing or incorrect. If True, return an empty string."
+        description=(
+            "If is_success is False, describe EXACTLY what is missing or incorrect. "
+            "If True, return an empty string."
+        )
     )
     correction_instruction: str = Field(
-        description="Precise instruction for the Supervisor to fix the error. If True, return an empty string."
+        description=(
+            "Precise instruction for the Supervisor to fix the error. "
+            "If True, return an empty string."
+        )
     )
 
 
 class AuditReport(BaseModel):
+    """Report generated by the auditor agent."""
     # We grade every single requirement individually
     verifications: list[VerificationResult]
     score: float = Field(
-        description="A score between 0.0 and 1.0 indicating the quality and completeness of the execution. 1.0 is perfect."
+        description=(
+            "A score between 0.0 and 1.0 indicating the quality and completeness of the execution. "
+            "1.0 is perfect."
+        )
     )
-    
+
     final_decision: Literal["APPROVE", "REJECT"] = Field(
         description="APPROVE only if ALL verifications are True."
     )
+    
