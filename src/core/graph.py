@@ -22,7 +22,7 @@ from core.auth import is_tool_authorized
 from core.llm import llm_factory
 from core.memory import get_mem0_client
 from core.state import State, SupervisorAgentOutput, AuditReport
-from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, PLATFORM_PROMPT, AUDITOR_PROMPT
+from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, PLATFORM_PROMPT, AUDITOR_PROMPT, SUMMARIZATION_PROMPT
 from services.guardrails.guardrails import guardrail
 from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
@@ -403,18 +403,10 @@ async def manage_memory_node(state: State) -> dict:
         )
         logger.info("Mem0: Added interaction for user '%s'.", user_id)
 
-    # Remove old messages
-    delete_messages = []
-    messages_to_keep = (
-        settings.memory.summarization.keep_message  # pylint: disable=no-member
-    )
-    if messages_to_keep:
-        delete_messages = [
-            RemoveMessage(id=m.id)
-            for m in state["messages"][:-messages_to_keep]
-        ]
+    # Summarization if needed
+    summarized_result, messages = await summarize_conversation(state)
 
-    return {"relevant_memories": context, "messages": delete_messages}
+    return {"relevant_memories": context, "summary": summarized_result, "messages": messages}
 
 
 async def astream_graph_updates(
@@ -536,6 +528,13 @@ def construct_llm_context(state: State, system_prompt: str):
             )
         ]
 
+    summary = state.get("summary", "")
+    summary_message = []
+    if summary:
+        summary_message = [
+            SystemMessage(content=f"**Previous Conversation Summary:**\n{summary}")
+        ]
+
     # Sanitize messages to remove orphaned ToolMessages caused by truncation
     conversation_messages = state["messages"]
     while conversation_messages and isinstance(conversation_messages[0], ToolMessage):
@@ -545,6 +544,7 @@ def construct_llm_context(state: State, system_prompt: str):
 
     messages = (
         [SystemMessage(content=system_prompt)]
+        + summary_message
         + memory_message
         + conversation_messages
     )
@@ -653,3 +653,60 @@ def detect_tool_loop(state, limit=3):
             return True
 
     return False
+
+async def summarize_conversation(state: State):
+    messages = state["messages"]
+    current_summary = state.get("summary", "")
+    
+    # Use the supervisor's profile (or default) to count tokens via LangChain's native method.
+    # The Supervisor is the bottleneck as it sees the full history for routing.
+    # This handles ToolCall serialization correctly, avoiding "must contain a function key" errors.
+    token_count_profile = settings.agent.supervisor.llm_profile or settings.llm.default_profile
+    try:
+        llm = llm_factory(token_count_profile)
+        tokens = llm.get_num_tokens_from_messages(messages)
+    except Exception as e:
+        logger.warning("Failed to count tokens with profile '%s': %s", token_count_profile, e)
+        return current_summary, []
+
+    if tokens < settings.memory.summarization.token_threshold:
+        return current_summary, []
+    
+    messages_to_keep = settings.memory.summarization.keep_message
+    older_messages = messages[:-messages_to_keep]
+
+    if not older_messages:
+        return current_summary, []
+
+    # Generate Summary
+    # Convert older messages to a string format for the prompt
+    history_text = ""
+    if current_summary:
+        history_text += f"**Previous Summary:**\n{current_summary}\n\n"
+
+    for m in older_messages:
+        if isinstance(m, HumanMessage):
+            if getattr(m, "name", None) == "supervisor":
+                continue
+            if str(m.content).startswith(QA_REJECTION_PREFIX):
+                continue
+            history_text += f"User: {m.content}\n"
+        elif isinstance(m, AIMessage) and m.content:
+            history_text += f"Assistant: {m.content}\n"
+
+    summary_text = current_summary
+    summary_profile = settings.memory.summarization.llm_profile
+
+    if summary_profile in settings.llm.profiles:
+        try:
+            llm = llm_factory(summary_profile)
+            summary_response = await llm.ainvoke(
+                SUMMARIZATION_PROMPT.format(conversation_history=history_text)
+            )
+            summary_text = summary_response.content
+        except Exception as e:
+            logger.error("Summarization failed: %s", e)
+
+    delete_messages = [RemoveMessage(id=m.id) for m in older_messages]
+    
+    return summary_text, delete_messages

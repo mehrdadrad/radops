@@ -190,3 +190,9 @@ EXTENSION_PROMPT = """
   into any tool that requires it.
 - When appropriate, you MUST address the user by their `user_id`.
 """
+
+SUMMARIZATION_PROMPT = """
+You are an expert technical writer. Your task is to summarize the conversation history to reduce token usage while preserving critical technical details.
+### Conversation to Summarize:
+{conversation_history}
+"""

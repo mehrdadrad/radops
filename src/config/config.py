@@ -102,7 +102,8 @@ class SummarizationSettings(BaseModel):
     """Settings for memory summarization."""
 
     keep_message: int = 50
-    llm_profile: str = "openai-summary"
+    token_threshold: int = 2000 
+    llm_profile: Optional[str] = None
 
 
 class TTLSettings(BaseModel):

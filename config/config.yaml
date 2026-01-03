@@ -44,7 +44,7 @@ agent:
 vector_store:
   profiles:
     - name: vs01 
-      provider: pinecone
+      provider: qdrant
       embedding_profile: "openai-embedding-small"
       sync_locations: 
         - name: router config
@@ -72,8 +72,8 @@ vector_store:
         - name: github codes
           type: github
           path: mehrdadrad/bpf-examples
-          collection: github_codes_kb3
-          sync_interval: 300
+          collection: github_codes_kb11
+          sync_interval: 60
           prompt_file: "../config/prompts/kb_github_prompt.txt"
           metadata:
             delimiter: _
@@ -85,6 +85,10 @@ vector_store:
             branch: "main"
             file_extensions: [".c", ".h", ".yaml", ".md", ".sh"]
             exclude_patterns: ["**/tests/", "**/package-lock.json"]
+            chunk_size: 500
+            chunk_overlap: 50
+          retrieval_config:
+            k: 3
 
   providers:
     weaviate:
@@ -116,7 +120,9 @@ memory:
       time_minutes: 5
       refresh_on_read: true
   summarization:
-    keep_message: 20 
+    keep_message: 40
+    token_threshold: 2000
+    # Empty LLM profile partially disables summarization
     llm_profile: "openai-summary"
 
 mem0:

@@ -251,6 +251,7 @@ dependencies = [
     "langchain-qdrant>=1.1.0",
     "langchain-milvus>=0.3.2",
     "pynautobot>=3.0.0",
+    "litellm>=1.80.5",
 ]
 
 [project.optional-dependencies]
@@ -268,3 +269,8 @@ include = ["app*"]
 pythonpath = [".", "app"]
 norecursedirs = ["tests/evaluations", "tests/integration"]
 asyncio_mode = "auto"
+
+[tool.pylint.messages_control]
+disable = [
+    "no-member",
+]
