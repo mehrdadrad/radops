@@ -1,0 +1,177 @@
+# Main Configuration Guide (`config.yaml`)
+
+The `config.yaml` file controls the core behavior of the RadOps application, including logging, AI models, memory persistence, and vector database connections.
+
+## 1. Logging
+
+Controls the verbosity and output destination of application logs.
+
+| Parameter | Description | Example |
+| :--- | :--- | :--- |
+| `level` | Logging severity (DEBUG, INFO, WARNING, ERROR). | `"INFO"` |
+| `file` | Path to the log file. If omitted, logs go to stdout. | `"/var/log/radops.log"` |
+| `retention` | How long to keep log files. | `"1 week"` |
+| `rotation` | Size limit before rotating logs. | `"10 MB"` |
+
+```yaml
+logging:
+  level: "INFO"
+  file: "logs/app.log"
+  retention: "10 days"
+  rotation: "50 MB"
+```
+
+## 2. LLM (Large Language Models)
+
+Defines the AI models used by the system. You can define multiple profiles and select a default.
+
+### Supported Providers
+*   **OpenAI** (`openai`): Cloud models such as `gpt-4o` and `gpt-4-turbo`.
+*   **Anthropic** (`anthropic`): Cloud models such as `claude-3-5-sonnet` and `claude-3-opus`.
+*   **Ollama** (`ollama`): Local models such as `llama3` and `mistral`.
+*   **DeepSeek** (`deepseek`): DeepSeek API models.
+
+| Parameter | Description |
+| :--- | :--- |
+| `provider` | The model provider (`openai`, `anthropic`, `ollama`, `deepseek`). |
+| `model` | The specific model identifier (e.g., `gpt-4o`). |
+| `temperature` | Creativity setting (0.0 = deterministic, 1.0 = creative). |
+| `api_key` | API key (supports Vault references). |
+| `base_url` | Endpoint URL (required for Ollama). |
+
+```yaml
+llm:
+  default_profile: "openai-main"
+  profiles:
+    openai-main:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      api_key: "vault:system#openai_key"
+    
+    ollama-local:
+      provider: "ollama"
+      model: "llama3"
+      base_url: "http://localhost:11434"
+```
+
+## 3. Sync Locations (RAG Data Sources)
+
+Defined under `vector_store.profiles`, these settings control which data sources are ingested into the Knowledge Base.
+
+### Supported Loaders
+*   **File System** (`fs`): Local directories.
+*   **Google Drive** (`gdrive`): Remote Google Drive folders.
+*   **GitHub** (`github`): GitHub repositories (code or docs).
+
+| Parameter | Description |
+| :--- | :--- |
+| `name` | Unique identifier for the sync job. |
+| `type` | The loader type (`fs`, `gdrive`, `github`). |
+| `path` | The source location (path, ID, or repo slug). |
+| `collection` | The destination collection in the Vector DB. |
+| `sync_interval` | Polling interval in seconds. |
+| `loader_config` | (Optional) Loader-specific settings (e.g., branch, extensions). |
+
+```yaml
+vector_store:
+  profiles:
+    - name: "ops-runbooks"
+      type: "github"
+      path: "my-org/runbooks"
+      collection: "runbooks"
+      sync_interval: 600
+      loader_config:
+        branch: "main"
+        file_extensions: [".md", ".py", ".yaml"]
+```
+
+> **Note:** For detailed setup instructions (e.g., Google Drive credentials), refer to the **Integrations Guide**.
+
+## 4. Memory & Persistence
+
+Configures Short-term (Redis) and Long-term (Mem0) memory.
+
+### Redis (Short-term)
+Stores active conversation history.
+
+```yaml
+memory:
+  redis:
+    endpoint: "redis://localhost:6379"
+    ttl:
+      time_minutes: 60
+      refresh_on_read: true
+```
+
+### Summarization
+Configures how the agent manages context window limits by summarizing older parts of the conversation.
+
+| Parameter | Description |
+| :--- | :--- |
+| `keep_message` | The number of most recent messages to keep in their raw format. Older messages are summarized or pruned. |
+| `token_threshold` | The token count threshold that triggers the summarization process. |
+| `llm_profile` | The LLM profile used to generate the summary. If left empty, old messages are pruned without summarization. |
+
+```yaml
+memory:
+  summarization:
+    keep_message: 40
+    token_threshold: 2000
+    llm_profile: "openai-summary"
+```
+
+### Mem0 (Long-term)
+Stores user facts and preferences across sessions.
+
+```yaml
+mem0:
+  llm_profile: "openai-main"
+  embedding_profile: "openai-embedding"
+  vector_store:
+    provider: "weaviate"
+    config:
+      collection_name: "Mem0_Memory"
+      cluster_url: "http://localhost:8080"
+  excluded_tools:
+    - "set_user_secrets"
+```
+
+## 5. Vector Store Providers
+
+Configures the connection details for the Vector Database used for RAG (Retrieval Augmented Generation).
+
+**Note:** For configuring *what* data to sync (Sync Locations), please refer to the Integrations Guide.
+
+```yaml
+vector_store:
+  providers:
+    weaviate:
+      http_host: "localhost"
+      http_port: 8080
+      grpc_host: "localhost"
+      grpc_port: 50051
+    
+    chroma:
+      path: "./data/chromadb"
+      
+    pinecone:
+      api_key: "vault:vector#pinecone_key"
+      index_name: "radops-index"
+```
+
+## 6. Vault (Secret Management)
+
+Configures the connection to HashiCorp Vault for secure secret retrieval.
+
+```yaml
+vault:
+  url: "http://localhost:8200"
+  token: "root-token" # Recommended: Use VAULT_TOKEN env var instead
+  mount_point: "secret"
+```
+
+### Using Secrets
+Reference secrets in any config file using the syntax: `vault:<path>#<key>`.
+
+Example: `api_key: "vault:system/openai#key"`
