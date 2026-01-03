@@ -27,8 +27,8 @@ limits = httpx.Limits(
 _shared_http_aclient = httpx.AsyncClient(limits=limits)
 
 
-class LLMErrorCallback(BaseCallbackHandler):
-    """Callback handler to log LLM errors."""
+class LLMCallbackHandler(BaseCallbackHandler):
+    """Callback handler to log LLM errors and warnings."""
 
     def on_llm_error(self, error: BaseException, **kwargs: Any) -> Any:
         logger.error("LLM Error detected: %s", error)
@@ -37,6 +37,15 @@ class LLMErrorCallback(BaseCallbackHandler):
     def on_chain_error(self, error: BaseException, **kwargs):
         logger.error("Chain Error detected: %s", error)
     
+    def on_llm_end(self, response: Any, **kwargs: Any) -> Any:
+        """Check for truncation when LLM finishes."""
+        if hasattr(response, "generations"):
+            for generations in response.generations:
+                for gen in generations:
+                    info = gen.generation_info or {}
+                    reason = info.get("finish_reason")
+                    if reason in ["length", "max_tokens"]:
+                        logger.warning("LLM response reached max_tokens limit and was truncated.")
 
 async def close_shared_client():
     """Closes the shared httpx.AsyncClient."""
@@ -69,7 +78,7 @@ def llm_factory(profile_name: str) -> BaseChatModel:
         else 0.7
     )
 
-    callbacks = [LLMErrorCallback()]
+    callbacks = [LLMCallbackHandler()]
 
     match provider:
         case "openai" | "deepseek":
