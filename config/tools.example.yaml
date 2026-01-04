@@ -1,0 +1,105 @@
+# ------------------------------------------------------------------
+# RadOps Tools Configuration Template
+# Rename this file to tools.yaml to use it.
+# ------------------------------------------------------------------
+
+# Local Tools
+# Maps Python modules to specific functions that should be exposed as tools.
+# 'module': Dot-separated path to the python file.
+# 'function': Name of the function inside that module.
+local_tools:
+  # Network Tools
+  - module: services.tools.network.peeringdb.peeringdb
+    tools:
+      - function: network__get_asn_peering_info
+        enabled: true
+      - function: network__get_peering_exchange_info
+        enabled: true
+
+  # Jira Integration
+  - module: services.tools.jira.jira_tools
+    tools:
+      - function: jira_create_ticket
+        enabled: true
+      - function: jira_search_issues
+        enabled: true
+
+  # GitHub Integration
+  - module: services.tools.github.issue
+    tools:
+      - function: github_list_issues
+        enabled: true
+      - function: github_create_issue
+        enabled: true
+
+  # AWS Tools
+  - module: services.tools.aws.ec2
+    tools:
+      - function: aws__list_ec2_instances
+        enabled: true
+      - function: aws__manage_ec2_instance
+        enabled: true
+
+# Model Context Protocol (MCP) Servers
+# Configure external MCP servers (stdio or HTTP) to extend agent capabilities.
+mcp_servers:
+  # Example: Running an MCP server via Docker (stdio transport)
+  aws-network-mcp-server:
+    transport: "stdio"
+    command: "docker"
+    args:
+      - "run"
+      - "--rm"
+      - "-i"
+      - "-e"
+      - "AWS_ACCESS_KEY_ID"
+      - "-e"
+      - "AWS_SECRET_ACCESS_KEY"
+      - "--entrypoint"
+      - "sh"
+      - "awslab/aws-network-mcp-server"
+      - "-c"
+      - "awslabs.aws-network-mcp-server 2> /dev/null"
+    env:
+      FASTMCP_LOG_LEVEL: "ERROR"
+      AWS_ACCESS_KEY_ID: "vault:tools/aws#ACCESS_KEY_ID"
+      AWS_SECRET_ACCESS_KEY: "vault:tools/aws#SECRET_ACCESS_KEY"
+
+  # Example: Connecting to a remote MCP server via HTTP
+  pagerduty: 
+    url: "https://mcp.pagerduty.com/mcp"
+    transport: "streamable_http"
+    headers: 
+      Authorization: "vault:tools/pagerduty#token"
+
+# ------------------------------------------------------------------
+# Tool-Specific Configuration
+# ------------------------------------------------------------------
+
+# PeeringDB
+peeringdb:
+  api_key: "vault:tools/peeringdb#api_key"
+
+# GitHub
+github:
+  server: "" # Empty for public GitHub, or provide Enterprise URL
+
+# Jira
+jira:
+  server: "https://your-domain.atlassian.net"
+
+# GeoIP (MaxMind)
+geoip:
+  database_path: "~/Downloads/GeoLite2-City.mmdb"
+
+# AWS
+aws:
+  region: "us-west-2"
+  access_key_id: "vault:tools/aws#ACCESS_KEY_ID"
+  secret_access_key: "vault:tools/aws#SECRET_ACCESS_KEY"
+
+# Nautobot (Source of Truth)
+nautobot:
+  url: "https://demo.nautobot.com/"
+  token: "vault:tools/nautobot#token"
+  verify_ssl: true

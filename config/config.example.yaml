@@ -1,0 +1,155 @@
+# ------------------------------------------------------------------
+# RadOps Main Configuration Template
+# Rename this file to config.yaml to use it.
+# ------------------------------------------------------------------
+
+# Logging Settings
+logging:
+  level: info
+  # file: "radops.log" # Uncomment to enable file logging
+  # retention: "1 week"
+  # rotation: "10 MB"
+
+# Agent Configuration
+# Defines the hierarchy of agents. The Supervisor routes tasks to specialized workers.
+agent:
+  supervisor:
+    llm_profile: openai-main # References a profile defined in the 'llm' section
+  
+  auditor:
+    enabled: true
+    llm_profile: openai-main
+    threshold: 0.8 # Score required to pass verification (0.0 to 1.0)
+  
+  guardrail:
+    enabled: false
+    llm_profile: openai-guardrail
+
+  # Define specialized agents and their allowed tools
+  profiles:
+    network_agent:
+      description: "Specialist for network connectivity, BGP, and routing."
+      llm_profile: "openai-main"
+      system_prompt_file: "config/prompts/network_agent_prompt.txt"
+      # Regex patterns for tools this agent is permitted to use
+      allow_tools:
+        - system__.* # Required for submitting work
+        - network.*
+    
+    cloud_agent:
+      description: "Specialist for AWS cloud infrastructure."
+      llm_profile: "openai-main"
+      system_prompt_file: "config/prompts/cloud_agent_prompt.txt"
+      allow_tools:
+        - system__.*
+        - aws.*
+    
+    support_agent:
+      description: "Specialist for operational support tasks: Jira, GitHub, etc."
+      llm_profile: "openai-main"
+      system_prompt_file: "config/prompts/support_agent_prompt.txt"
+      allow_tools:
+        - system__.*
+        - jira.*
+        - github.*
+
+# Knowledge Base (Vector Store) Configuration
+# Configures how documents are ingested and retrieved.
+vector_store:
+  profiles:
+    - name: "docs_kb"
+      provider: qdrant
+      embedding_profile: "openai-embedding-small"
+      sync_locations: 
+        # Example: Local File System
+        - name: "local_docs"
+          type: fs
+          path: "./data/docs"
+          collection: "docs_collection"
+          sync_interval: 300 # Seconds between syncs
+          prompt_file: "config/prompts/kb_docs_prompt.txt"
+        
+        # Example: GitHub Repository
+        - name: "github_repo"
+          type: github
+          path: "owner/repo"
+          collection: "github_collection"
+          sync_interval: 3600
+          loader_config:
+            integration_profile: github_default # References 'integrations.yaml'
+            branch: "main"
+            file_extensions: [".md", ".py"]
+
+  # Connection details for vector databases
+  providers:
+    qdrant:
+      url: "https://your-instance.qdrant.io"
+      port: 6333
+      api_key: "vault:system#qdrant_key" # Fetches secret from Vault path 'system', key 'qdrant_key'
+    # weaviate:
+    #   http_host: localhost
+    #   http_port: 8088
+
+# Conversation Memory (Short-term)
+# Stores the immediate chat history.
+memory:
+  redis:
+    endpoint: "redis://localhost:6379"
+    ttl:
+      time_minutes: 60
+      refresh_on_read: true
+  summarization:
+    keep_message: 50 # Number of messages to keep before summarizing
+    token_threshold: 2000
+    llm_profile: "openai-summary"
+
+# Long-term Memory (Mem0)
+# Stores facts and user preferences across sessions.
+mem0:
+  llm_profile: "openai-summary"
+  embedding_profile: "openai-embedding-small"
+  limit: 5
+  vector_store:
+    provider: "qdrant"
+    config:
+      collection_name: "mem0_memory"
+      host: "localhost"
+      port: 6333
+
+# LLM Profiles
+# Define different models for different tasks (e.g., cheap models for summary, smart models for reasoning).
+llm:
+  default_profile: "openai-main"
+  profiles:
+    openai-main:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      max_tokens: 3000
+      api_key: "vault:system#openai_key"
+    
+    openai-embedding-small:
+      provider: "openai"
+      model: "text-embedding-3-small"
+      api_key: "vault:system#openai_key"
+      dimensions: 1536
+
+    openai-summary:
+      provider: "openai"
+      model: "gpt-3.5-turbo-16k" 
+      temperature: 0.3 
+      max_tokens: 1500 
+      api_key: vault:system#openai_key
+
+# Secrets Management
+# Centralized secret storage. Use 'vault:path/to/secret#key' in other fields.
+vault:
+  url: "http://localhost:8200"
+  token: "my-dev-token" # For security, use VAULT_TOKEN env var instead
+
+# Observability
+opentelemetry:
+  prometheus:
+    address: "127.0.0.1"
+    port: 9464
+  # endpoint: "http://localhost:4317" # Uncomment for Datadog/OTLP

@@ -1,0 +1,38 @@
+# ------------------------------------------------------------------
+# RadOps Role-Based Access Control Template
+# Rename this file to rbac.yaml to use it.
+# This file defines users, roles, and their associated permissions.
+# ------------------------------------------------------------------
+
+# BINDINGS: Map users to roles
+users:
+  mike:    "admin"      # Owner / Platform Lead
+  alice:   "sre"        # Senior Engineer (formerly 'premium')
+  bob:     "operator"   # Junior / NOC (formerly 'user')
+  charlie: "viewer"     # Auditor / Manager
+
+# DEFINITIONS: What each role can do
+role_permissions:
+  
+  # Level 0: Read-Only (Safe)
+  viewer:
+    - "mcp_echo_tool"
+    - "search_docs"
+  
+  # Level 1: Standard Operations (NOC/Junior)
+  operator:
+    - "mcp_echo_tool"
+    - "search_docs"
+    - "get_asn_peering_info"
+    - "check_router_status"
+
+  # Level 2: Site Reliability Engineering (Senior)
+  # Suggestion: Using prefixes if your enforcement logic supports it
+  sre:
+    - "mcp_echo_tool"
+    - "network__*"       # Allow ALL network tools
+    - "aws__*"           # Allow ALL AWS tools
+
+  # Level 3: God Mode
+  admin:
+    - ".*"

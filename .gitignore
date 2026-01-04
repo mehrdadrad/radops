@@ -5,3 +5,7 @@
 chroma_db_data
 postgres_data
 __pycache__
+config/*.yaml
+config/*.yml
+!config/*.example.yaml
+!config/*.example.yml

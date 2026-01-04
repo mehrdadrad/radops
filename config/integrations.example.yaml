@@ -1,0 +1,19 @@
+# ------------------------------------------------------------------
+# Integrations Configuration Template
+# Rename this file to integrations.yaml to use it.
+# This file configures external integrations like Slack, GitHub, etc.
+# ------------------------------------------------------------------
+
+slack:
+  # The bot token for your Slack app (starts with xoxb-)
+  bot_token: "vault:integrations#slack_bot_token"
+  # The app-level token for your Slack app (starts with xapp-)
+  app_token: "vault:integrations#slack_app_token"
+
+github:
+  # Default GitHub profile
+  github_default:
+    # Personal Access Token or App Token
+    token: "vault:integrations#github_token"
+    # Base URL for GitHub API (change for GitHub Enterprise)
+    base_url: "https://api.github.com/"
