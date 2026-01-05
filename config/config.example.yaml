@@ -30,7 +30,7 @@ agent:
     network_agent:
       description: "Specialist for network connectivity, BGP, and routing."
       llm_profile: "openai-main"
-      system_prompt_file: "../config/prompts/network_agent_prompt.txt"
+      system_prompt_file: "../examples/prompts/network_agent_prompt.txt"
       # Regex patterns for tools this agent is permitted to use
       allow_tools:
         - system__.* # Required for submitting work
@@ -39,7 +39,7 @@ agent:
     cloud_agent:
       description: "Specialist for AWS cloud infrastructure."
       llm_profile: "openai-main"
-      system_prompt_file: "../config/prompts/cloud_agent_prompt.txt"
+      system_prompt_file: "../examples/prompts/cloud_agent_prompt.txt"
       allow_tools:
         - system__.*
         - aws.*
@@ -47,7 +47,7 @@ agent:
     support_agent:
       description: "Specialist for operational support tasks: Jira, GitHub, etc."
       llm_profile: "openai-main"
-      system_prompt_file: "../config/prompts/support_agent_prompt.txt"
+      system_prompt_file: "../examples/prompts/support_agent_prompt.txt"
       allow_tools:
         - system__.*
         - jira.*
@@ -61,13 +61,20 @@ vector_store:
       provider: qdrant
       embedding_profile: "openai-embedding-small"
       sync_locations: 
-        # Example: Local File System
-        - name: "local_docs"
+        # Example: Device Configuration
+        - name: "device_config"
           type: fs
-          path: "./data/docs"
+          path: "examples/knowledge_base/devices"
           collection: "docs_collection"
           sync_interval: 300 # Seconds between syncs
-          prompt_file: "config/prompts/kb_docs_prompt.txt"
+          prompt_file: "examples/prompts/kb_device_prompt.txt"
+          metadata:
+            delimiter: "_"
+            structure:
+              - name: "device"
+                description: "The specific device name (e.g., 'router1')"
+              - name: "location"
+                description: "The specific location name (e.g., 'lax01')"
         
         # Example: GitHub Repository
         - name: "github_repo"
