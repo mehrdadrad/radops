@@ -70,4 +70,3 @@ router bgp 65000
  ! These networks are normally the aggregate summary of your internal networks.
  network 10.20.0.0 mask 255.255.0.0
  network 10.30.0.0 mask 255.255.255.0
-
