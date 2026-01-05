@@ -19,9 +19,14 @@ def get_config_path(filename: str) -> str:
     if not base_dir:
         base_dir = os.path.join(os.path.dirname(__file__), "..", "..", "config")
 
-    config_path = os.path.join(base_dir, filename)
+    config_path = os.path.abspath(os.path.join(base_dir, filename))
     if not os.path.exists(config_path):
-        logger.error("Configuration file not found: %s", config_path)
+        logger.error(
+            "Configuration file not found: %s. "
+            "You can set the configuration directory using the "
+            "RADOPS_CONFIG_DIR environment variable.",
+            config_path,
+        )
         sys.exit(1)
     return config_path
 

@@ -1,8 +1,9 @@
 """Handles Role-Based Access Control (RBAC) settings for the application."""
 import os
+import sys
 from typing import Any, Dict
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from config.utils import get_config_path, load_yaml_config
 
@@ -44,4 +45,16 @@ class RBACSettings(BaseSettings):
     role_permissions: Dict[str, list[str]] = Field(default_factory=dict)
 
 # Instantiate the settings
-rbac_settings = RBACSettings()
+try:
+    rbac_settings = RBACSettings()
+except ValidationError as e:
+    print("The application failed to start because of invalid configuration in 'rbac.yaml'.\n", file=sys.stderr)
+
+    for error in e.errors():
+        field_path = " -> ".join(str(x) for x in error['loc'])
+        message = error['msg']
+        print(f"  • \033[1m{field_path}\033[0m: {message}", file=sys.stderr)
+
+    print("\nPlease verify your 'rbac.yaml' file matches the expected structure.", file=sys.stderr)
+    print("For detailed instructions, please refer to 'docs/rbac_guide.md'.", file=sys.stderr)
+    sys.exit(1)

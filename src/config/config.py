@@ -3,9 +3,10 @@ This module defines the configuration for the RadOps assistant.
 """
 import logging
 import os
+import sys
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from config.utils import get_config_path, load_yaml_config, process_vault_secrets
@@ -49,7 +50,7 @@ class LLMProfileSettings(BaseModel):
 class LLMSettings(BaseModel):
     """Settings for all LLM profiles."""
 
-    default_profile: str = "openai-main"
+    default_profile: str
     profiles: Dict[str, LLMProfileSettings] = Field(default_factory=dict)
 
 
@@ -58,6 +59,7 @@ class AgentSettings(BaseModel):
 
     description: str = None
     llm_profile: str = None
+    manifest_llm_profile: Optional[str] = None
     allow_tools: list[str] = Field(default_factory=list)
     system_prompt_file: str
 
@@ -176,7 +178,7 @@ class MetadataStructureSetting(BaseModel):
 class MetadataSettings(BaseModel):
     """Settings for metadata."""
 
-    delimiter: Optional[str] = None
+    delimiter: Optional[str] = '_'
     structure: list[MetadataStructureSetting] = Field(default_factory=list)
 
 
@@ -289,4 +291,16 @@ class Settings(BaseSettings):
 
 
 # Instantiate the settings
-settings = Settings()
+try:
+    settings = Settings()
+except ValidationError as e:
+    print("The application failed to start because of invalid configuration.\n", file=sys.stderr)
+
+    for error in e.errors():
+        field_path = " -> ".join(str(x) for x in error['loc'])
+        message = error['msg']
+        print(f"  • \033[1m{field_path}\033[0m: {message}", file=sys.stderr)
+
+    print("\nPlease verify your 'config.yaml' file matches the expected structure.", file=sys.stderr)
+    print("For detailed instructions, please refer to 'docs/config_guide.md'.", file=sys.stderr)
+    sys.exit(1)

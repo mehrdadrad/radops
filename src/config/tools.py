@@ -1,9 +1,10 @@
 """Handles settings for various tools integrated with the application."""
 import logging
 import os
+import sys
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from config.config import settings as app_settings
@@ -121,4 +122,16 @@ class ToolSettings(BaseSettings):
 
 
 # Instantiate the settings
-tool_settings = ToolSettings()
+try:
+    tool_settings = ToolSettings()
+except ValidationError as e:
+    print("The application failed to start because of invalid configuration in 'tools.yaml'.\n", file=sys.stderr)
+
+    for error in e.errors():
+        field_path = " -> ".join(str(x) for x in error['loc'])
+        message = error['msg']
+        print(f"  • \033[1m{field_path}\033[0m: {message}", file=sys.stderr)
+
+    print("\nPlease verify your 'tools.yaml' file matches the expected structure.", file=sys.stderr)
+    print("For detailed instructions, please refer to 'docs/tools_guide.md'.", file=sys.stderr)
+    sys.exit(1)

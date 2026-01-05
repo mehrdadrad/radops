@@ -28,8 +28,8 @@ Defines the AI models used by the system. You can define multiple profiles and s
 ### Supported Providers
 *   **OpenAI** (`openai`): Cloud models such as `gpt-4o` and `gpt-4-turbo`.
 *   **Anthropic** (`anthropic`): Cloud models such as `claude-3-5-sonnet` and `claude-3-opus`.
-*   **Ollama** (`ollama`): Local models such as `llama3` and `mistral`.
 *   **DeepSeek** (`deepseek`): DeepSeek API models.
+*   **Ollama** (`ollama`): Local models. If used for agents, the model must support tool calling.
 
 | Parameter | Description |
 | :--- | :--- |
@@ -160,7 +160,51 @@ vector_store:
       index_name: "radops-index"
 ```
 
-## 6. Vault (Secret Management)
+## 6. Agents
+
+Configures the specialized agents that the Supervisor delegates tasks to.
+
+### Adding a Custom Agent
+
+To create a new agent, add an entry under `agent.profiles`.
+
+| Parameter | Description |
+| :--- | :--- |
+| `description` | Used by the Supervisor to route requests. Be specific about what the agent can and cannot do. |
+| `llm_profile` | The ID of the LLM profile to use (defined in the `llm` section). |
+| `manifest_llm_profile` | (Optional) A specific profile for generating the agent's capability manifest at startup. |
+| `system_prompt_file` | Path to the text file containing the agent's instructions. |
+| `allow_tools` | List of regex patterns matching the tool names this agent can access. |
+
+```yaml
+agent:
+  profiles:
+    # Example: A new Security Agent
+    security_agent:
+      description: "Specialist for firewall analysis and security audits."
+      llm_profile: "openai-main"
+      system_prompt_file: "config/prompts/security_agent.txt"
+      allow_tools:
+        - system__.*      # Required for submitting work
+        - firewall__.*    # Custom tools
+        - kb_security     # Knowledge base tool
+```
+
+### Core System Agents
+
+You can also configure the built-in system agents.
+
+```yaml
+agent:
+  supervisor:
+    llm_profile: "openai-main"
+  auditor:
+    enabled: true
+    llm_profile: "openai-main"
+    threshold: 0.8
+```
+
+## 7. Vault (Secret Management)
 
 Configures the connection to HashiCorp Vault for secure secret retrieval.
 
