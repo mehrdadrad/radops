@@ -258,7 +258,8 @@ dependencies = [
 dev = [
     "pylint",
     "pytest",
-    "pytest-asyncio"
+    "pytest-asyncio",
+    "pytest-cov"
 ]
 
 [tool.setuptools.packages.find]
