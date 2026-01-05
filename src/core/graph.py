@@ -119,14 +119,6 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
 
     graph = graph_builder.compile(checkpointer=checkpointer)
 
-    if logger.level != logging.DEBUG:
-        try:
-            graph.get_graph().draw_mermaid_png(
-                output_file_path="graph.png", max_retries=5, retry_delay=2.0
-            )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning("Failed to draw graph: %s", e)
-
     return graph
 
 

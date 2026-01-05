@@ -76,7 +76,7 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
         agent_manifest = generate_agent_manifest(
                 agent_name,
                 agent_config.system_prompt_file,
-                settings.llm.default_profile,  # pylint: disable=no-member
+                agent_config.manifest_llm_profile or settings.llm.default_profile,  # pylint: disable=no-member
         )
 
         prompt += f"""

@@ -146,7 +146,7 @@ class Telemetry:
             logger.warning(f"Metric '{name}' is already registered.")
             return
         self._metrics[name] = self.meter.create_counter(name, unit, description)
-        logger.info(f"Registered counter: {name}")
+        logger.debug(f"Registered counter: {name}")
 
     def update_counter(self, name: str, value: int = 1, attributes: Optional[Dict[str, str]] = None):
         """Updates a counter metric by a given value."""
@@ -161,7 +161,7 @@ class Telemetry:
             logger.warning(f"Metric '{name}' is already registered.")
             return
         self._metrics[name] = self.meter.create_histogram(name, unit, description)
-        logger.info(f"Registered histogram: {name}")
+        logger.debug(f"Registered histogram: {name}")
 
     def update_histogram(self, name: str, value: float, attributes: Optional[Dict[str, str]] = None):
         """Records a value in a histogram metric."""
@@ -176,7 +176,7 @@ class Telemetry:
             logger.warning(f"Metric '{name}' is already registered.")
             return
         self._metrics[name] = self.meter.create_up_down_counter(name, unit, description)
-        logger.info(f"Registered up-down-counter: {name}")
+        logger.debug(f"Registered up-down-counter: {name}")
 
     def update_up_down_counter(self, name: str, value: int, attributes: Optional[Dict[str, str]] = None):
         """Updates an up-down-counter metric by a given value."""
@@ -199,7 +199,7 @@ class Telemetry:
         # The instrument is stored for bookkeeping, but not used for updates.
         # The SDK invokes the callbacks automatically.
         self._metrics[name] = self.meter.create_observable_gauge(name, callbacks, unit, description)
-        logger.info(f"Registered observable gauge: {name}")
+        logger.debug(f"Registered observable gauge: {name}")
 
 # Singleton instance
 telemetry = Telemetry()

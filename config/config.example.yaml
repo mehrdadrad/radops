@@ -30,6 +30,7 @@ agent:
     network_agent:
       description: "Specialist for network connectivity, BGP, and routing."
       llm_profile: "openai-main"
+      # manifest_llm_profile: "openai-summary" # Optional: Use a specific model for manifest generation
       system_prompt_file: "../examples/prompts/network_agent_prompt.txt"
       # Regex patterns for tools this agent is permitted to use
       allow_tools:
@@ -58,7 +59,7 @@ agent:
 vector_store:
   profiles:
     - name: "docs_kb"
-      provider: qdrant
+      provider: weaviate
       embedding_profile: "openai-embedding-small"
       sync_locations: 
         # Example: Device Configuration
@@ -89,13 +90,14 @@ vector_store:
 
   # Connection details for vector databases
   providers:
-    qdrant:
-      url: "https://your-instance.qdrant.io"
-      port: 6333
-      api_key: "vault:system#qdrant_key" # Fetches secret from Vault path 'system', key 'qdrant_key'
-    # weaviate:
-    #   http_host: localhost
-    #   http_port: 8088
+    weaviate:
+      http_host: localhost
+      http_port: 8088
+    # qdrant:
+    #   url: "https://your-instance.qdrant.io"
+    #   port: 6333
+    #   api_key: "vault:system#qdrant_key" 
+
 
 # Conversation Memory (Short-term)
 # Stores the immediate chat history.
@@ -117,7 +119,7 @@ mem0:
   embedding_profile: "openai-embedding-small"
   limit: 5
   vector_store:
-    provider: "qdrant"
+    provider: "weaviate"
     config:
       collection_name: "mem0_memory"
       host: "localhost"
