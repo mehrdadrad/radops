@@ -36,6 +36,11 @@ RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline
     uv pip install -e .
     ```
 
+## 📚 Documentation
+
+For detailed guides on configuration, deployment, and features, please refer to the [documentation](docs/README.md).
+
+
 ## 🤝 Contribute
 We welcome contributions! Please follow these steps:
 
