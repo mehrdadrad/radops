@@ -13,6 +13,7 @@ initialize_logger()
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from core.auth import get_user_role
 from core.checkpoint import get_checkpointer
 from core.llm import close_shared_client
 from core.graph import astream_graph_updates, run_graph
@@ -80,6 +81,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     Handles WebSocket connections for chat, taking user_id from the path.
     """
     await websocket.accept()
+
+    if not get_user_role(user_id):
+        logging.warning("Connection rejected for unknown user: %s", user_id)
+        await websocket.send_text("Error: Unknown user or forbidden access.")
+        await websocket.close(code=1008)
+        return
+    
     graph = websocket.app.state.graph
     logging.info("WebSocket connection established for user_id: %s", user_id)
 
