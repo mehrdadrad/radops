@@ -58,10 +58,12 @@ class Telemetry:
                 return
 
             self.service_name = "radops"
-            self.otel_endpoint = otel_endpoint or settings.opentelemetry.get("endpoint")
-            self.enable_tracing = enable_tracing
-            self.enable_metrics = enable_metrics
-            self.enable_logging = enable_logging
+            self.otel_endpoint = otel_endpoint or settings.observability.get("endpoint")
+            self.tracing_endpoint = settings.observability.get("tracing_endpoint", self.otel_endpoint)
+            self.metrics_endpoint = settings.observability.get("metrics_endpoint", self.otel_endpoint)
+            self.enable_tracing = settings.observability.get("enable_tracing", enable_tracing)
+            self.enable_metrics = settings.observability.get("enable_metrics", enable_metrics)
+            self.enable_logging = False 
 
             self._setup_opentelemetry()
 
@@ -85,9 +87,9 @@ class Telemetry:
         # --- Tracing Setup ---
         if self.enable_tracing:
             tracer_provider = TracerProvider(resource=resource)
-            if self.otel_endpoint:
-                print(f"Using OTLP endpoint for tracing: {self.otel_endpoint}")
-                span_exporter = OTLPSpanExporter(endpoint=self.otel_endpoint, insecure=True)
+            if self.tracing_endpoint:
+                print(f"Using OTLP endpoint for tracing: {self.tracing_endpoint}")
+                span_exporter = OTLPSpanExporter(endpoint=self.tracing_endpoint, insecure=True)
             else:
                 span_exporter = ConsoleSpanExporter()
             tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
@@ -99,14 +101,14 @@ class Telemetry:
         # --- Metrics Setup ---
         if self.enable_metrics:
             metric_readers = []
-            if self.otel_endpoint:
-                logger.info(f"Using OTLP endpoint for metrics: {self.otel_endpoint}")
-                otlp_exporter = OTLPMetricExporter(endpoint=self.otel_endpoint, insecure=True)
+            if self.metrics_endpoint:
+                logger.info(f"Using OTLP endpoint for metrics: {self.metrics_endpoint}")
+                otlp_exporter = OTLPMetricExporter(endpoint=self.metrics_endpoint, insecure=True)
                 metric_readers.append(PeriodicExportingMetricReader(otlp_exporter))
 
-            prom_config = settings.opentelemetry.get("prometheus")
+            prom_config = settings.observability.get("prometheus")
             # Enable Prometheus if explicitly configured OR if no OTLP endpoint is set (default fallback)
-            if prom_config is not None or not self.otel_endpoint:
+            if prom_config is not None or not self.metrics_endpoint:
                 prom_config = prom_config or {}
                 address = prom_config.get("address", "localhost")
                 port = prom_config.get("port", 9464)
@@ -132,7 +134,6 @@ class Telemetry:
             handler = LoggingHandler(level=logging.getLogger().level, logger_provider=logger_provider)
             logging.getLogger().addHandler(handler)
         else:
-            logger.info("Logging is disabled.")
             _logs.set_logger_provider(NoOpLoggerProvider())
 
     def shutdown(self):

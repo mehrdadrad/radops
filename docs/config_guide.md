@@ -241,3 +241,18 @@ vault:
 Reference secrets in any config file using the syntax: `vault:<path>#<key>`.
 
 Example: `api_key: "vault:system/openai#api_key"`
+
+## Observability
+
+Configures OpenTelemetry tracing and Prometheus metrics.
+
+```yaml
+observability:
+  enable_tracing: true   # Default: false
+  enable_metrics: true   # Default: true
+  tracing_endpoint: "http://tracing-backend:4317" # Optional override
+  metrics_endpoint: "http://metrics-backend:4317" # Optional override
+  prometheus:
+    address: "0.0.0.0"
+    port: 9464
+```

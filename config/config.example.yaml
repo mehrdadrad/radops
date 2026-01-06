@@ -157,8 +157,7 @@ vault:
   token: "my-dev-token" # For security, use VAULT_TOKEN env var instead
 
 # Observability
-opentelemetry:
+observability:
   prometheus:
     address: "127.0.0.1"
     port: 9464
-  # endpoint: "http://localhost:4317" # Uncomment for Datadog/OTLP

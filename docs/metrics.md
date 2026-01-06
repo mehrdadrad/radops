@@ -4,14 +4,24 @@ RadOps supports OpenTelemetry for observability, allowing you to collect and exp
 
 ## Configuration
 
-OpenTelemetry configuration is managed via the `config/config.yaml` file under the `opentelemetry` section.
+OpenTelemetry configuration is managed via the `config/config.yaml` file under the `observability` section.
+
+### Enabling 
+
+You can explicitly enable or disable tracing and metrics using the following flags:
+
+```yaml
+observability:
+  enable_tracing: true   # Default: false
+  enable_metrics: true   # Default: true
+```
 
 ### Prometheus Exporter
 
 RadOps includes a Prometheus exporter that exposes metrics on a specific address and port.
 
 ```yaml
-opentelemetry:
+observability:
   prometheus:
     address: 127.0.0.1
     port: 9464
@@ -20,13 +30,23 @@ opentelemetry:
 - **address**: The interface address to bind the metrics server to (e.g., `127.0.0.1` for localhost or `0.0.0.0` for all interfaces).
 - **port**: The port number where metrics will be exposed (default: `9464`).
 
-### Datadog (OTLP)
+### Tracing (OTLP)
 
-To send metrics to Datadog (or any OTLP-compatible collector), configure the `endpoint`:
+To send traces to an OTLP-compatible collector (e.g., Jaeger), configure the `tracing_endpoint`:
 
 ```yaml
-opentelemetry:
-  endpoint: "http://localhost:4317"
+observability:
+  enable_tracing: true
+  tracing_endpoint: "http://localhost:4317"
+```
+
+### Datadog (OTLP)
+
+To send metrics to Datadog (or any OTLP-compatible collector), configure the `metrics_endpoint`:
+
+```yaml
+observability:
+  metrics_endpoint: "http://localhost:4317"
 ```
 
 

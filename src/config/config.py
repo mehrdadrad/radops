@@ -286,8 +286,8 @@ class Settings(BaseSettings):
     # Vault
     vault: VaultSettings = Field(default_factory=VaultSettings)
 
-    # OpenTelemetry
-    opentelemetry: Dict[str, Any] = Field(default_factory=dict)
+    # Observability
+    observability: Dict[str, Any] = Field(default_factory=dict)
 
 
 # Instantiate the settings
