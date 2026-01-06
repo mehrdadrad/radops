@@ -10,6 +10,7 @@ RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline
 
 * **🛡️ Guardrailed Orchestration**: Uses a Supervisor-Worker architecture with strict sequential logic to prevent execution errors.
 * **🧠 3-Tier Cognitive Memory**: Distinguishes between **Working Memory**, **Ephemeral Facts** , and **Core Knowledge** (Permanent Architecture rules).
+* **🤖 Config-Driven Specialists**: Instantly spin up specialized agents (e.g., Network, Security) by defining personas and toolsets in YAML — no new code required.
 * **✅ Trust-but-Verify Auditing**: A dedicated **QA Auditor Node** verifies actual tool outputs against the user request to catch hallucinations before they reach you.
 * **📂 Declarative RAG & BYODB**: "Bring Your Own Database." Supports top vector databases with zero-code, config-driven knowledge tool generation.
 * **🔌 Resilient Connectivity**: Built on the **Model Context Protocol (MCP)** with self-healing clients that survive server restarts.
