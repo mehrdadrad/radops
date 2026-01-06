@@ -1,8 +1,21 @@
 # Main Configuration Guide (`config.yaml`)
 
-The `config.yaml` file controls the core behavior of the RadOps application, including logging, AI models, memory persistence, and vector database connections.
+The `config.yaml` file controls the core behavior of the RadOps application, including AI models, agents, memory persistence, vector database connections and logging.
 
-## 1. Logging
+It serves as the central configuration hub, defining the infrastructure connections and cognitive architecture required for the system to operate. While other configuration files handle specific domains (e.g., `tools.yaml` for capabilities, `rbac.yaml` for permissions), `config.yaml` establishes the foundational environment settings, ensuring the application can connect to necessary services like Redis, Vault, and LLM providers.
+
+## Index
+
+1. [Logging](#logging)
+2. [LLM (Large Language Models)](#llm-large-language-models)
+3. [Agents](#agents)
+4. [Sync Locations (RAG Data Sources)](#sync-locations-rag-data-sources)
+5. [Memory & Persistence](#memory--persistence)
+6. [Vector Store Providers](#vector-store-providers)
+7. [Vault (Secret Management)](#vault-secret-management)
+8. [Observability](#observability)
+
+## Logging
 
 Controls the verbosity and output destination of application logs.
 
@@ -21,7 +34,7 @@ logging:
   rotation: "50 MB"
 ```
 
-## 2. LLM (Large Language Models)
+## LLM (Large Language Models)
 
 Defines the AI models used by the system. You can define multiple profiles and select a default.
 
@@ -53,9 +66,62 @@ llm:
       provider: "ollama"
       model: "llama3"
       base_url: "http://localhost:11434"
+
+    deepseek-main:
+      provider: "deepseek"
+      model: "deepseek-coder"
+      api_key: "vault:system#deepseek_key"
 ```
 
-## 3. Sync Locations (RAG Data Sources)
+## Agents
+
+Configures the specialized agents that the Supervisor delegates tasks to.
+
+### Adding a Custom Agent
+
+To create a new agent, add an entry under `agent.profiles`.
+
+| Parameter | Description |
+| :--- | :--- |
+| `description` | Used by the Supervisor to route requests. Be specific about what the agent can and cannot do. |
+| `llm_profile` | The ID of the LLM profile to use (defined in the `llm` section). |
+| `manifest_llm_profile` | (Optional) A specific profile for generating the agent's capability manifest at startup. |
+| `system_prompt_file` | Path to the text file containing the agent's instructions. |
+| `allow_tools` | List of regex patterns matching the tool names this agent can access. |
+
+```yaml
+agent:
+  profiles:
+    # Example: A new Network Specialist
+    network_specialist:
+      description: "Specialist for network diagnostics and configuration."
+      llm_profile: "openai-main"
+      system_prompt_file: "config/prompts/network_specialist.txt"
+      allow_tools:
+        - system__.*      # Required for submitting work
+        - network__.*     # Custom tools
+        - kb_network      # Knowledge base tool
+```
+
+### Core System Agents
+
+You can also configure the built-in system agents.
+
+| Parameter | Description |
+| :--- | :--- |
+| `threshold` | (Auditor) Confidence score (0.0-1.0) required to approve an action. |
+
+```yaml
+agent:
+  supervisor:
+    llm_profile: "openai-main"
+  auditor:
+    enabled: true
+    llm_profile: "openai-main"
+    threshold: 0.8
+```
+
+## Sync Locations (RAG Data Sources)
 
 Defined under `vector_store.profiles`, these settings control which data sources are ingested into the Knowledge Base.
 
@@ -88,7 +154,7 @@ vector_store:
 
 > **Note:** For detailed setup instructions (e.g., Google Drive credentials), refer to the **Integrations Guide**.
 
-## 4. Memory & Persistence
+## Memory & Persistence
 
 Configures Short-term (Redis) and Long-term (Mem0) memory.
 
@@ -137,7 +203,7 @@ mem0:
     - "set_user_secrets"
 ```
 
-## 5. Vector Store Providers
+## Vector Store Providers
 
 Configures the connection details for the Vector Database used for RAG (Retrieval Augmented Generation).
 
@@ -160,51 +226,7 @@ vector_store:
       index_name: "radops-index"
 ```
 
-## 6. Agents
-
-Configures the specialized agents that the Supervisor delegates tasks to.
-
-### Adding a Custom Agent
-
-To create a new agent, add an entry under `agent.profiles`.
-
-| Parameter | Description |
-| :--- | :--- |
-| `description` | Used by the Supervisor to route requests. Be specific about what the agent can and cannot do. |
-| `llm_profile` | The ID of the LLM profile to use (defined in the `llm` section). |
-| `manifest_llm_profile` | (Optional) A specific profile for generating the agent's capability manifest at startup. |
-| `system_prompt_file` | Path to the text file containing the agent's instructions. |
-| `allow_tools` | List of regex patterns matching the tool names this agent can access. |
-
-```yaml
-agent:
-  profiles:
-    # Example: A new Security Agent
-    security_agent:
-      description: "Specialist for firewall analysis and security audits."
-      llm_profile: "openai-main"
-      system_prompt_file: "config/prompts/security_agent.txt"
-      allow_tools:
-        - system__.*      # Required for submitting work
-        - firewall__.*    # Custom tools
-        - kb_security     # Knowledge base tool
-```
-
-### Core System Agents
-
-You can also configure the built-in system agents.
-
-```yaml
-agent:
-  supervisor:
-    llm_profile: "openai-main"
-  auditor:
-    enabled: true
-    llm_profile: "openai-main"
-    threshold: 0.8
-```
-
-## 7. Vault (Secret Management)
+## Vault (Secret Management)
 
 Configures the connection to HashiCorp Vault for secure secret retrieval.
 
