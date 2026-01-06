@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional
 
 import hvac
 import yaml
-from pydantic_settings import BaseSettings
 
 from libs.vault_resolver import resolve_vault_secrets
 

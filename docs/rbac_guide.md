@@ -2,18 +2,23 @@
 
 The `rbac.yaml` file implements Role-Based Access Control, defining which users exist and what tools they are permitted to use.
 
-## 1. Users
+## Users
 
-Maps usernames to roles. The username corresponds to the ID passed during the chat session initialization.
+Maps user IDs (typically email addresses) to their settings, including roles and profile information.
 
 ```yaml
 users:
-  alice: "admin"
-  bob: "operator"
-  charlie: "viewer"
+  alice@example.com:
+    role: "admin"
+    first_name: "Alice"
+    last_name: "Smith"
+  bob@example.com:
+    role: "operator"
+    first_name: "Bob"
+    last_name: "Jones"
 ```
 
-## 2. Role Permissions
+## Role Permissions
 
 Defines the list of allowed tools for each role.
 
@@ -44,4 +49,17 @@ role_permissions:
     - "set_user_secrets"
     - "delete_conversation_history"
     - "manage_vector_store"
+```
+
+## Dynamic Reloading
+
+The application automatically watches `rbac.yaml` for changes. You can add new users or modify permissions without restarting the server.
+
+By default, the file is checked every 60 seconds. To change this frequency, add the `reload_interval_seconds` setting to the top level of your configuration:
+
+```yaml
+reload_interval_seconds: 30
+```
+
+If the updated configuration contains errors (e.g., invalid YAML or incorrect data types), the reload will be skipped, an error will be logged, and the previous configuration will remain active.
 ```

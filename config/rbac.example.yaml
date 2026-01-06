@@ -6,10 +6,22 @@
 
 # BINDINGS: Map users to roles
 users:
-  mike:    "admin"      # Owner / Platform Lead
-  alice:   "sre"        # Senior Engineer (formerly 'premium')
-  bob:     "operator"   # Junior / NOC (formerly 'user')
-  charlie: "viewer"     # Auditor / Manager
+  arshad.rad@gmail.com:
+    role: "admin"
+    first_name: "Mehrdad"
+    last_name: "Arshad Rad"
+  alice@example.com:
+    role: "sre"
+    first_name: "Alice"
+    last_name: "Smith"
+  bob@example.com:
+    role: "operator"
+    first_name: "Bob"
+    last_name: "Jones"
+  charlie@example.com:
+    role: "viewer"
+    first_name: "Charlie"
+    last_name: "Brown"
 
 # DEFINITIONS: What each role can do
 role_permissions:
