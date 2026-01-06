@@ -240,4 +240,4 @@ vault:
 ### Using Secrets
 Reference secrets in any config file using the syntax: `vault:<path>#<key>`.
 
-Example: `api_key: "vault:system/openai#key"`
+Example: `api_key: "vault:system/openai#api_key"`
