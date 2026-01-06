@@ -90,10 +90,12 @@ async def handler(body, say, client):
     if event.get("bot_id"):
         return
 
+    user_email = None
     try:
         user_info = await client.users_info(user=user_id)
         if user_info["ok"]:
             user_name = user_info["user"]["real_name"]
+            user_email = user_info["user"]["profile"].get("email")
             logger.info(f"Handling message from {user_name} ({user_id})")
         else:
             logger.warning(f"Could not retrieve user info for {user_id}")
@@ -109,11 +111,15 @@ async def handler(body, say, client):
     except Exception as e:
         logger.error(f"Error adding reaction: {e}")
 
-    # TODO: change first name to email address
-    user_first_name = user_name.split()[0].lower()
+    if not user_email:
+        await say(
+            "Could not retrieve email address. Please ensure the bot has `users:read.email` scope.",
+            thread_ts=event.get("ts")
+        )
+        return
 
     for attempt in range(2):
-        ws = await manager.get_connection(user_first_name)
+        ws = await manager.get_connection(user_email)
         if not ws:
             await say("Service unavailable.", thread_ts=event.get("ts"))
             return
@@ -127,8 +133,8 @@ async def handler(body, say, client):
                 await say(result, thread_ts=event.get("ts"))
             break
         except websockets.exceptions.ConnectionClosed as e:
-            logger.warning(f"WebSocket connection closed for {user_first_name}: {e}")
-            await manager.close_connection(user_first_name)
+            logger.warning(f"WebSocket connection closed for {user_email}: {e}")
+            await manager.close_connection(user_email)
             if e.code == 1012 and attempt == 0:
                 continue
             elif e.code == 1012:
@@ -138,7 +144,7 @@ async def handler(body, say, client):
             break
         except Exception as e:
             await say(f"Error: {e}", thread_ts=event.get("ts"))
-            await manager.close_connection(user_first_name)
+            await manager.close_connection(user_email)
             break
 
 
