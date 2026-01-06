@@ -46,6 +46,7 @@ class TestServer(unittest.TestCase):
         mock_redis.aclose.assert_called_once()
         mock_tool_registry.return_value.close.assert_called_once()
 
+    @patch("server.get_user_role")
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.astream_graph_updates")
@@ -53,10 +54,11 @@ class TestServer(unittest.TestCase):
     @patch("server.telemetry")
     @patch("server.ToolRegistry")
     def test_websocket_chat(
-        self, mock_tool_registry, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp
+        self, mock_tool_registry, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp, mock_get_user_role
     ):
         """Test WebSocket chat flow."""
         # Setup mocks
+        mock_get_user_role.return_value = "user"
         mock_redis = AsyncMock()
         mock_cp_ctx = AsyncMock()
         mock_cp_ctx.__aenter__.return_value = (MagicMock(), mock_redis)
@@ -88,6 +90,7 @@ class TestServer(unittest.TestCase):
                 self.assertEqual(eot, "\x03")
 
     @patch("server.USE_PLAIN_MESSAGE", True)
+    @patch("server.get_user_role")
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.astream_graph_updates")
@@ -95,9 +98,10 @@ class TestServer(unittest.TestCase):
     @patch("server.telemetry")
     @patch("server.ToolRegistry")
     def test_websocket_tool_execution(
-        self, mock_tool_registry, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp
+        self, mock_tool_registry, mock_telemetry, mock_mem0, mock_astream, mock_run_graph, mock_get_cp, mock_get_user_role
     ):
         """Test WebSocket handling of tool calls."""
+        mock_get_user_role.return_value = "user"
         mock_redis = AsyncMock()
         mock_cp_ctx = AsyncMock()
         mock_cp_ctx.__aenter__.return_value = (MagicMock(), mock_redis)
