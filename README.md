@@ -1,10 +1,12 @@
 # RadOps - AI-Powered Network Operations
 
-RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline diagnostics, troubleshooting, and infrastructure management. Unlike standard chatbots, RadOps understands the *lifespan* of information, validates its own work via a QA Auditor, and integrates directly with live infrastructure.
+RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline diagnostics, troubleshooting, and infrastructure management. RadOps transcends standard chatbots by intelligently managing information *lifespan*, self-validating tasks via a QA Auditor, and integrating seamlessly with live infrastructure.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
 [![Tests](https://github.com/mehrdadrad/radops/actions/workflows/tests.yml/badge.svg)](https://github.com/mehrdadrad/radops/actions/workflows/tests.yml)
+
+![RadOps Architecture](/assets/radops_arch_diagram.png)
 
 ## 🚀 Key Highlights
 
@@ -16,14 +18,7 @@ RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline
 * **🔌 Resilient Connectivity**: Built on the **Model Context Protocol (MCP)** with self-healing clients that survive server restarts.
 * **👀 Deep Observability**: Full tracing of Agent Logic, Tool Execution, and LLM Streaming via OpenTelemetry.
 
-## 🛠️ Prerequisites
-
-* **Python 3.10+**
-* **Redis** (for conversation checkpointing)
-* **HashiCorp Vault** (for secure credential management)
-* **Vector Database** (One of: Weaviate, Pinecone, Qdrant, Milvus, ChromaDB)
-
-## 📦 Installation
+## �📦 Installation
 
 1.  Clone the repository:
     ```bash
@@ -50,4 +45,4 @@ We welcome contributions! Please follow these steps:
 4.  Push to the branch and open a **Pull Request**.
 
 ---
-*Built with LangGraph, Mem0, and Passion.*
+*Built with LangGraph, Mem0, Top Vector Databases, and Passion.*
