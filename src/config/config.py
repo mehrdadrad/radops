@@ -64,11 +64,12 @@ class AgentSettings(BaseModel):
     system_prompt_file: str
 
 
-class GuardrailSettings(BaseModel):
+class GuardrailsSettings(BaseModel):
     """Settings for guardrails."""
 
     enabled: bool = False
-    llm_profile: str = None
+    llm_profile: str
+    prompt_file: str
 
 
 class SupervisorSettings(BaseModel):
@@ -93,7 +94,7 @@ class AuditorSettings(BaseModel):
 class AgentsSettings(BaseModel):
     """Settings for all agents."""
 
-    guardrail: GuardrailSettings = Field(default_factory=GuardrailSettings)
+    guardrails: GuardrailsSettings = Field(default_factory=GuardrailsSettings)
     supervisor: SupervisorSettings = Field(default_factory=SupervisorSettings)
     system: SystemSettings = Field(default_factory=SystemSettings)
     auditor: AuditorSettings = Field(default_factory=AuditorSettings)
@@ -125,7 +126,7 @@ class RedisSettings(BaseModel):
 class MemorySettings(BaseModel):
     """Settings for conversation memory."""
 
-    redis: RedisSettings
+    redis: Optional[RedisSettings] = None
     summarization: SummarizationSettings = Field(
         default_factory=SummarizationSettings
     )

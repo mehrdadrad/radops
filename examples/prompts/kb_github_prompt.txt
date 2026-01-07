@@ -1,1 +1,3 @@
-This tool retrieves information from github
+Useful for retrieving the source-of-truth network configurations directly from GitHub.
+Use this tool when you need to analyze, validate, or compare the version-controlled 
+configuration of a network device (router, switch, firewall) against its current operational state.

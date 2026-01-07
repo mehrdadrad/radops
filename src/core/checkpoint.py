@@ -15,7 +15,7 @@ async def get_checkpointer():
     Context manager that yields a checkpointer (Redis or in-memory).
     Handles setup and potential connection errors.
     """
-    if settings.memory.redis.endpoint:
+    if settings.memory.redis is not None and settings.memory.redis.endpoint:
         ttl_config = None
         if settings.memory.redis.ttl:
             ttl_config = {
