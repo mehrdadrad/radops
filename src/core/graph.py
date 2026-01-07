@@ -23,7 +23,7 @@ from core.llm import llm_factory
 from core.memory import get_mem0_client
 from core.state import State, SupervisorAgentOutput, AuditReport
 from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, PLATFORM_PROMPT, AUDITOR_PROMPT, SUMMARIZATION_PROMPT
-from services.guardrails.guardrails import guardrail
+from services.guardrails.guardrails import guardrails
 from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 
@@ -42,7 +42,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     system_tools = await tool_registry.get_system_tools()
 
     graph_builder = StateGraph(State)
-    graph_builder.add_node("guardrail", guardrail)
+    graph_builder.add_node("guardrails", guardrails)
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node("supervisor", supervisor_node)
     graph_builder.add_node("auditor", auditor_node)
@@ -81,9 +81,9 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         path_map,
     )
     graph_builder.add_edge("memory", "supervisor")
-    graph_builder.add_edge(START, "guardrail")
+    graph_builder.add_edge(START, "guardrails")
     graph_builder.add_conditional_edges(
-        "guardrail",
+        "guardrails",
         check_end_status,
         {"end": END, "continue": "memory"},
     )
@@ -170,7 +170,6 @@ def supervisor_node(state: State) -> dict:
     llm_profile = (
         settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
     )
-    logger.info("Supervisor LLM profile: %s", llm_profile)
     llm = llm_factory(llm_profile, agent_name=node_name)
     llm_structured = llm.with_structured_output(SupervisorAgentOutput)
 
@@ -497,7 +496,7 @@ def route_after_worker(state: State) -> Literal["tools", "supervisor"]:
 
 
 def check_end_status(state: State) -> Literal["end", "continue"]:
-    """Checks if the guardrail has marked the conversation to end."""
+    """Checks if the guardrails has marked the conversation to end."""
     if state["end_status"] == "end":
         return "end"
     return "continue"

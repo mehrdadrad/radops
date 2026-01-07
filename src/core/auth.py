@@ -1,12 +1,9 @@
 """Authentication and authorization logic for the agent."""
 import re
-from typing import Literal
 
 from config.rbac import rbac_settings as settings
 
-UserRole = Literal["guest", "user", "premium", "admin"]
-
-def get_user_role(user_id: str) -> UserRole:
+def get_user_role(user_id: str) -> str | None:
     """
     Retrieves the role for a given user_id.
 

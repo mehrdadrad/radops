@@ -39,3 +39,7 @@ def register_default_metrics(telemetry: "Telemetry"):
         "agent.tool.errors",
         description="Total number of tool execution errors."
     )
+    telemetry.register_counter(
+        "guardrails.blocked.total",
+        description="Total number of requests blocked by guardrails."
+    )
