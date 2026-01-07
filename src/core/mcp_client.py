@@ -31,6 +31,9 @@ class MCPClient:
         self.retry_attempts = self.config.get("retry_attempts", 3)
         self.retry_delay = self.config.get("retry_delay", 5)
         self.persistent_interval = self.config.get("persistent_interval", 60)
+        self.execution_timeout = self.config.get("execution_timeout", 60.0)
+        self.connect_timeout = self.config.get("connect_timeout", 10.0)
+        self.health_check_interval = self.config.get("health_check_interval", 10.0)
 
         self.session: Optional[ClientSession] = None
         self.tools: List[BaseTool] = []
@@ -62,6 +65,9 @@ class MCPClient:
                     asyncio.shield(self._tools_future), timeout=5.0
                 )
             except (asyncio.TimeoutError, asyncio.CancelledError):
+                logger.warning(
+                    "[%s] get_tools timed out waiting for connection.", self.name
+                )
                 pass
         return self.tools
 
@@ -134,7 +140,7 @@ class MCPClient:
             kwargs = {
                 "url": url,
                 "headers": self.config.get("headers") or {},
-                "timeout": self.config.get("connect_timeout", 60.0),
+                "timeout": self.connect_timeout,
             }
             client_factory = (
                 streamablehttp_client if transport == "streamable_http" else sse_client
@@ -149,10 +155,10 @@ class MCPClient:
                 read, write = streams[0], streams[1]
                 async with ClientSession(read, write) as session:
                     self.session = session
-                    await asyncio.wait_for(session.initialize(), timeout=10.0)
+                    await asyncio.wait_for(session.initialize(), timeout=self.connect_timeout)
 
                     # Load tools
-                    result = await asyncio.wait_for(session.list_tools(), timeout=10.0)
+                    result = await asyncio.wait_for(session.list_tools(), timeout=self.connect_timeout)
                     self.tools = self._process_tools(result.tools)
 
                     if not self._tools_future.done():
@@ -180,9 +186,9 @@ class MCPClient:
     async def _monitor_health(self, session: ClientSession):
         """Monitors the health of the session."""
         while self._running:
-            await asyncio.sleep(10)
+            await asyncio.sleep(self.health_check_interval)
             try:
-                await asyncio.wait_for(session.list_tools(), timeout=5.0)
+                await asyncio.wait_for(session.list_tools(), timeout=self.connect_timeout)
             except asyncio.CancelledError as exc:
                 if self._running:
                     logger.warning(
@@ -229,7 +235,7 @@ class MCPClient:
             try:
                 result = await asyncio.wait_for(
                     self.session.call_tool(current_tool_name, arguments=kwargs),
-                    timeout=60.0
+                    timeout=self.execution_timeout
                 )
             except asyncio.TimeoutError as exc:
                 raise TimeoutError(

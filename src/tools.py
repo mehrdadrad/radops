@@ -35,9 +35,10 @@ class ToolRegistry:
     def __init__(self, checkpointer, skip_initial_sync: bool = False):
         self.checkpointer = checkpointer
         self.vector_store_managers = vector_store_factory(skip_initial_sync=skip_initial_sync)
+        mcp_defaults = settings.mcp.model_dump(exclude={"servers"})
         self.mcp_clients = [
-            MCPClient(name, config)
-            for name, config in settings.mcp_servers.items()
+            MCPClient(name, {**mcp_defaults, **config})
+            for name, config in settings.mcp.servers.items()
             if not config.get("disabled", False)
         ]
         self.weaviate_client = None

@@ -64,29 +64,65 @@ Configures Model Context Protocol servers. These run as subprocesses and expose 
 Allows the agent to manage incidents and on-call schedules.
 
 ```yaml
-mcp_servers:
-  pagerduty: 
-    url: "https://mcp.pagerduty.com/mcp"
-    transport: "streamable_http"
-    headers: 
-      Authorization: "vault:tools/pagerduty#token"
+mcp:
+  servers:
+    pagerduty: 
+      url: "https://mcp.pagerduty.com/mcp"
+      transport: "streamable_http"
+      headers: 
+        Authorization: "vault:tools/pagerduty#token"
 ```
 
 ### Example: Notion MCP
 Allows the agent to search and read Notion pages.
 
 ```yaml
-mcp_servers:
-  notion:
-    transport: "stdio"
-    command: "docker"
-    args:
-      - "run"
-      - "--rm"
-      - "-i"
-      - "-e"
-      - "NOTION_TOKEN"
-      - "mcp/notion"
-    env:
-      NOTION_TOKEN: "vault:tools/notion#token"
+mcp:
+  servers:
+    notion:
+      transport: "stdio"
+      command: "docker"
+      args:
+        - "run"
+        - "--rm"
+        - "-i"
+        - "-e"
+        - "NOTION_TOKEN"
+        - "mcp/notion"
+      env:
+        NOTION_TOKEN: "vault:tools/notion#token"
+```
+
+### MCP Client Configuration
+
+The MCP (Model Context Protocol) client supports several configuration parameters to manage connection stability, retries, and timeouts. These can be defined in your agent configuration.
+
+#### Retry and Connection Logic
+
+- **`retry_attempts`** (Default: `3`)
+  The number of times the client will immediately try to reconnect if the initial connection fails.
+
+- **`retry_delay`** (Default: `5` seconds)
+  The pause duration between immediate retry attempts.
+
+- **`persistent_interval`** (Default: `60` seconds)
+  If the connection is lost or initial retries fail, the client enters a persistent background loop. It will attempt to reconnect every `persistent_interval` seconds indefinitely.
+
+- **`health_check_interval`** (Default: `10.0` seconds)
+  How frequently the client checks the connection status by listing tools. This helps detect dropped connections (e.g., if the server process died).
+
+#### Timeouts
+
+- **`connect_timeout`** (Default: `10.0` seconds)
+  The maximum time allowed for the initial handshake (initialization) and fetching the tool list. If your MCP server is slow to start, increase this value.
+
+- **`execution_timeout`** (Default: `60.0` seconds)
+  The maximum time allowed for a tool to run. If a tool call exceeds this duration, it is cancelled and a `TimeoutError` is raised.
+
+#### Example
+
+```yaml
+mcp:
+  execution_timeout: 120.0  # Allow longer running tools
+  retry_attempts: 5         # More aggressive retries
 ```

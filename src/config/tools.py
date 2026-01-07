@@ -74,6 +74,16 @@ class AWSSettings(BaseModel):
     secret_access_key: Optional[str] = None
     region: Optional[str] = None
 
+class MCPSettings(BaseModel):
+    """Settings for MCP integration."""
+    servers: Dict[str, Any] = Field(default_factory=dict)
+    retry_attempts: int = 3
+    retry_delay: int = 5
+    persistent_interval: int = 60
+    execution_timeout: float = 60.0
+    connect_timeout: float = 10.0
+    health_check_interval: float = 10.0
+
 
 class ToolSettings(BaseSettings):
     """
@@ -103,7 +113,7 @@ class ToolSettings(BaseSettings):
     local_tools: list[LocalToolConfig] = Field(default_factory=list)
 
     # MCP Client Configuration
-    mcp_servers: Optional[Dict[str, Any]] = None
+    mcp: MCPSettings = Field(default_factory=MCPSettings)
 
     # PeeringDB
     peeringdb: PeeringDBSettings = Field(default_factory=PeeringDBSettings)
