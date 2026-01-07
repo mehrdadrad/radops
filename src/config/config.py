@@ -6,7 +6,7 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from config.utils import get_config_path, load_yaml_config, process_vault_secrets
@@ -68,8 +68,18 @@ class GuardrailsSettings(BaseModel):
     """Settings for guardrails."""
 
     enabled: bool = False
-    llm_profile: str
-    prompt_file: str
+    llm_profile: Optional[str] = None
+    prompt_file: Optional[str] = None
+
+    @model_validator(mode="after")
+    def check_required_fields(self):
+        """Validates that required fields are present when enabled."""
+        if self.enabled:
+            if not self.llm_profile:
+                raise ValueError("llm_profile is required when guardrails are enabled")
+            if not self.prompt_file:
+                raise ValueError("prompt_file is required when guardrails are enabled")
+        return self
 
 
 class SupervisorSettings(BaseModel):
