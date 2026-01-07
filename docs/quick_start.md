@@ -7,8 +7,8 @@ This guide covers the installation requirements and the different operational mo
 Before running RadOps, ensure the following infrastructure is available:
 
 *   **Python 3.11+**
-*   **Redis**: Required for short-term conversation memory.
-*   **HashiCorp Vault**: Required for secret management.
+*   **Redis**: Required for short-term conversation memory (falls back to in-memory if unavailable).
+*   **HashiCorp Vault**: Required for secret management (secrets can be set via env vars or config if unavailable).
 *   **Vector Database**: One of Weaviate, Chroma, Qdrant, Milvus or Pinecone (for RAG).
 
 ## Quick Start: Infrastructure via Docker

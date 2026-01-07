@@ -93,3 +93,32 @@ Since RadOps uses standard OpenTelemetry exporters, it can send data to any plat
 - **Lightstep (ServiceNow)**: Native OTLP support.
 - **AWS X-Ray / CloudWatch**: Via ADOT Collector.
 - **Google Cloud Operations**: Via OpenTelemetry Collector.
+
+## Developer Guide: Adding Traces
+
+To add tracing to your code, you can use the global `telemetry` instance or the standard OpenTelemetry API.
+
+### Using the Telemetry Singleton
+
+```python
+from services.telemetry.telemetry import telemetry
+
+def my_function():
+    with telemetry.tracer.start_as_current_span("my_operation") as span:
+        span.set_attribute("custom.tag", "value")
+        # ... code ...
+```
+
+### Standard OpenTelemetry Pattern
+
+Since RadOps configures the global tracer provider, you can also use standard patterns:
+
+```python
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
+@tracer.start_as_current_span("my_function")
+def my_function():
+    pass
+```

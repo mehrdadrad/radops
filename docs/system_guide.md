@@ -40,3 +40,10 @@ Set my GitHub secrets: token=ghp_123456...
 ```
 
 *Note: Ensure you have the `set_user_secrets` permission enabled for your role in `rbac.yaml`.*
+
+## Check MCP health
+
+You can verify the connectivity and status of all configured MCP servers directly through the chat interface. This is useful for debugging connection issues with external tools (e.g., PagerDuty, Notion).
+
+**Command:**
+"Check MCP health"

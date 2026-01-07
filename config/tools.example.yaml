@@ -42,35 +42,36 @@ local_tools:
 
 # Model Context Protocol (MCP) Servers
 # Configure external MCP servers (stdio or HTTP) to extend agent capabilities.
-mcp_servers:
-  # Example: Running an MCP server via Docker (stdio transport)
-  aws-network-mcp-server:
-    transport: "stdio"
-    command: "docker"
-    args:
-      - "run"
-      - "--rm"
-      - "-i"
-      - "-e"
-      - "AWS_ACCESS_KEY_ID"
-      - "-e"
-      - "AWS_SECRET_ACCESS_KEY"
-      - "--entrypoint"
-      - "sh"
-      - "awslab/aws-network-mcp-server"
-      - "-c"
-      - "awslabs.aws-network-mcp-server 2> /dev/null"
-    env:
-      FASTMCP_LOG_LEVEL: "ERROR"
-      AWS_ACCESS_KEY_ID: "vault:tools/aws#ACCESS_KEY_ID"
-      AWS_SECRET_ACCESS_KEY: "vault:tools/aws#SECRET_ACCESS_KEY"
+mcp:
+  servers:
+    # Example: Running an MCP server via Docker (stdio transport)
+    aws-network-mcp-server:
+      transport: "stdio"
+      command: "docker"
+      args:
+        - "run"
+        - "--rm"
+        - "-i"
+        - "-e"
+        - "AWS_ACCESS_KEY_ID"
+        - "-e"
+        - "AWS_SECRET_ACCESS_KEY"
+        - "--entrypoint"
+        - "sh"
+        - "awslab/aws-network-mcp-server"
+        - "-c"
+        - "awslabs.aws-network-mcp-server 2> /dev/null"
+      env:
+        FASTMCP_LOG_LEVEL: "ERROR"
+        AWS_ACCESS_KEY_ID: "vault:tools/aws#ACCESS_KEY_ID"
+        AWS_SECRET_ACCESS_KEY: "vault:tools/aws#SECRET_ACCESS_KEY"
 
-  # Example: Connecting to a remote MCP server via HTTP
-  pagerduty: 
-    url: "https://mcp.pagerduty.com/mcp"
-    transport: "streamable_http"
-    headers: 
-      Authorization: "vault:tools/pagerduty#token"
+    # Example: Connecting to a remote MCP server via HTTP
+    pagerduty: 
+      url: "https://mcp.pagerduty.com/mcp"
+      transport: "streamable_http"
+      headers: 
+        Authorization: "vault:tools/pagerduty#token"
 
 # ------------------------------------------------------------------
 # Tool-Specific Configuration
