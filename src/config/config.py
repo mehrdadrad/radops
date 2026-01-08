@@ -42,9 +42,20 @@ class LLMProfileSettings(BaseModel):
     model: str
     api_key: Optional[str] = None
     base_url: Optional[str] = None
+    api_version: Optional[str] = None
+    model_version: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     dimensions: Optional[int] = None
+    reasoning_format: Optional[str] = None
+    
+    aws_region: Optional[str] = None
+    aws_access_key_id: Optional[str] = None
+    aws_secret_access_key: Optional[str] = None
+    aws_session_token: Optional[str] = None
+
+    google_project: Optional[str] = None
+    google_location: Optional[str] = None
 
 
 class LLMSettings(BaseModel):

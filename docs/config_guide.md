@@ -39,9 +39,14 @@ logging:
 Defines the AI models used by the system. You can define multiple profiles and select a default.
 
 ### Supported Providers
-*   **OpenAI** (`openai`): Cloud models such as `gpt-4o` and `gpt-4-turbo`.
-*   **Anthropic** (`anthropic`): Cloud models such as `claude-3-5-sonnet` and `claude-3-opus`.
+*   **OpenAI** (`openai`): Cloud models such as `gpt-5` and `gpt-5-nano`.
+*   **Anthropic** (`anthropic`): Cloud models such as `claude-4-5-sonnet` and `claude-4-5-opus`.
 *   **DeepSeek** (`deepseek`): DeepSeek API models.
+*   **Azure OpenAI** (`azure`): Azure hosted OpenAI models.
+*   **Google** (`google`): Google Gemini models such as `gemini-3-pro-preview`.
+*   **Groq** (`groq`): Groq Cloud models.
+*   **Mistral** (`mistral`): Mistral AI models.
+*   **AWS Bedrock** (`bedrock`): AWS managed models.
 *   **Ollama** (`ollama`): Local models. If used for agents, the model must support tool calling.
 
 | Parameter | Description |
@@ -50,6 +55,7 @@ Defines the AI models used by the system. You can define multiple profiles and s
 | `model` | The specific model identifier (e.g., `gpt-4o`). |
 | `temperature` | Creativity setting (0.0 = deterministic, 1.0 = creative). |
 | `api_key` | API key (supports Vault references). |
+| `api_version` | API version (required for Azure). |
 | `base_url` | Endpoint URL (required for Ollama). |
 
 ```yaml
@@ -71,6 +77,35 @@ llm:
       provider: "deepseek"
       model: "deepseek-coder"
       api_key: "vault:system#deepseek_key"
+
+    google-main:
+      provider: "google"
+      model: "gemini-2.5-pro"
+      api_key: "vault:system#google_key"
+
+    groq-main:
+      provider: "groq"
+      model: "llama3-70b-8192"
+      api_key: "vault:system#groq_key"
+
+    mistral-large:
+      provider: "mistral"
+      model: "mistral-large-latest"
+      api_key: "vault:system#mistral_key"
+
+    bedrock-main:
+      provider: "bedrock"
+      model: "anthropic.claude-3-sonnet-20240229-v1:0"
+      aws_region: "us-east-1"
+      aws_access_key_id: "vault:system#aws_access_key"
+      aws_secret_access_key: "vault:system#aws_secret_key"
+
+    azure-gpt4:
+      provider: "azure"
+      model: "my-gpt4-deployment"
+      base_url: "https://my-resource.openai.azure.com/"
+      api_version: "2023-05-15"
+      api_key: "vault:system#azure_key"
 ```
 
 ## Agents

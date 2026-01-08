@@ -7,7 +7,7 @@ name = "RadOps"
 version = "0.1.0"
 description = "AI-powered Network Operations"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "fastapi==0.123.4",
     "uvicorn[standard]==0.38.0",
@@ -252,6 +252,12 @@ dependencies = [
     "langchain-milvus>=0.3.2",
     "pynautobot>=3.0.0",
     "litellm>=1.80.5",
+    "langchain-google-genai>=3.2.0",
+    "flashrank>=0.2.10",
+    "langchain-cohere>=0.5.0",
+    "langchain-aws>=1.1.1",
+    "langchain-groq>=1.1.1",
+    "langchain-mistralai>=1.1.1",
 ]
 
 [project.optional-dependencies]

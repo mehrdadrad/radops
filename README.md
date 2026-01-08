@@ -18,7 +18,27 @@ RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline
 * **🔌 Resilient Connectivity**: Built on the **Model Context Protocol (MCP)** with self-healing clients that survive server restarts.
 * **👀 Deep Observability**: Full tracing of Agent Logic, Tool Execution, and LLM Streaming via OpenTelemetry.
 
-## �📦 Installation
+## 🧠 Supported Providers
+
+### LLM Providers
+* **OpenAI** (`openai`): Cloud models such as `gpt-5` and `gpt-5-nano`.
+* **Anthropic** (`anthropic`): Cloud models such as `claude-4-5-sonnet` and `claude-4-5-opus`.
+* **DeepSeek** (`deepseek`): DeepSeek API models.
+* **Azure OpenAI** (`azure`): Azure hosted OpenAI models.
+* **Google** (`google`): Google Gemini models such as `gemini-3-pro-preview`.
+* **Groq** (`groq`): Groq Cloud models.
+* **Mistral** (`mistral`): Mistral AI models.
+* **AWS Bedrock** (`bedrock`): AWS managed models.
+* **Ollama** (`ollama`): Local models. If used for agents, the model must support tool calling.
+
+### Vector Databases
+* **Weaviate**
+* **Qdrant**
+* **Pinecone**
+* **Milvus**
+* **Chroma**
+
+## 📦 Installation
 
 1.  Clone the repository:
     ```bash

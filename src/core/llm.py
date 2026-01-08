@@ -6,8 +6,12 @@ import httpx
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings, AzureChatOpenAI, AzureOpenAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_anthropic import ChatAnthropic
+from langchain_groq import ChatGroq
+from langchain_mistralai import ChatMistralAI
+from langchain_aws import ChatBedrockConverse, BedrockEmbeddings
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 from config.config import settings
@@ -124,6 +128,57 @@ def llm_factory(profile_name: str, agent_name: str = None) -> BaseChatModel:
                 base_url=profile_settings.base_url,
                 callbacks=callbacks,
             )
+        case "azure":
+            return AzureChatOpenAI(
+                azure_deployment=profile_settings.model,
+                openai_api_version=profile_settings.api_version,
+                azure_endpoint=profile_settings.base_url,
+                api_key=profile_settings.api_key,
+                temperature=temperature,
+                max_tokens=profile_settings.max_tokens,
+                model_version=profile_settings.model_version,
+                callbacks=callbacks,
+            )
+        case "gemini":
+            return ChatGoogleGenerativeAI(
+                model=profile_settings.model,
+                temperature=temperature,
+                max_tokens=profile_settings.max_tokens,
+                google_api_key=profile_settings.api_key,
+                project=profile_settings.google_project,
+                location=profile_settings.google_location,
+                callbacks=callbacks,
+            )
+        case "groq":
+            return ChatGroq(
+                model=profile_settings.model,
+                temperature=temperature,
+                max_tokens=profile_settings.max_tokens,
+                api_key=profile_settings.api_key,
+                reasoning_format=profile_settings.reasoning_format,
+                callbacks=callbacks,
+            )
+        case "mistral":
+            return ChatMistralAI(
+                model=profile_settings.model,
+                temperature=temperature,
+                max_tokens=profile_settings.max_tokens,
+                api_key=profile_settings.api_key,
+                endpoint=profile_settings.base_url,
+                callbacks=callbacks,
+            )
+        case "bedrock":
+            return ChatBedrockConverse(
+                model=profile_settings.model,
+                temperature=temperature,
+                max_tokens=profile_settings.max_tokens,
+                region_name=profile_settings.aws_region,
+                aws_access_key_id=profile_settings.aws_access_key_id,
+                aws_secret_access_key=profile_settings.aws_secret_access_key,
+                aws_session_token=profile_settings.aws_session_token,
+                callbacks=callbacks,
+            )
+
         case "ollama":
             return ChatOllama(
                 model=profile_settings.model,
@@ -160,6 +215,26 @@ def embedding_factory(profile_name: str) -> Embeddings:
                 api_key=profile_settings.api_key,
                 base_url=profile_settings.base_url,
                 dimensions=profile_settings.dimensions,
+            )
+        case "azure":
+            return AzureOpenAIEmbeddings(
+                azure_deployment=profile_settings.model,
+                openai_api_version=profile_settings.api_version,
+                azure_endpoint=profile_settings.base_url,
+                api_key=profile_settings.api_key,
+            )
+        case "gemini":
+            return GoogleGenerativeAIEmbeddings(
+                model=profile_settings.model,
+                google_api_key=profile_settings.api_key,
+            )
+        case "bedrock":
+            return BedrockEmbeddings(
+                model_id=profile_settings.model,
+                region_name=profile_settings.aws_region,
+                aws_access_key_id=profile_settings.aws_access_key_id,
+                aws_secret_access_key=profile_settings.aws_secret_access_key,
+                aws_session_token=profile_settings.aws_session_token,
             )
         case "ollama":
             return OllamaEmbeddings(
