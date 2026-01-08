@@ -93,6 +93,19 @@ mcp:
         NOTION_TOKEN: "vault:tools/notion#token"
 ```
 
+### Example: Jenkins MCP
+Allows the agent to interact with Jenkins.
+The Jenkins MCP plugin must be installed on the target Jenkins server to expose the required endpoints.
+
+```yaml
+mcp:
+  servers:
+    jenkins:
+      url: "http://your-jenkins-address/mcp-server/mcp"
+      transport: "streamable_http"
+      headers:
+        Authorization: "vault:tools/jenkins#token"
+
 ### MCP Client Configuration
 
 The MCP (Model Context Protocol) client supports several configuration parameters to manage connection stability, retries, and timeouts. These can be defined in your agent configuration.

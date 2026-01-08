@@ -269,7 +269,9 @@ def auditor_node(state):
             break
     tool_outputs = [
         m for i, m in enumerate(messages)
-        if isinstance(m, ToolMessage) and i > last_request_index
+        if isinstance(m, ToolMessage)
+        and i > last_request_index
+        and m.name != "system__submit_work"
     ]
     supervisor_response = messages[-1].content if isinstance(messages[-1], AIMessage) else ""
     relevant_memories = state.get("relevant_memories", "")
