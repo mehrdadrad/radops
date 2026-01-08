@@ -1,4 +1,4 @@
-# RadOps - AI-Powered Network Operations
+# RadOps - AI-Powered Operations
 
 RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline diagnostics, troubleshooting, and infrastructure management. RadOps transcends standard chatbots by intelligently managing information *lifespan*, self-validating tasks via a QA Auditor, and integrating seamlessly with live infrastructure.
 
