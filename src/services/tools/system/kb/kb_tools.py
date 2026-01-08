@@ -1,3 +1,6 @@
+"""
+Knowledge Base Tools Module.
+"""
 import logging
 from functools import partial
 from langchain_core.tools import StructuredTool, BaseTool
@@ -44,8 +47,8 @@ def _generic_retriever(
     if retrieval_config is None:
         retrieval_config = {}
     logging.info(
-        f"Searching for query: '{query}' with filters: '{kwargs}' "
-        f"and config: '{retrieval_config}'"
+        "Searching for query: '%s' with filters: '%s' and config: '%s'",
+        query, kwargs, retrieval_config
     )
     try:
         if isinstance(vector_store, WeaviateVectorStore):
@@ -58,9 +61,11 @@ def _generic_retriever(
             return retriever_chroma(vector_store, query, retrieval_config, **kwargs)
     except Exception as e:
         logging.error(f"An error occurred during knowledge base retrieval: {e}")
-        return "Sorry, an error occurred while searching for the requested information. Please try again later."
+        return ("Sorry, an error occurred while searching for the requested information. "
+                "Please try again later.")
 
 def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[BaseTool]:
+    """Creates a list of KB tools based on vector store profiles."""
     tools = []
     for vector_store_profile in settings.vector_store.profiles:
         matching_vector_store_manager = None
@@ -71,11 +76,12 @@ def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[Bas
 
         if not matching_vector_store_manager:
             logger.error(
-                f"Vector store manager for profile '{vector_store_profile.name}' "
-                "not found. Skipping tool creation for this profile."
+                "Vector store manager for profile '%s' "
+                "not found. Skipping tool creation for this profile.",
+                vector_store_profile.name
             )
-            continue           
-                    
+            continue
+
         for sync_location in vector_store_profile.sync_locations:
             collection_name = sync_location.collection
             sync_name = sync_location.name
@@ -102,7 +108,7 @@ def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[Bas
             elif sync_location.prompt:
                 docstring = sync_location.prompt
             else:
-                docstring = tool_name             
+                docstring = tool_name
 
             dyn_tool = StructuredTool(
                 name=tool_name,
@@ -111,32 +117,69 @@ def create_kb_tools(vector_store_managers: list[VectorStoreManager]) -> list[Bas
                 description=docstring,
             )
             logger.info(
-                f"Created tool: {tool_name}, collection: {collection_name}, sync_name: {sync_name}"
+                "Created tool: %s, collection: %s, sync_name: %s",
+                tool_name, collection_name, sync_name
             )
             tools.append(dyn_tool)
 
     return tools
 
 
+def _rerank_documents(docs: list, query: str, retrieval_config: dict) -> list:
+    rerank_config = retrieval_config.get("rerank")
+    if not docs or not rerank_config or not rerank_config.get("enabled", False):
+        return docs
+
+    provider = rerank_config.get("provider", "flashrank")
+    logger.info("Reranking documents by %s ...", provider)
+
+    top_n = rerank_config.get("top_n", retrieval_config.get("k", 3))
+
+    if provider == "cohere":
+        try:
+            from langchain_cohere import CohereRerank
+        except ImportError:
+            logger.error("CohereRerank not found.")
+            return docs
+
+        model = rerank_config.get("model", "rerank-english-v3.0")
+        compressor = CohereRerank(model=model, top_n=top_n)
+    else:
+        try:
+            from langchain_community.document_compressors.flashrank_rerank import FlashrankRerank
+        except ImportError:
+            logger.error("FlashrankRerank not found.")
+            return docs
+        FlashrankRerank.model_rebuild()
+        kwargs = {"top_n": top_n}
+        if "model" in rerank_config:
+            kwargs["model"] = rerank_config["model"]
+        compressor = FlashrankRerank(**kwargs)
+
+    return compressor.compress_documents(docs, query)
+
 def retriever_chroma(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
+    """Retrieves documents from Chroma vector store."""
     filter_conditions = []
 
     for key, value in kwargs.items():
         if value:
             filter_conditions.append({key: value})
 
-    filter = None
+    chroma_filter = None
     if filter_conditions:
-        filter = (
+        chroma_filter = (
             {'$and': filter_conditions} if len(filter_conditions) > 1 else filter_conditions[0]
         )
 
     search_type = retrieval_config.get("search_type", "similarity")
-    search_kwargs = {k: v for k, v in retrieval_config.items() if k != "search_type"}
+    search_kwargs = {
+        k: v for k, v in retrieval_config.items() if k not in ["search_type", "rerank"]
+    }
 
     if "k" not in search_kwargs:
         search_kwargs["k"] = 3
-    search_kwargs["filter"] = filter
+    search_kwargs["filter"] = chroma_filter
 
     if search_type == "similarity_score_threshold" and "score_threshold" not in search_kwargs:
         search_kwargs["score_threshold"] = 0.25
@@ -146,12 +189,14 @@ def retriever_chroma(vector_store: Any, query: str, retrieval_config: dict, **kw
         search_kwargs=search_kwargs,
     )
     docs = retriever.invoke(query)
+    docs = _rerank_documents(docs, query, retrieval_config)
     return "\n---\n".join([
         f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content
         for doc in docs
     ])
 
 def retriever_weaviate(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
+    """Retrieves documents from Weaviate vector store."""
     filters = None
     all_filters = []
 
@@ -162,17 +207,22 @@ def retriever_weaviate(vector_store: Any, query: str, retrieval_config: dict, **
     if len(all_filters) > 1:
         # Combine multiple filters with a logical AND
         filters = all_filters[0]
-        for filter in all_filters[1:]:
-            filters = filters & filter
+        for single_filter in all_filters[1:]:
+            filters = filters & single_filter
     elif all_filters:
         filters = all_filters[0]
 
-    # Similarity Search: Retrieves documents based on vector similarity, ideal for finding the top k most similar documents.
-    # Max Marginal Relevance (MMR): Balances relevance and diversity, useful for avoiding redundancy and ensuring diverse results.
-    # Similarity Score Threshold: Retrieves only highly relevant documents based on a similarity score threshold, filtering out less relevant ones.    
+    # Similarity Search: Retrieves documents based on vector similarity,
+    # ideal for finding the top k most similar documents.
+    # Max Marginal Relevance (MMR): Balances relevance and diversity,
+    # useful for avoiding redundancy and ensuring diverse results.
+    # Similarity Score Threshold: Retrieves only highly relevant documents based on a
+    # similarity score threshold, filtering out less relevant ones.
 
     search_type = retrieval_config.get("search_type", "similarity")
-    search_kwargs = {k: v for k, v in retrieval_config.items() if k != "search_type"}
+    search_kwargs = {
+        k: v for k, v in retrieval_config.items() if k not in ["search_type", "rerank"]
+    }
 
     if "k" not in search_kwargs:
         search_kwargs["k"] = 3
@@ -181,18 +231,21 @@ def retriever_weaviate(vector_store: Any, query: str, retrieval_config: dict, **
     if search_type == "similarity" and "alpha" not in search_kwargs:
         search_kwargs["alpha"] = 0.25
     elif search_type == "mmr":
-        if "fetch_k" not in search_kwargs: search_kwargs["fetch_k"] = 20
-        if "lambda_mult" not in search_kwargs: search_kwargs["lambda_mult"] = 0.5
+        if "fetch_k" not in search_kwargs:
+            search_kwargs["fetch_k"] = 20
+        if "lambda_mult" not in search_kwargs:
+            search_kwargs["lambda_mult"] = 0.5
     elif (search_type == "similarity_score_threshold" and
           "score_threshold" not in search_kwargs):
         search_kwargs["score_threshold"] = 0.25
-            
+
     retriever = vector_store.as_retriever(
         search_type=search_type,
         search_kwargs=search_kwargs,
     )
 
     docs = retriever.invoke(query)
+    docs = _rerank_documents(docs, query, retrieval_config)
 
     return "\n---\n".join([
         f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content
@@ -200,6 +253,7 @@ def retriever_weaviate(vector_store: Any, query: str, retrieval_config: dict, **
     ])
 
 def retriever_qdrant(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
+    """Retrieves documents from Qdrant vector store."""
     must_conditions = []
     for key, value in kwargs.items():
         if value:
@@ -210,25 +264,28 @@ def retriever_qdrant(vector_store: Any, query: str, retrieval_config: dict, **kw
                 )
             )
 
-    filter = None
+    qdrant_filter = None
     if must_conditions:
-        filter = models.Filter(must=must_conditions)
+        qdrant_filter = models.Filter(must=must_conditions)
 
     k = retrieval_config.get("k", 3)
-    search_params = {k: v for k, v in retrieval_config.items() if k != "k"}
+    search_params = {k: v for k, v in retrieval_config.items() if k not in ["k", "rerank"]}
 
     docs = vector_store.similarity_search(
         query=query,
         k=k,
-        filter=filter,
+        filter=qdrant_filter,
         **search_params
     )
+    docs = _rerank_documents(docs, query, retrieval_config)
     return "\n---\n".join([
         f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content
         for doc in docs
     ])
 
+
 def retriever_milvus(vector_store: Any, query: str, retrieval_config: dict, **kwargs: Any):
+    """Retrieves documents from Milvus vector store."""
     expr_list = []
     for key, value in kwargs.items():
         if value:
@@ -239,9 +296,10 @@ def retriever_milvus(vector_store: Any, query: str, retrieval_config: dict, **kw
         expr = " and ".join(expr_list)
 
     k = retrieval_config.get("k", 3)
-    search_params = {k: v for k, v in retrieval_config.items() if k != "k"}
+    search_params = {k: v for k, v in retrieval_config.items() if k not in ["k", "rerank"]}
 
     docs = vector_store.similarity_search(query=query, k=k, expr=expr, **search_params)
+    docs = _rerank_documents(docs, query, retrieval_config)
 
     return "\n---\n".join([
         f"Source: {doc.metadata.get('source', 'N/A')}\n" + doc.page_content

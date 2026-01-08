@@ -16,6 +16,9 @@ from pydantic import Field, create_model
 
 logger = logging.getLogger(__name__)
 
+# Suppress benign 404 warnings from MCP SSE client during shutdown
+logging.getLogger("mcp.client.sse").setLevel(logging.ERROR)
+
 class MCPClient:
     """
     A client for connecting to an MCP server with retry and backoff logic.
