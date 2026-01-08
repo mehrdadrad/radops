@@ -388,15 +388,18 @@ async def manage_memory_node(state: State) -> dict:
         None,
     )
     if last_human_message and last_ai_message:
-        interaction_messages = [
-            {"role": "user", "content": last_human_message.content},
-            {"role": "assistant", "content": last_ai_message.content},
-        ]
-        await mem0.add(
-            messages=interaction_messages,
-            user_id=user_id,
-        )
-        logger.info("Mem0: Added interaction for user '%s'.", user_id)
+        if contains_sensitive_data(last_human_message.content):
+            logger.info("Mem0: Skipping memory add due to sensitive content.")
+        else:
+            interaction_messages = [
+                {"role": "user", "content": last_human_message.content},
+                {"role": "assistant", "content": last_ai_message.content},
+            ]
+            await mem0.add(
+                messages=interaction_messages,
+                user_id=user_id,
+            )
+            logger.info("Mem0: Added interaction for user '%s'.", user_id)
 
     # Summarization if needed
     summarized_result, messages = await summarize_conversation(state)
@@ -569,6 +572,16 @@ def filter_tools(
                 filtered_tools.append(tool)
                 break
     return filtered_tools
+
+def contains_sensitive_data(text: Any) -> bool:
+    """
+    Detects if the text likely contains sensitive data like tokens or keys.
+    Returns True if a sensitive pattern is found, False otherwise.
+    """
+    # This pattern looks for keywords followed by a value, which is a strong
+    # indicator of a secret.
+    secret_pattern = r'(?i)\b(token|key|password|secret|authorization|bearer)\s*[:=]?\s+([^\s]+)'
+    return bool(re.search(secret_pattern, str(text)))
 
 def sanitize_tool_calls(messages: list) -> list:
     """
