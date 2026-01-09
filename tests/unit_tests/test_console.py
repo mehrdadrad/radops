@@ -12,6 +12,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
     Test cases for the console application.
     """
 
+    @patch("console.get_user_role", new_callable=AsyncMock)
     @patch("console.input")
     @patch("console.print")
     @patch("console.get_checkpointer")
@@ -30,6 +31,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_get_cp,
         mock_print,
         mock_input,
+        mock_get_user_role,
     ):
         """Test the main console loop with valid input."""
         # Setup mocks
@@ -40,6 +42,12 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
 
         # Mock ToolRegistry
         mock_tool_registry.return_value.close = AsyncMock()
+
+        # Mock mem0_manager cleanup
+        mock_mem0.close = AsyncMock()
+
+        # Mock auth
+        mock_get_user_role.return_value = "user"
 
         # Input sequence: username -> message -> quit
         mock_input.side_effect = ["test_user", "hello", "quit"]
@@ -101,6 +109,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_print.assert_called_with("Username cannot be empty. Exiting.")
         mock_run_graph.assert_called()
 
+    @patch("console.get_user_role", new_callable=AsyncMock)
     @patch("console.input")
     @patch("console.print")
     @patch("console.get_checkpointer")
@@ -115,6 +124,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_get_cp,
         mock_print,
         mock_input,
+        mock_get_user_role,
     ):
         """Test that empty input is ignored and loop continues."""
         mock_cp_ctx = AsyncMock()
@@ -122,6 +132,8 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_get_cp.return_value = mock_cp_ctx
 
         mock_tool_registry.return_value.close = AsyncMock()
+
+        mock_get_user_role.return_value = "user"
 
         # username -> empty input -> quit
         mock_input.side_effect = ["user", "   ", "quit"]
@@ -132,6 +144,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_print.assert_called_with("Goodbye!")
         self.assertEqual(mock_input.call_count, 3)
 
+    @patch("console.get_user_role", new_callable=AsyncMock)
     @patch("console.input")
     @patch("console.print")
     @patch("logging.error")
@@ -150,6 +163,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_log_error,
         mock_print,
         mock_input,
+        mock_get_user_role,
     ):
         """Test exception handling within the main loop."""
         mock_cp_ctx = AsyncMock()
@@ -157,6 +171,8 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_get_cp.return_value = mock_cp_ctx
 
         mock_tool_registry.return_value.close = AsyncMock()
+
+        mock_get_user_role.return_value = "user"
 
         mock_input.side_effect = ["user", "trigger_error", "quit"]
 
@@ -169,6 +185,7 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_log_error.assert_called_with("An error occurred: %s", error)
         mock_print.assert_any_call("Goodbye!")
 
+    @patch("console.get_user_role", new_callable=AsyncMock)
     @patch("console.input")
     @patch("console.print")
     @patch("console.get_checkpointer")
@@ -187,12 +204,16 @@ class TestConsole(unittest.IsolatedAsyncioTestCase):
         mock_get_cp,
         mock_print,
         mock_input,
+        mock_get_user_role,
     ):
         """Test console startup with skip_initial_sync enabled."""
         mock_cp_ctx = AsyncMock()
         mock_cp_ctx.__aenter__.return_value = (MagicMock(), AsyncMock())
         mock_get_cp.return_value = mock_cp_ctx
         mock_tool_registry.return_value.close = AsyncMock()
+        mock_mem0.close = AsyncMock()
+
+        mock_get_user_role.return_value = "user"
 
         mock_input.side_effect = ["user", "quit"]
 
