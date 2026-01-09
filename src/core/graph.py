@@ -22,7 +22,13 @@ from core.auth import is_tool_authorized
 from core.llm import llm_factory
 from core.memory import get_mem0_client
 from core.state import State, SupervisorAgentOutput, AuditReport
-from prompts.system import EXTENSION_PROMPT, SUPERVISOR_PROMPT, PLATFORM_PROMPT, AUDITOR_PROMPT, SUMMARIZATION_PROMPT
+from prompts.system import (
+    EXTENSION_PROMPT,
+    SUPERVISOR_PROMPT,
+    PLATFORM_PROMPT,
+    AUDITOR_PROMPT,
+    SUMMARIZATION_PROMPT,
+)
 from services.guardrails.guardrails import guardrails
 from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
@@ -313,8 +319,9 @@ def auditor_node(state):
         ]
         if len(previous_rejections) >= 2:
             logger.info(
-                f"QA rejected {len(previous_rejections)} times (Last score {audit.score}) "
-                "Ending task."
+                "QA rejected %s times (Last score %s) Ending task.",
+                len(previous_rejections),
+                audit.score,
             )
             return {
                 "response_metadata": {"nodes": nodes}
@@ -326,7 +333,9 @@ def auditor_node(state):
             f"{first_failure.correction_instruction}"
         )
         logger.info(
-            f"QA Rejected with feedback (Score {audit.score}): {feedback}"
+            "QA Rejected with feedback (Score %s): %s",
+            audit.score,
+            feedback,
         )
         return {
             "messages": [HumanMessage(content=feedback)],
@@ -438,7 +447,7 @@ async def authorize_tools(request, handler) -> ToolMessage:
     tool_name = request.tool_call["name"]
     user_id = request.state.get("user_id")
 
-    if is_tool_authorized(tool_name, user_id):
+    if await is_tool_authorized(tool_name, user_id):
         start_time = time.perf_counter()
         response = await handler(request)
         duration = time.perf_counter() - start_time
@@ -464,6 +473,7 @@ def route_workflow(state: State) -> str:
     return next_worker
 
 def route_auditor(state):
+    """Routes based on auditor feedback."""
     last_msg = state["messages"][-1]
     if QA_REJECTION_PREFIX in last_msg.content:
         return "supervisor"
@@ -631,6 +641,7 @@ def sanitize_tool_calls(messages: list) -> list:
     return sanitized
 
 def detect_tool_loop(state, limit=3):
+    """Detects if the agent is stuck in a loop calling the same tools."""
     messages = state['messages']
 
     # Find the start of the current conversation turn
@@ -671,11 +682,13 @@ def detect_tool_loop(state, limit=3):
 async def summarize_conversation(state: State):
     messages = state["messages"]
     current_summary = state.get("summary", "")
-    
+
     # Use the supervisor's profile (or default) to count tokens via LangChain's native method.
     # The Supervisor is the bottleneck as it sees the full history for routing.
     # This handles ToolCall serialization correctly, avoiding "must contain a function key" errors.
-    token_count_profile = settings.agent.supervisor.llm_profile or settings.llm.default_profile
+    token_count_profile = (
+        settings.agent.supervisor.llm_profile or settings.llm.default_profile
+    )
     try:
         llm = llm_factory(token_count_profile, agent_name="memory")
         tokens = llm.get_num_tokens_from_messages(messages)
@@ -685,7 +698,7 @@ async def summarize_conversation(state: State):
 
     if tokens < settings.memory.summarization.token_threshold:
         return current_summary, []
-    
+
     messages_to_keep = settings.memory.summarization.keep_message
     older_messages = messages[:-messages_to_keep]
 
@@ -722,5 +735,5 @@ async def summarize_conversation(state: State):
             logger.error("Summarization failed: %s", e)
 
     delete_messages = [RemoveMessage(id=m.id) for m in older_messages]
-    
+
     return summary_text, delete_messages

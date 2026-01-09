@@ -17,24 +17,62 @@ class UserSettings(BaseModel):
     role: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    department: Optional[str] = None
+
+
+class OIDCSettings(BaseModel):
+    """Settings for generic OIDC integration."""
+    enabled: bool = False
+    access_token: Optional[str] = None
+    userinfo_endpoint: Optional[str] = None
+    role_attribute: str = "role"
+    cache_ttl_seconds: int = 300
+
+
+class Auth0Settings(BaseModel):
+    """Settings for Auth0 integration."""
+    enabled: bool = False
+    domain: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    role_attribute: str = "app_metadata.role"
+    role_source: str = "metadata"
+    cache_ttl_seconds: int = 300
 
 
 def _validate_config(data: dict) -> dict:
     """Validates and parses the RBAC configuration dictionary."""
     validated = {}
 
+    # Validate OIDC
+    oidc_enabled = False
+    if "oidc" in data:
+        if not isinstance(data["oidc"], dict):
+            raise ValueError("'oidc' must be a dictionary")
+        oidc_settings = OIDCSettings(**data["oidc"])
+        validated["oidc"] = oidc_settings
+        oidc_enabled = oidc_settings.enabled
+
+    # Validate Auth0
+    auth0_enabled = False
+    if "auth0" in data:
+        if not isinstance(data["auth0"], dict):
+            raise ValueError("'auth0' must be a dictionary")
+        auth0_settings = Auth0Settings(**data["auth0"])
+        validated["auth0"] = auth0_settings
+        auth0_enabled = auth0_settings.enabled
+
     # Validate users
     if "users" not in data:
-        raise ValueError("`users` not found in rbac.yaml")
-    
-    if not isinstance(data["users"], dict):
+        if not oidc_enabled and not auth0_enabled:
+            raise ValueError("`users` not found in rbac.yaml")
+        validated["users"] = {}
+    elif not isinstance(data["users"], dict):
         raise ValueError("'users' must be a dictionary")
-    
-    users = {}
-    for k, v in data["users"].items():
-        users[k] = UserSettings(**v)
-    validated["users"] = users
+    else:
+        users = {}
+        for k, v in data["users"].items():
+            users[k] = UserSettings(**v)
+        validated["users"] = users
 
     # Validate role_permissions
     if "role_permissions" not in data:
@@ -97,6 +135,8 @@ class RBACSettings(BaseSettings):
     users: Dict[str, UserSettings] = Field(default_factory=dict)
     role_permissions: Dict[str, list[str]] = Field(default_factory=dict)
     reload_interval_seconds: int = Field(default=60)
+    oidc: OIDCSettings = Field(default_factory=OIDCSettings)
+    auth0: Auth0Settings = Field(default_factory=Auth0Settings)
 
     _watcher_thread: Optional[threading.Thread] = PrivateAttr(default=None)
 
@@ -153,6 +193,10 @@ class RBACSettings(BaseSettings):
             # Apply changes
             self.users = validated["users"]
             self.role_permissions = validated["role_permissions"]
+            if "oidc" in validated:
+                self.oidc = validated["oidc"]
+            if "auth0" in validated:
+                self.auth0 = validated["auth0"]
             if "reload_interval_seconds" in validated:
                 self.reload_interval_seconds = validated["reload_interval_seconds"]
 
