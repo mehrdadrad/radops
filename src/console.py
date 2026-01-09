@@ -13,6 +13,7 @@ from core.checkpoint import get_checkpointer
 from core.graph import astream_graph_updates, run_graph
 from core.llm import close_shared_client
 from core.memory import mem0_manager
+from core.auth import get_user_role
 from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 
@@ -36,6 +37,10 @@ async def main(skip_initial_sync: bool = False):
             user_id = await ainput("Please enter your username: ")
             if not user_id:
                 print("Username cannot be empty. Exiting.")
+                return
+            role = await get_user_role(user_id)
+            if not role:
+                print("Unknown user or forbidden access. Exiting.")
                 return
 
             while True:

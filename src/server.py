@@ -82,7 +82,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     """
     await websocket.accept()
 
-    if not get_user_role(user_id):
+    if not await get_user_role(user_id):
         logging.warning("Connection rejected for unknown user: %s", user_id)
         await websocket.send_text("Error: Unknown user or forbidden access.")
         await websocket.close(code=1008)
