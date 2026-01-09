@@ -77,10 +77,10 @@ def _validate_config(data: dict) -> dict:
     # Validate role_permissions
     if "role_permissions" not in data:
         raise ValueError("`role_permissions` not found in rbac.yaml")
-    
+
     if not isinstance(data["role_permissions"], dict):
         raise ValueError("'role_permissions' must be a dictionary")
-    
+
     role_permissions = {}
     for role, perms in data["role_permissions"].items():
         if not isinstance(perms, list):
@@ -187,7 +187,7 @@ class RBACSettings(BaseSettings):
             if config_path is None:
                 config_path = get_config_path("rbac.yaml")
             new_data = load_yaml_config(config_path)
-            
+
             validated = _validate_config(new_data)
 
             # Apply changes
@@ -210,7 +210,10 @@ class RBACSettings(BaseSettings):
 try:
     rbac_settings = RBACSettings()
 except (ValidationError, ValueError) as e:
-    print("The application failed to start because of invalid configuration in 'rbac.yaml'.\n", file=sys.stderr)
+    print(
+        "The application failed to start because of invalid configuration in 'rbac.yaml'.\n",
+        file=sys.stderr
+    )
 
     if isinstance(e, ValidationError):
         for error in e.errors():

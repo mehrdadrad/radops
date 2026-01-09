@@ -101,7 +101,7 @@ class SupervisorSettings(BaseModel):
 class SystemSettings(BaseModel):
     """Settings for the system agent."""
 
-    llm_profile: Optional[str] = None    
+    llm_profile: Optional[str] = None
 
 
 class AuditorSettings(BaseModel):
@@ -126,7 +126,7 @@ class SummarizationSettings(BaseModel):
     """Settings for memory summarization."""
 
     keep_message: int = 50
-    token_threshold: int = 2000 
+    token_threshold: int = 2000
     llm_profile: Optional[str] = None
 
 
@@ -323,6 +323,9 @@ except ValidationError as e:
         message = error['msg']
         print(f"  • \033[1m{field_path}\033[0m: {message}", file=sys.stderr)
 
-    print("\nPlease verify your 'config.yaml' file matches the expected structure.", file=sys.stderr)
+    print(
+        "\nPlease verify your 'config.yaml' file matches the expected structure.",
+        file=sys.stderr
+    )
     print("For detailed instructions, please refer to 'docs/config_guide.md'.", file=sys.stderr)
     sys.exit(1)

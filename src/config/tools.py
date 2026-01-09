@@ -34,10 +34,12 @@ def yaml_config_settings_source(settings_cls: type[BaseSettings]) -> dict[str, A
     )
 
 class ToolFunctionConfig(BaseModel):
+    """Configuration for a specific tool function."""
     function: str
     enabled: bool = True
 
 class LocalToolConfig(BaseModel):
+    """Configuration for local tools loaded from a module."""
     module: str
     tools: list[ToolFunctionConfig] = Field(default_factory=list)
 
@@ -108,7 +110,7 @@ class ToolSettings(BaseSettings):
             lambda: yaml_config_settings_source(settings_cls),
             env_settings,
         )
-    
+
     # Local Tools
     local_tools: list[LocalToolConfig] = Field(default_factory=list)
 

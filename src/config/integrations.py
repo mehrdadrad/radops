@@ -78,13 +78,22 @@ class IntegrationSettings(BaseSettings):
 try:
     integration_settings = IntegrationSettings()
 except ValidationError as e:
-    print("The application failed to start because of invalid configuration in 'integrations.yaml'.\n", file=sys.stderr)
+    print(
+        "The application failed to start because of invalid configuration in 'integrations.yaml'.\n",
+        file=sys.stderr
+    )
 
     for error in e.errors():
         field_path = " -> ".join(str(x) for x in error['loc'])
         message = error['msg']
         print(f"  • \033[1m{field_path}\033[0m: {message}", file=sys.stderr)
 
-    print("\nPlease verify your 'integrations.yaml' file matches the expected structure.", file=sys.stderr)
-    print("For detailed instructions, please refer to 'docs/integrations_guide.md'.", file=sys.stderr)
+    print(
+        "\nPlease verify your 'integrations.yaml' file matches the expected structure.",
+        file=sys.stderr
+    )
+    print(
+        "For detailed instructions, please refer to 'docs/integrations_guide.md'.",
+        file=sys.stderr
+    )
     sys.exit(1)
