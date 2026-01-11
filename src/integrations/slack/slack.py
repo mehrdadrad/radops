@@ -49,7 +49,7 @@ class AsyncConnectionManager:
                 return None
 
     async def _start_timer(self, user_id):
-        await asyncio.sleep(60.0)
+        await asyncio.sleep(settings.slack.inactivity_timeout)
         await self.close_connection(user_id)
 
     async def close_connection(self, user_id):

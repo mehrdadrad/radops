@@ -40,6 +40,29 @@ Ensure your Slack App has the following scopes enabled under **OAuth & Permissio
     *   Click **Install to Workspace**.
     *   Copy the **Bot User OAuth Token**.
 
+
+
+### Slack Configuration
+
+You can configure Slack integration settings in `integrations.yaml`.
+
+| Parameter | Description | Default |
+| :--- | :--- | :--- |
+| `bot_token` | The Bot User OAuth Token (xoxb-...). | None |
+| `app_token` | The App-Level Token (xapp-...). | None |
+| `log_level` | Logging level for the Slack adapter. | INFO |
+| `inactivity_timeout` | Seconds to wait before closing an inactive WebSocket connection. | 300.0 |
+
+Example `integrations.yaml`:
+```yaml
+slack:
++  bot_token: "xoxb-..."
++  app_token: "xapp-..."
++  log_level: "DEBUG"
++  inactivity_timeout: 600
+```
+
+
 **Example `integrations.yaml`:**
 ```yaml
 slack:

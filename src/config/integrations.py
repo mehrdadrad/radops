@@ -39,6 +39,10 @@ class SlackSettings(BaseModel):
     bot_token: Optional[str] = None
     app_token: Optional[str] = None
     log_level: str = "INFO"
+    inactivity_timeout: float = Field(
+        default=300.0,
+        description="The duration in seconds to wait before closing an inactive connection."
+    )
 
 class GithubProfileSettings(BaseModel):
     """Settings for a single GitHub integration profile."""
