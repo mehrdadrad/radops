@@ -22,11 +22,21 @@ from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 from libs.status_generator import StatusGenerator
 
-USE_PLAIN_MESSAGE = os.getenv("PLAIN_MESSAGE", "false").lower() == "true" or "--plain-message" in sys.argv
-SKIP_INITIAL_SYNC = os.getenv("SKIP_INITIAL_SYNC", "false").lower() in ("true", "1", "t") or "--skip-initial-sync" in sys.argv
+USE_PLAIN_MESSAGE = (
+    os.getenv("PLAIN_MESSAGE", "false").lower() == "true"
+    or "--plain-message" in sys.argv
+)
+SKIP_INITIAL_SYNC = (
+    os.getenv("SKIP_INITIAL_SYNC", "false").lower() in ("true", "1", "t")
+    or "--skip-initial-sync" in sys.argv
+)
 
 # Suppress Weaviate ResourceWarning on shutdown
-warnings.filterwarnings("ignore", category=ResourceWarning, message=".*The connection to Weaviate was not closed properly.*")
+warnings.filterwarnings(
+    "ignore",
+    category=ResourceWarning,
+    message=".*The connection to Weaviate was not closed properly.*",
+)
 
 
 app = FastAPI(
@@ -48,7 +58,9 @@ async def lifespan(fastapi_app: FastAPI):
         async with get_checkpointer() as (cp, rc):
             try:
                 checkpointer, redis_client = cp, rc
-                tool_registry = ToolRegistry(checkpointer=checkpointer, skip_initial_sync=SKIP_INITIAL_SYNC)
+                tool_registry = ToolRegistry(
+                    checkpointer=checkpointer, skip_initial_sync=SKIP_INITIAL_SYNC
+                )
                 fastapi_app.state.graph = await run_graph(checkpointer, tool_registry=tool_registry)
                 fastapi_app.state.checkpointer = checkpointer
                 fastapi_app.state.redis_client = redis_client
@@ -87,7 +99,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         await websocket.send_text("Error: Unknown user or forbidden access.")
         await websocket.close(code=1008)
         return
-    
+
     graph = websocket.app.state.graph
     logging.info("WebSocket connection established for user_id: %s", user_id)
 
@@ -130,8 +142,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RadOps Chatbot Server")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8005, help="Port to bind to")
-    parser.add_argument("--skip-initial-sync", action="store_true", help="Skip the initial vector store synchronization.")
-    parser.add_argument("--plain-message", action="store_true", help="Use plain text messages for tool calls.")
+    parser.add_argument(
+        "--skip-initial-sync",
+        action="store_true",
+        help="Skip the initial vector store synchronization.",
+    )
+    parser.add_argument(
+        "--plain-message",
+        action="store_true",
+        help="Use plain text messages for tool calls.",
+    )
     args = parser.parse_args()
 
     uvicorn.run(
