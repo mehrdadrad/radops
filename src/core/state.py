@@ -18,16 +18,22 @@ members["system"] = "system"
 members["end"] = "end"
 WorkerEnum = Enum("WorkerEnum", members, type=str)
 
+class Requirement(BaseModel):
+    """Represents a single requirement with an assigned agent."""
+    instruction: str = Field(description="The specific requirement or step.")
+    assigned_agent: WorkerEnum = Field(description="The agent that MUST handle this step.")
 
 class State(TypedDict):
     """Represents the state of the agent execution graph."""
     messages: Annotated[list, add_messages]
     summary: str
     user_id: str
+    task_id: str
     end_status: Literal["end", "continue"]
     relevant_memories: str
     next_worker: str
     response_metadata: dict[str, Any]
+    detected_requirements: list[Requirement]
 
 
 class WorkerAgentOutput(BaseModel):
@@ -43,14 +49,8 @@ class WorkerAgentOutput(BaseModel):
         description="If failed, the reason why."
     )
 
-
-class SupervisorAgentOutput(BaseModel):
+class SupervisorAgentOutputBase(BaseModel):
     """Output model for the supervisor agent."""
-    detected_requirements: list[str] = Field(
-        description=(
-            "A list of specific requirements extracted from the user's request."
-        )
-    )
     completed_steps: list[str] = Field(
         description=(
             "A list of steps that have been successfully completed so far. "
@@ -61,19 +61,10 @@ class SupervisorAgentOutput(BaseModel):
     failed_steps: list[str] = Field(
         default_factory=list,
         description=(
-            "List of steps that were ATTEMPTED but FAILED (e.g., 'Tool not found', "
-            "'Permission denied', 'Timeouts'). Tracking this prevents infinite retries."
+            "List of steps that were ATTEMPTED but FAILED, or SKIPPED due to conditions. "
+            "Tracking this prevents infinite retries."
         )
     )
-    is_fully_completed: bool = Field(
-        description=(
-            "Set to True if EVERY item in 'detected_requirements' has been addressed, "
-            "either by being listed in 'completed_steps' (Success) "
-            "OR by being listed in 'failed_steps' (Failure/Give Up). "
-            "If we have tried and failed, the job is technically COMPLETED."
-        )
-    )
-    # The Logic: Hidden from user, used by Graph
     next_worker: WorkerEnum = Field(
         description=(
             "The single worker responsible for the very next action. "
@@ -84,17 +75,18 @@ class SupervisorAgentOutput(BaseModel):
     # The Content: Shown to user
     response_to_user: str = Field(
         description=(
-            "Communication to the user. Follow these strict rules:"
-            "1. **Planning Step:** explain how do you want to break up the task and what agent "
-            "will be responsible for each step. **DO NOT** repeat the data found by the previous "
-            "agent."
-            "2. **Intermediate Step:** If you are routing to a worker (Network/Cloud), provide a "
-            "BRIEF status update only (e.g., 'ASN info gathered, now checking Cloud'). **DO NOT** "
-            "repeat the data found by the previous agent."
-            "3. **Final Step:** If you are routing to 'end'/'finish', provide the complete, "
-            "detailed summary of ALL gathered information."
-            "4. **Final Step:** provide a verification based on the 'is_fully_completed' is false "
-            "or true at the end of the conversation."
+            "Communication to the user. You must act as a 'Live Reporter'. "
+            "Follow these strict rules for reporting data:"
+            
+            "1. **Report Immediately:** As soon as you receive data from a worker"
+            "you MUST include it in this response. Do not hold it back for a 'final summary'."
+            
+            "2. **Incremental Updates Only:** Focus on what *just* happened in the last step. "
+            "You do not need to repeat findings from 3 steps ago (unless relevant to the current context)."
+            
+            "3. **NO AGGREGATION:** Do NOT provide a final summary of all steps at the end. Only report the result of the *current* step. The user has already seen the previous steps."
+            
+            "4. **Briefness:** If the result is huge (e.g. long logs), summarize it. Do not hit the token limit."
         )
     )
     instructions_for_worker: str = Field(
@@ -113,19 +105,15 @@ class SupervisorAgentOutput(BaseModel):
     @model_validator(mode='after')
     def prevent_insanity_loop(self):
         """Prevents the supervisor from routing back to a failed worker."""
-        if self.next_worker != 'end':
+        next_worker_str = self.next_worker.value if hasattr(self.next_worker, "value") else str(self.next_worker)
+        if next_worker_str != 'end':
             for failure in self.failed_steps:
-                if self.next_worker.replace("_", " ") in failure.lower():
+                if next_worker_str.replace("_", " ").lower() in failure.lower():
                     raise ValueError(
-                        f"STOP: You are assigning '{self.next_worker}' to a task, "
+                        f"STOP: You are assigning '{next_worker_str}' to a task, "
                         f"but they already failed: '{failure}'. "
-                        "Do not retry. Mark 'is_fully_completed' = True (because we gave up) "
-                        "and route to 'end'."
+                        "Do not retry. Route to 'end'."
                     )
-        if self.next_worker == 'end':
-            total_attempted = len(self.completed_steps) + len(self.failed_steps)
-            if total_attempted < len(self.detected_requirements):
-                pass
 
         return self
 
@@ -138,6 +126,20 @@ class SupervisorAgentOutput(BaseModel):
             )
         return self
 
+class SupervisorAgentPlanOutput(SupervisorAgentOutputBase):
+    """Output model for the supervisor agent (first round)."""
+    detected_requirements: list[Requirement] = Field(
+        description=(
+            "The COMPLETE list of requirements extracted from the user's ORIGINAL request. "
+            "CRITICAL: If the user provides a numbered list (e.g. '1- do X, 2- do Y'), you MUST generate a separate Requirement for EACH item. "
+            "You MUST include ALL steps (both completed and pending) in this list. "
+            "Do NOT remove steps that have been finished."
+        )
+    )
+   
+class SupervisorAgentOutput(SupervisorAgentOutputBase):
+    """Output model for the supervisor agent (non-first round)."""
+    pass
 
 class VerificationResult(BaseModel):
     """Result of a single verification step by the auditor."""

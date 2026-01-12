@@ -80,9 +80,8 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             response_to_user="Response for user",
             detected_requirements=["Requirement 1", "Requirement 2"],
             completed_steps=["Step 1", "Step 2"],
-            is_fully_completed=True,
+            failed_steps=[],
             instructions_for_worker="Instructions for worker",
-            original_request="Original user request",
         )
         mock_structured_llm.invoke.return_value = mock_output
 

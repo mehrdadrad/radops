@@ -2,6 +2,7 @@
 import logging
 import re
 import time
+import uuid
 from functools import partial
 from typing import Any, AsyncGenerator, Literal, Sequence
 
@@ -21,7 +22,7 @@ from config.config import settings
 from core.auth import is_tool_authorized
 from core.llm import llm_factory
 from core.memory import get_mem0_client
-from core.state import State, SupervisorAgentOutput, AuditReport
+from core.state import State, SupervisorAgentOutput, SupervisorAgentPlanOutput, AuditReport
 from prompts.system import (
     EXTENSION_PROMPT,
     SUPERVISOR_PROMPT,
@@ -177,7 +178,12 @@ def supervisor_node(state: State) -> dict:
         settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
     )
     llm = llm_factory(llm_profile, agent_name=node_name)
-    llm_structured = llm.with_structured_output(SupervisorAgentOutput)
+    # Initial Plan: If no worker is assigned (start of task), generate the plan.
+    if state.get("next_worker", "") == "":
+        llm_structured = llm.with_structured_output(SupervisorAgentPlanOutput)
+    # Execution Loop: If a worker is assigned (or returning), continue execution.
+    else:
+        llm_structured = llm.with_structured_output(SupervisorAgentOutput)
 
     # Sanitize messages to remove orphaned ToolMessages caused by truncation
     conversation_messages = state["messages"]
@@ -186,46 +192,100 @@ def supervisor_node(state: State) -> dict:
 
     conversation_messages = sanitize_tool_calls(conversation_messages)
 
-    messages = [SystemMessage(content=SUPERVISOR_PROMPT)] + conversation_messages
+    system_prompt = SUPERVISOR_PROMPT
+    system_prompt += f"\n\nTask ID: {state.get('task_id', 'N/A')}"
+    existing_requirements = state.get("detected_requirements", [])
+    if existing_requirements:
+        req_strings = []
+        for i, req in enumerate(existing_requirements):
+            if isinstance(req, dict):
+                instruction = req.get("instruction")
+                agent = req.get("assigned_agent")
+            else:
+                instruction = req.instruction
+                agent = req.assigned_agent.value
+            req_strings.append(f"{i+1}. {instruction} (Agent: {agent})")
+        req_list = "\n".join(req_strings)
+        system_prompt += (
+            f"\n\n### ESTABLISHED PLAN\n{req_list}\n"
+            "**INSTRUCTION**: The plan is LOCKED. You MUST follow these steps exactly in order.\n"
+            "1. Identify the next step from the list above that has NOT been completed yet.\n"
+            "2. Assign that step to the specified Agent.\n"
+            "3. Do NOT change the plan or add new steps.\n"
+        )
+
+    messages = [SystemMessage(content=system_prompt)] + conversation_messages
 
     start_time = time.perf_counter()
-    decision = llm_structured.invoke(messages)
+    try:
+        decision = llm_structured.invoke(messages)
+    except Exception as e:
+        logger.error("LLM error: %s", e)
+        decision.next_worker = "end"
+        decision.response_to_user = "The supervisor got an error"
+  
     duration = time.perf_counter() - start_time
     telemetry.update_histogram(
         "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
     )
 
+    # Check if supervisor wants to end but state shows pending steps
+    existing_requirements = state.get("detected_requirements", [])
+    if existing_requirements and decision.next_worker == "end":
+        progress_count = len(decision.completed_steps) + len(decision.failed_steps)
+        if progress_count < len(existing_requirements):
+            next_req_data = existing_requirements[progress_count]
+            decision.next_worker = next_req_data.assigned_agent
+            decision.instructions_for_worker = f"Proceed with the next step: {next_req_data.instruction}"
+            decision.response_to_user += (
+                f"\n\n**Plan Enforcement:** Proceeding to next step: {next_req_data.instruction}"
+            )
+            logger.info(
+                "enforcing plan: next worker: %s, instruction: %s", 
+                next_req_data.assigned_agent.value, 
+                next_req_data.instruction[:20] + "..." if len(next_req_data.instruction) > 20 else next_req_data.instruction,
+            )
+
     nodes = state["response_metadata"].get("nodes", []) + [node_name]
     ai_message = AIMessage(
         content=decision.response_to_user
     )
+    if hasattr(decision, "detected_requirements"):
+        logger.info("requirements: %s", decision.detected_requirements)
+    logger.info("completed steps: %s", decision.completed_steps)
+    logger.info("failed steps: %s", decision.failed_steps)
+
+    # Determine if we should update detected_requirements in the state.
+    should_update_requirements = False
+    if state.get("next_worker", "") == "":
+        should_update_requirements = True
+    
+    output = {
+        "response_metadata": {"nodes": nodes},
+        "detected_requirements": state.get("detected_requirements", []),
+    }
+    if should_update_requirements:
+        output["detected_requirements"] = decision.detected_requirements
 
     if decision.next_worker == "end":
-        logger.info("requirements: %s", decision.detected_requirements)
-        logger.info("completed steps: %s", decision.completed_steps)
-        logger.info("failed steps: %s", decision.failed_steps)
-        logger.info("is_fully_completed: %s", decision.is_fully_completed)
-        return {
-            "next_worker": "end",
-            "messages": [ai_message],
-            "response_metadata": {"nodes": nodes},
-        }
+        output["next_worker"] = "end"
+        output["messages"] = [ai_message]
+        return output
 
     context_message = HumanMessage(
         content=(
             "COMMAND FROM SUPERVISOR: "
-            f"{decision.instructions_for_worker}, "
+            f"{decision.instructions_for_worker}\n"
+            "**CONSTRAINT**: Focus ONLY on this instruction. Do NOT attempt to solve other parts of the user's request found in the chat history.\n"
             "When finished or if you cannot proceed, use the 'system__submit_work' tool "
             "to report the result."
         ),
         name="supervisor"
     )
 
-    return {
-        "next_worker": decision.next_worker.value,
-        "response_metadata": {"nodes": nodes},
-        "messages": [context_message, ai_message],
-    }
+    output["next_worker"] = decision.next_worker.value
+    output["messages"] = [context_message, ai_message]
+    return output
 
 def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
     """The system node that manages the infrastructure of the bot itself."""
@@ -428,8 +488,10 @@ async def astream_graph_updates(
     initial_input = {
         "messages": [{"role": "user", "content": user_input}],
         "user_id": user_id,
+        "task_id": str(uuid.uuid4()),
         "relevant_memories": "",  # Start with no memories, they will be fetched
         "next_worker": "",
+        "detected_requirements": [],
         "response_metadata": {},
     }
     async for event in graph.astream(
