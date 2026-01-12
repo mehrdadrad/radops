@@ -208,10 +208,16 @@ memory:
 ### Summarization
 Configures how the agent manages context window limits by summarizing older parts of the conversation.
 
+The summarization process is triggered if **either** of the following thresholds is exceeded:
+1.  **Token Count**: The total tokens in the conversation history exceed `token_threshold`.
+2.  **Message Count**: The total number of messages exceeds `keep_message`.
+
+When triggered, the system retains the most recent `keep_message` messages in their raw format and summarizes all older messages into a single text block. This summary is then injected into the system prompt for future turns.
+
 | Parameter | Description |
 | :--- | :--- |
-| `keep_message` | The number of most recent messages to keep in their raw format. Older messages are summarized or pruned. |
-| `token_threshold` | The token count threshold that triggers the summarization process. |
+| `keep_message` | The number of most recent messages to retain. If set to `0`, all messages are summarized. |
+| `token_threshold` | The token count threshold that triggers the summarization check. |
 | `llm_profile` | The LLM profile used to generate the summary. If left empty, old messages are pruned without summarization. |
 
 ```yaml

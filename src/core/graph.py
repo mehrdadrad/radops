@@ -757,12 +757,16 @@ async def summarize_conversation(state: State):
     except Exception as e:
         logger.warning("Failed to count tokens with profile '%s': %s", token_count_profile, e)
         return current_summary, []
-
-    if tokens < settings.memory.summarization.token_threshold:
+    
+    token_threshold = settings.memory.summarization.token_threshold
+    messages_to_keep = settings.memory.summarization.keep_message
+    if tokens < token_threshold and len(messages) < messages_to_keep:
         return current_summary, []
 
-    messages_to_keep = settings.memory.summarization.keep_message
-    older_messages = messages[:-messages_to_keep]
+    if messages_to_keep > 0:
+        older_messages = messages[:-messages_to_keep]
+    else:
+        older_messages = messages[:]
 
     if not older_messages:
         return current_summary, []
@@ -789,7 +793,8 @@ async def summarize_conversation(state: State):
     if summary_profile in settings.llm.profiles:
         try:
             llm = llm_factory(summary_profile, agent_name="memory")
-            summary_response = await llm.ainvoke(
+            restricted_llm = llm.bind(max_tokens=int(token_threshold * 0.80))
+            summary_response = await restricted_llm.ainvoke(
                 SUMMARIZATION_PROMPT.format(conversation_history=history_text)
             )
             summary_text = summary_response.content
@@ -797,5 +802,14 @@ async def summarize_conversation(state: State):
             logger.error("Summarization failed: %s", e)
 
     delete_messages = [RemoveMessage(id=m.id) for m in older_messages]
+    logger.info(
+        "Thresholds triggered: token %d (threshold: %d), messages %d (keep: %d). "
+        "Summarized %d messages.",
+        tokens,
+        token_threshold,
+        len(messages),
+        messages_to_keep,
+        len(delete_messages),
+    )
 
     return summary_text, delete_messages
