@@ -258,6 +258,7 @@ dependencies = [
     "langchain-aws>=1.1.1",
     "langchain-groq>=1.1.1",
     "langchain-mistralai>=1.1.1",
+    "notion-client>=2.7.0",
 ]
 
 [project.optional-dependencies]

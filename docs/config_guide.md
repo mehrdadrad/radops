@@ -164,6 +164,7 @@ Defined under `vector_store.profiles`, these settings control which data sources
 *   **File System** (`fs`): Local directories.
 *   **Google Drive** (`gdrive`): Remote Google Drive folders.
 *   **GitHub** (`github`): GitHub repositories (code or docs).
+*   **Notion** (`notion`): Notion Pages or Databases.
 
 | Parameter | Description |
 | :--- | :--- |
@@ -185,6 +186,13 @@ vector_store:
       loader_config:
         branch: "main"
         file_extensions: [".md", ".py", ".yaml"]
+
+    - name: "company-wiki"
+      type: "notion"
+      path: "DATABASE_ID_HERE"
+      collection: "wiki"
+      loader_config:
+        api_token: "vault:system#notion_token"
 ```
 
 > **Note:** For detailed setup instructions (e.g., Google Drive credentials), refer to the **Integrations Guide**.

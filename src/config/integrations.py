@@ -49,6 +49,10 @@ class GithubProfileSettings(BaseModel):
     token: str = None
     base_url: Optional[str] = None
 
+class NotionProfileSettings(BaseModel):
+    """Settings for a single Notion integration profile."""
+    token: str = None
+
 class IntegrationSettings(BaseSettings):
     """
     Centralized integrations settings.
@@ -76,6 +80,8 @@ class IntegrationSettings(BaseSettings):
     slack: SlackSettings = Field(default_factory=SlackSettings)
     # Github
     github: Dict[str, GithubProfileSettings] = Field(default_factory=dict)
+    # Notion
+    notion: Dict[str, NotionProfileSettings] = Field(default_factory=dict)
 
 
 # Instantiate the settings
