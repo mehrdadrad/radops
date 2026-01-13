@@ -167,6 +167,37 @@ def create_agent(
     return agent
 
 
+def update_step_status(decision, steps_status):
+    """Updates the status of the current step based on the supervisor's decision."""
+    if decision.current_step_status != "pending" and decision.current_step_id != 0:
+        idx = decision.current_step_id - 1
+        if idx < len(steps_status):
+            steps_status[idx] = decision.current_step_status
+        else:
+            steps_status.insert(idx, decision.current_step_status)
+
+
+def enforce_plan(decision, existing_requirements, steps_status):
+    """Enforces the plan if the supervisor tries to end early."""
+    if existing_requirements and decision.next_worker == "end":
+        if len(steps_status) < len(existing_requirements):
+            next_req_data = existing_requirements[len(steps_status)]
+            decision.next_worker = next_req_data.assigned_agent
+            decision.instructions_for_worker = f"Proceed with the next step: {next_req_data.instruction}"
+            decision.response_to_user += (
+                f"\n\n**Plan Enforcement:** Proceeding to next step: {next_req_data.instruction}"
+            )
+            instruction = next_req_data.instruction
+            short_instruction = (
+                instruction[:20] + "..." if len(instruction) > 20 else instruction
+            )
+            logger.info(
+                "enforcing plan: next worker: %s, instruction: %s",
+                next_req_data.assigned_agent.value,
+                short_instruction,
+            )
+
+
 def supervisor_node(state: State) -> dict:
     """The supervisor node that routes to the correct worker or ends."""
     node_name = "supervisor"
@@ -192,6 +223,8 @@ def supervisor_node(state: State) -> dict:
 
     conversation_messages = sanitize_tool_calls(conversation_messages)
 
+    steps_status = state.get("steps_status", [])
+
     system_prompt = SUPERVISOR_PROMPT
     system_prompt += f"\n\nTask ID: {state.get('task_id', 'N/A')}"
     existing_requirements = state.get("detected_requirements", [])
@@ -204,7 +237,7 @@ def supervisor_node(state: State) -> dict:
             else:
                 instruction = req.instruction
                 agent = req.assigned_agent.value
-            req_strings.append(f"{i+1}. {instruction} (Agent: {agent})")
+            req_strings.append(f"{i+1}. ID:{req.id} {instruction} (Agent: {agent}), status: {steps_status[i] if i < len(steps_status) else 'pending'}")
         req_list = "\n".join(req_strings)
         system_prompt += (
             f"\n\n### ESTABLISHED PLAN\n{req_list}\n"
@@ -212,6 +245,7 @@ def supervisor_node(state: State) -> dict:
             "1. Identify the next step from the list above that has NOT been completed yet.\n"
             "2. Assign that step to the specified Agent.\n"
             "3. Do NOT change the plan or add new steps.\n"
+            "4. **State Updates:** You MUST update `current_step_status` based on the results of the previous step.\n"
         )
 
     messages = [SystemMessage(content=system_prompt)] + conversation_messages
@@ -221,30 +255,34 @@ def supervisor_node(state: State) -> dict:
         decision = llm_structured.invoke(messages)
     except Exception as e:
         logger.error("LLM error: %s", e)
-        decision.next_worker = "end"
-        decision.response_to_user = "The supervisor got an error"
+        # Fallback to prevent UnboundLocalError
+        fallback_args = {
+            "next_worker": "end",
+            "response_to_user": f"The supervisor encountered an error: {str(e)}",
+            "instructions_for_worker": "",
+            "current_step_id": 0,
+            "current_step_status": "failed"
+        }
+        
+        if state.get("next_worker", "") == "":
+            decision = SupervisorAgentPlanOutput(
+                detected_requirements=[],
+                **fallback_args
+            )
+        else:
+            decision = SupervisorAgentOutput(**fallback_args)
   
     duration = time.perf_counter() - start_time
     telemetry.update_histogram(
         "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
     )
 
-    # Check if supervisor wants to end but state shows pending steps
+    
     existing_requirements = state.get("detected_requirements", [])
-    if existing_requirements and decision.next_worker == "end":
-        progress_count = len(decision.completed_steps) + len(decision.failed_steps)
-        if progress_count < len(existing_requirements):
-            next_req_data = existing_requirements[progress_count]
-            decision.next_worker = next_req_data.assigned_agent
-            decision.instructions_for_worker = f"Proceed with the next step: {next_req_data.instruction}"
-            decision.response_to_user += (
-                f"\n\n**Plan Enforcement:** Proceeding to next step: {next_req_data.instruction}"
-            )
-            logger.info(
-                "enforcing plan: next worker: %s, instruction: %s", 
-                next_req_data.assigned_agent.value, 
-                next_req_data.instruction[:20] + "..." if len(next_req_data.instruction) > 20 else next_req_data.instruction,
-            )
+    update_step_status(decision, steps_status)
+            
+    # Check if supervisor wants to end but state shows pending steps
+    enforce_plan(decision, existing_requirements, steps_status)
 
     nodes = state["response_metadata"].get("nodes", []) + [node_name]
     ai_message = AIMessage(
@@ -252,8 +290,9 @@ def supervisor_node(state: State) -> dict:
     )
     if hasattr(decision, "detected_requirements"):
         logger.info("requirements: %s", decision.detected_requirements)
-    logger.info("completed steps: %s", decision.completed_steps)
-    logger.info("failed steps: %s", decision.failed_steps)
+    logger.info("current id: %d", decision.current_step_id)
+    logger.info("current step status: %s", decision.current_step_status)
+    logger.info("steps status: %s", steps_status)
 
     # Determine if we should update detected_requirements in the state.
     should_update_requirements = False
@@ -263,6 +302,7 @@ def supervisor_node(state: State) -> dict:
     output = {
         "response_metadata": {"nodes": nodes},
         "detected_requirements": state.get("detected_requirements", []),
+        "steps_status": steps_status
     }
     if should_update_requirements:
         output["detected_requirements"] = decision.detected_requirements
@@ -339,7 +379,13 @@ def auditor_node(state):
         and i > last_request_index
         and m.name != "system__submit_work"
     ]
-    supervisor_response = messages[-1].content if isinstance(messages[-1], AIMessage) else ""
+    supervisor_messages = [
+        str(m.content) for i, m in enumerate(messages)
+        if isinstance(m, AIMessage)
+        and i > last_request_index
+        and m.content
+    ]
+    supervisor_log = "\n---\n".join(supervisor_messages)
     relevant_memories = state.get("relevant_memories", "")
 
     llm = llm_factory(llm_profile, agent_name=agent_name)
@@ -349,7 +395,7 @@ def auditor_node(state):
         HumanMessage(content=f"User Request: {original_request}"),
         HumanMessage(content=f"Memory Evidence (Past Knowledge): {relevant_memories}"),
         HumanMessage(content=f"Tool Evidence: {tool_outputs}"),
-        HumanMessage(content=f"Supervisor Conclusion: {supervisor_response}")
+        HumanMessage(content=f"Supervisor Log: {supervisor_log}")
     ])
 
     nodes = state["response_metadata"].get("nodes", []) + [agent_name]
@@ -492,6 +538,7 @@ async def astream_graph_updates(
         "relevant_memories": "",  # Start with no memories, they will be fetched
         "next_worker": "",
         "detected_requirements": [],
+        "steps_status": [],
         "response_metadata": {},
     }
     async for event in graph.astream(

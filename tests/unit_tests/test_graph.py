@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from core.state import SupervisorAgentOutput
+from core.state import SupervisorAgentPlanOutput
 from core.graph import (
     create_agent,
     authorize_tools,
@@ -75,13 +75,13 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         # Mock the structured output (SupervisorAgentOutput)
         mock_output = MagicMock(
-            spec=SupervisorAgentOutput,
+            spec=SupervisorAgentPlanOutput,
             next_worker=MagicMock(value="network_agent"),
             response_to_user="Response for user",
             detected_requirements=["Requirement 1", "Requirement 2"],
-            completed_steps=["Step 1", "Step 2"],
-            failed_steps=[],
             instructions_for_worker="Instructions for worker",
+            current_step_id=1,
+            current_step_status="pending",
         )
         mock_structured_llm.invoke.return_value = mock_output
 

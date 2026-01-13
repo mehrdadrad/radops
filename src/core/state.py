@@ -20,6 +20,7 @@ WorkerEnum = Enum("WorkerEnum", members, type=str)
 
 class Requirement(BaseModel):
     """Represents a single requirement with an assigned agent."""
+    id: int = Field(description="The unique identifier for this step, starting at 1.")
     instruction: str = Field(description="The specific requirement or step.")
     assigned_agent: WorkerEnum = Field(description="The agent that MUST handle this step.")
 
@@ -34,6 +35,7 @@ class State(TypedDict):
     next_worker: str
     response_metadata: dict[str, Any]
     detected_requirements: list[Requirement]
+    steps_status: list[Literal["pending", "completed", "failed", "skipped"]]
 
 
 class WorkerAgentOutput(BaseModel):
@@ -51,18 +53,14 @@ class WorkerAgentOutput(BaseModel):
 
 class SupervisorAgentOutputBase(BaseModel):
     """Output model for the supervisor agent."""
-    completed_steps: list[str] = Field(
+    current_step_id: int = Field(
         description=(
-            "A list of steps that have been successfully completed so far. "
-            "Include steps where the tool ran successfully but returned no "
-            "results (e.g., 'not found')."
+            "The ID of the current step"
         )
     )
-    failed_steps: list[str] = Field(
-        default_factory=list,
+    current_step_status: Literal["pending", "completed", "failed"] = Field(
         description=(
-            "List of steps that were ATTEMPTED but FAILED, or SKIPPED due to conditions. "
-            "Tracking this prevents infinite retries."
+            "The status of the current step. "
         )
     )
     next_worker: WorkerEnum = Field(
@@ -80,13 +78,11 @@ class SupervisorAgentOutputBase(BaseModel):
             
             "1. **Report Immediately:** As soon as you receive data from a worker"
             "you MUST include it in this response. Do not hold it back for a 'final summary'."
-            
             "2. **Incremental Updates Only:** Focus on what *just* happened in the last step. "
             "You do not need to repeat findings from 3 steps ago (unless relevant to the current context)."
-            
             "3. **NO AGGREGATION:** Do NOT provide a final summary of all steps at the end. Only report the result of the *current* step. The user has already seen the previous steps."
-            
             "4. **Briefness:** If the result is huge (e.g. long logs), summarize it. Do not hit the token limit."
+            "5. **Errors:** If a tool failed, timed out, or is partially available, you MUST report the specific error message in detail."
         )
     )
     instructions_for_worker: str = Field(
@@ -101,21 +97,6 @@ class SupervisorAgentOutputBase(BaseModel):
             "provide instructions."
         )
     )
-
-    @model_validator(mode='after')
-    def prevent_insanity_loop(self):
-        """Prevents the supervisor from routing back to a failed worker."""
-        next_worker_str = self.next_worker.value if hasattr(self.next_worker, "value") else str(self.next_worker)
-        if next_worker_str != 'end':
-            for failure in self.failed_steps:
-                if next_worker_str.replace("_", " ").lower() in failure.lower():
-                    raise ValueError(
-                        f"STOP: You are assigning '{next_worker_str}' to a task, "
-                        f"but they already failed: '{failure}'. "
-                        "Do not retry. Route to 'end'."
-                    )
-
-        return self
 
     @model_validator(mode='after')
     def validate_worker_instructions(self):
