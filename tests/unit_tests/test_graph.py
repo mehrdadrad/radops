@@ -82,6 +82,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             instructions_for_worker="Instructions for worker",
             current_step_id=1,
             current_step_status="pending",
+            skipped_step_ids=[],
         )
         mock_structured_llm.invoke.return_value = mock_output
 
