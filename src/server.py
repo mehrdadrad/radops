@@ -131,7 +131,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         )
     except Exception as e:
         logging.error(
-            "An error occurred for user_id %s: %s", user_id, e, exc_info=True
+            "An error occurred for user_id %s: %s", user_id, e,
         )
         await websocket.close(code=1011, reason="Internal Server Error")
 
