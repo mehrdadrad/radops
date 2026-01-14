@@ -12,8 +12,9 @@ It serves as the central configuration hub, defining the infrastructure connecti
 4. [Sync Locations (RAG Data Sources)](#sync-locations-rag-data-sources)
 5. [Memory & Persistence](#memory--persistence)
 6. [Vector Store Providers](#vector-store-providers)
-7. [Vault (Secret Management)](#vault-secret-management)
-8. [Observability](#observability)
+7. [Graph Execution](#graph-execution)
+8. [Vault (Secret Management)](#vault-secret-management)
+9. [Observability](#observability)
 
 ## Logging
 
@@ -273,6 +274,21 @@ vector_store:
     pinecone:
       api_key: "vault:vector#pinecone_key"
       index_name: "radops-index"
+```
+
+## Graph Execution
+
+Controls the execution parameters of the workflow.
+
+| Parameter | Description |
+| :--- | :--- |
+| `recursion_limit` | Maximum number of steps the graph can take before stopping (prevents infinite loops). |
+| `max_concurrency` | Maximum number of parallel tasks the graph can execute. |
+
+```yaml
+graph:
+  recursion_limit: 30
+  max_concurrency: 10
 ```
 
 ## Vault (Secret Management)
