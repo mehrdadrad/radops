@@ -176,6 +176,13 @@ def update_step_status(decision, steps_status):
         else:
             steps_status.insert(idx, decision.current_step_status)
 
+    if decision.skipped_step_ids:
+        for step_id in decision.skipped_step_ids:
+            if step_id != 0:
+                if step_id <= len(steps_status):
+                    steps_status[step_id - 1] = "skipped"
+                else:
+                    steps_status.insert(step_id - 1, "skipped")
 
 def enforce_plan(decision, existing_requirements, steps_status):
     """Enforces the plan if the supervisor tries to end early."""
@@ -293,6 +300,7 @@ def supervisor_node(state: State) -> dict:
     logger.info("current id: %d", decision.current_step_id)
     logger.info("current step status: %s", decision.current_step_status)
     logger.info("steps status: %s", steps_status)
+    logger.info("future skipped steps: %s", decision.skipped_step_ids)
 
     # Determine if we should update detected_requirements in the state.
     should_update_requirements = False
@@ -458,6 +466,10 @@ def auditor_node(state):
     }
 
 
+def delete_tool_messages(messages: list) -> list:
+    """Deletes tool messages from the conversation history."""
+    return [RemoveMessage(id=m.id) for m in messages if isinstance(m, ToolMessage)]
+
 async def manage_memory_node(state: State) -> dict:
     """Manages short-term and long-term memory for the conversation."""
     logger.info("Mem0: Managing memory...")
@@ -518,6 +530,11 @@ async def manage_memory_node(state: State) -> dict:
 
     # Summarization if needed
     summarized_result, messages = await summarize_conversation(state)
+    # delete tools message
+    deleted_tool_messages = delete_tool_messages(state["messages"])
+    if len(deleted_tool_messages) > 0:
+        logger.info("Deleting %d tool messages.", len(deleted_tool_messages))
+        messages.extend(deleted_tool_messages)
 
     return {"relevant_memories": context, "summary": summarized_result, "messages": messages}
 
@@ -825,9 +842,10 @@ async def summarize_conversation(state: State):
         history_text += f"**Previous Summary:**\n{current_summary}\n\n"
 
     for m in older_messages:
+        # skip tool messages as already we have supervisor messages
+        if isinstance(m, ToolMessage):
+            continue
         if isinstance(m, HumanMessage):
-            if getattr(m, "name", None) == "supervisor":
-                continue
             if str(m.content).startswith(QA_REJECTION_PREFIX):
                 continue
             history_text += f"User: {m.content}\n"
@@ -836,13 +854,14 @@ async def summarize_conversation(state: State):
 
     summary_text = current_summary
     summary_profile = settings.memory.summarization.llm_profile
+    max_summary_token = int(token_threshold * 0.70)
 
     if summary_profile in settings.llm.profiles:
         try:
             llm = llm_factory(summary_profile, agent_name="memory")
-            restricted_llm = llm.bind(max_tokens=int(token_threshold * 0.80))
+            restricted_llm = llm.bind(max_tokens=max_summary_token)
             summary_response = await restricted_llm.ainvoke(
-                SUMMARIZATION_PROMPT.format(conversation_history=history_text)
+                SUMMARIZATION_PROMPT.format(conversation_history=history_text, max_summary_tokens=max_summary_token)
             )
             summary_text = summary_response.content
         except Exception as e:

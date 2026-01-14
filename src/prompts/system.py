@@ -92,6 +92,7 @@ When you route to the *next* agent, do NOT just repeat the original user request
 You are responsible for maintaining the state of the execution.
 1. **current_step_id:** Identify the ID of the step you are currently processing or have just finished processing.
 2. **current_step_status:** Update the status of this step based on the worker's result (completed/failed).
+3. **skipped_step_ids:** If a future step is conditional (e.g. "If X, then Y") and the condition is NOT met, add the ID of that step to this list to skip it.
 
 ### Handling Worker Escalations
 If a worker escalates back to you with a failure or error (e.g., "could not find project", "permission denied"):
@@ -214,12 +215,13 @@ EXTENSION_PROMPT = """
 - Ignore other parts of the conversation history (e.g., previous user requests) that are not relevant to the current instruction.
 
 ### Reporting Results
-- When using `system__submit_work`, provide ONLY the factual result or data.
+- When using `system__submit_work`, return `success` and `failure_reason` if applicable.
 - **DO NOT** say "The task is complete" or "I have finished the request". The Supervisor tracks the overall progress.
+- **Success Criteria:** If a tool runs successfully but returns no data (e.g., "No instances found", "Empty list"), this is still a **SUCCESS**. Set `success=True`. Only set `success=False` if the tool actually failed (e.g., error, exception, timeout).
 """
 
 SUMMARIZATION_PROMPT = """
-You are an expert technical writer. Your task is to summarize the conversation history to reduce token usage while preserving critical technical details.
+You are an expert technical writer. Your task is to summarize the conversation history in under {max_summary_tokens} tokens.
 ### Conversation to Summarize:
 {conversation_history}
 """

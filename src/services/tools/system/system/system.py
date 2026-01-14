@@ -7,11 +7,11 @@ logger = logging.getLogger(__name__)
 
 
 @tool(args_schema=WorkerAgentOutput)
-def system__submit_work(success: bool, result: str, failure_reason: str | None = None):
-    """Submit the final result of your work to the supervisor."""
+def system__submit_work(success: bool, failure_reason: str | None = None):
+    """Submit the final status of the work to the supervisor."""
     if success:
-        return f"Task Completed Successfully. Result: {result}"
-    return f"Task Failed. Reason: {failure_reason}. Result: {result}"
+        return "Task Completed Successfully."
+    return f"Task Failed. Reason: {failure_reason}."
 
 def create_mcp_server_health_tool(mcp_clients: List[Any]):
     """

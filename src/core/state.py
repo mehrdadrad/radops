@@ -41,10 +41,7 @@ class State(TypedDict):
 class WorkerAgentOutput(BaseModel):
     """Output model for worker agents."""
     success: bool = Field(
-        description="True if the task was completed successfully, False otherwise."
-    )
-    result: str = Field(
-        description="The result of the work or the error message."
+        description="True if the tool executed correctly (even if no data was found). False ONLY if a technical error occurred."
     )
     failure_reason: str | None = Field(
         default=None,
@@ -58,15 +55,19 @@ class SupervisorAgentOutputBase(BaseModel):
             "The ID of the current step"
         )
     )
-    current_step_status: Literal["pending", "completed", "failed"] = Field(
+    current_step_status: Literal["pending", "completed", "failed", "skipped"] = Field(
         description=(
             "The status of the current step. "
         )
     )
+    skipped_step_ids: list[int] = Field(
+        default=[],
+        description="List of FUTURE step IDs to mark as skipped immediately."
+    )
     next_worker: WorkerEnum = Field(
         description=(
             "The single worker responsible for the very next action. "
-            "Select ONLY ONE. Select 'end' if you have gathered enough "
+            "Only select 'end' if there is no more pending steps. "
             "information to fully answer the user's question."
         )
     )
@@ -82,7 +83,7 @@ class SupervisorAgentOutputBase(BaseModel):
             "You do not need to repeat findings from 3 steps ago (unless relevant to the current context)."
             "3. **NO AGGREGATION:** Do NOT provide a final summary of all steps at the end. Only report the result of the *current* step. The user has already seen the previous steps."
             "4. **Briefness:** If the result is huge (e.g. long logs), summarize it. Do not hit the token limit."
-            "5. **Errors:** If a tool failed, timed out, or is partially available, you MUST report the specific error message in detail."
+            "5. **Errors:** If a tool failed, timed out, or is partially available, you MUST report the specific error message."
         )
     )
     instructions_for_worker: str = Field(
