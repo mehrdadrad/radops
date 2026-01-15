@@ -55,9 +55,20 @@ Defines the AI models used by the system. You can define multiple profiles and s
 | `provider` | The model provider (`openai`, `anthropic`, `ollama`, `deepseek`). |
 | `model` | The specific model identifier (e.g., `gpt-4o`). |
 | `temperature` | Creativity setting (0.0 = deterministic, 1.0 = creative). |
-| `api_key` | API key (supports Vault references). |
+| `api_key` | API key (supports Vault references). If omitted, checks environment variables. |
 | `api_version` | API version (required for Azure). |
 | `base_url` | Endpoint URL (required for Ollama). |
+
+### Environment Variables
+
+If the `api_key` is not specified in the configuration profile, the system will automatically look for standard environment variables.
+
+*   **OpenAI**: `OPENAI_API_KEY`
+*   **Anthropic**: `ANTHROPIC_API_KEY`
+*   **Google**: `GOOGLE_API_KEY`
+*   **DeepSeek**: `DEEPSEEK_API_KEY`
+*   **Groq**: `GROQ_API_KEY`
+*   **Mistral**: `MISTRAL_API_KEY`
 
 ```yaml
 llm:
