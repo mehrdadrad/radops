@@ -184,7 +184,7 @@ def create_agent(
         else settings.llm.default_profile  # pylint: disable=no-member
     )
 
-    def agent(state: State):
+    async def agent(state: State):
         telemetry.update_counter(
             "agent.invocations.total", attributes={"agent": agent_name}
         )
@@ -195,7 +195,7 @@ def create_agent(
         prompt = f"{system_prompt}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
         messages = construct_llm_context(state, prompt)
         start_time = time.perf_counter()
-        ai_response = llm_with_tools.invoke(messages)
+        ai_response = await llm_with_tools.ainvoke(messages)
         duration = time.perf_counter() - start_time
         telemetry.update_histogram(
             "agent.llm.duration_seconds",
@@ -251,7 +251,7 @@ def enforce_plan(decision, existing_requirements, steps_status):
             )
 
 
-def supervisor_node(state: State) -> dict:
+async def supervisor_node(state: State) -> dict:
     """The supervisor node that routes to the correct worker or ends."""
     node_name = "supervisor"
     telemetry.update_counter(
@@ -302,7 +302,7 @@ def supervisor_node(state: State) -> dict:
 
     start_time = time.perf_counter()
     try:
-        decision = llm_structured.invoke(messages)
+        decision = await llm_structured.ainvoke(messages)
     except Exception as e:
         logger.error("LLM error: %s", e)
         # Fallback to prevent UnboundLocalError
@@ -387,7 +387,7 @@ def supervisor_node(state: State) -> dict:
     output["messages"] = [context_message, ai_message]
     return output
 
-def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
+async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
     """The system node that manages the infrastructure of the bot itself."""
     node_name = "system"
     telemetry.update_counter(
@@ -405,7 +405,7 @@ def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
     messages = construct_llm_context(state, prompt)
 
     start_time = time.perf_counter()
-    decision = llm_with_tools.invoke(messages)
+    decision = await llm_with_tools.ainvoke(messages)
     duration = time.perf_counter() - start_time
     telemetry.update_histogram(
         "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
@@ -414,7 +414,7 @@ def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
     nodes = state["response_metadata"].get("nodes", []) + [node_name]
     return {"messages": [decision], "response_metadata": {"nodes": nodes}}
 
-def auditor_node(state):
+async def auditor_node(state):
     if not settings.agent.auditor.enabled:
         return {}
 
@@ -454,7 +454,7 @@ def auditor_node(state):
 
     llm = llm_factory(llm_profile, agent_name=agent_name)
     llm_structured = llm.with_structured_output(AuditReport)
-    audit = llm_structured.invoke([
+    audit = await llm_structured.ainvoke([
         SystemMessage(content=AUDITOR_PROMPT),
         HumanMessage(content=f"User Request: {original_request}"),
         HumanMessage(content=f"Memory Evidence (Past Knowledge): {relevant_memories}"),
