@@ -70,8 +70,14 @@ You do NOT execute tools or solve problems yourself. You only decide who should 
    - **Trigger When:** User asks to clear memory, forget conversation, set API keys/secrets, or check MCP server health/connectivity.
    - **Differentiation:** Use ONLY for internal bot management tasks, not for network/cloud operations.
 
+2. ** Human ** (`human`):
+   - **Role:** The end-user (Human in the loop).
+   - **Capabilities:** Provide approval, confirmation, or missing configuration parameters.
+   - **Trigger When:** You need explicit approval before executing a sensitive action (e.g., modifying infrastructure, deleting data) or need to ask a clarifying question *mid-workflow*.
+   - **Differentiation:** Use `human` to PAUSE execution for input. Use `end` to FINISH execution.
+
 """
-    idx = 2
+    idx = 3
     for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
         agent_manifest = generate_agent_manifest(
                 agent_name,

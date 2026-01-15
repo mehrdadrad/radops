@@ -39,6 +39,40 @@ logger = logging.getLogger(__name__)
 QA_REJECTION_PREFIX = "QA REJECTION"
 
 
+def get_detected_requirements(state: dict) -> list[dict]:
+    """
+    Retrieves and normalizes detected requirements from the state.
+    Handles Pydantic objects, standard dicts, and LangChain serialized dicts.
+    """
+    raw_reqs = state.get("detected_requirements", [])
+    normalized_reqs = []
+
+    for req in raw_reqs:
+        if isinstance(req, dict):
+            # Check for LangChain serialized format
+            if "kwargs" in req and "lc" in req:
+                data = req["kwargs"]
+            else:
+                data = req
+
+            normalized_reqs.append({
+                "id": data.get("id"),
+                "instruction": data.get("instruction"),
+                "assigned_agent": data.get("assigned_agent")
+            })
+        else:
+            # Assume Pydantic object
+            agent = req.assigned_agent
+            agent_value = agent.value if hasattr(agent, "value") else str(agent)
+            normalized_reqs.append({
+                "id": req.id,
+                "instruction": req.instruction,
+                "assigned_agent": agent_value
+            })
+
+    return normalized_reqs
+
+
 async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     """Builds and runs the LangGraph application."""
     if tool_registry is None:
@@ -53,6 +87,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node("supervisor", supervisor_node)
     graph_builder.add_node("auditor", auditor_node)
+    graph_builder.add_node("human", human_node)
     graph_builder.add_node("system", partial(system_node, tools=system_tools))
     graph_builder.add_node(
         "tools",
@@ -66,11 +101,14 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
 
     # Create path mapping
     path_map = {name: name for name in settings.agent.profiles.keys()}
-    path_map["tools"] = "tools"
-    path_map["supervisor"] = "supervisor"
-    path_map["system"] = "system"
-    path_map["auditor"] = "auditor"
-    path_map["end"] = END
+    path_map.update({
+        "tools": "tools",
+        "supervisor": "supervisor",
+        "system": "system",
+        "auditor": "auditor",
+        "human": "human",
+        "end": END,
+    })
 
     graph_builder.add_conditional_edges(
         "supervisor",
@@ -88,6 +126,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         path_map,
     )
     graph_builder.add_edge("memory", "supervisor")
+    graph_builder.add_edge("human", "supervisor")
     graph_builder.add_edge(START, "guardrails")
     graph_builder.add_conditional_edges(
         "guardrails",
@@ -124,7 +163,10 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         logger.info("Agent configured: %s with %d tools.", agent_name, len(filtered_tools))
 
 
-    graph = graph_builder.compile(checkpointer=checkpointer)
+    graph = graph_builder.compile(
+        checkpointer=checkpointer,
+        interrupt_before=["human"]
+        )
 
     return graph
 
@@ -189,18 +231,22 @@ def enforce_plan(decision, existing_requirements, steps_status):
     if existing_requirements and decision.next_worker == "end":
         if len(steps_status) < len(existing_requirements):
             next_req_data = existing_requirements[len(steps_status)]
-            decision.next_worker = next_req_data.assigned_agent
-            decision.instructions_for_worker = f"Proceed with the next step: {next_req_data.instruction}"
+            
+            assigned_agent = next_req_data.get("assigned_agent")
+            instruction = next_req_data.get("instruction")
+
+            decision.next_worker = assigned_agent
+            decision.instructions_for_worker = f"Proceed with the next step: {instruction}"
             decision.response_to_user += (
-                f"\n\n**Plan Enforcement:** Proceeding to next step: {next_req_data.instruction}"
+                f"\n\n**Plan Enforcement:** Proceeding to next step: {instruction}"
             )
-            instruction = next_req_data.instruction
             short_instruction = (
                 instruction[:20] + "..." if len(instruction) > 20 else instruction
             )
+            agent_name = assigned_agent
             logger.info(
                 "enforcing plan: next worker: %s, instruction: %s",
-                next_req_data.assigned_agent.value,
+                agent_name,
                 short_instruction,
             )
 
@@ -234,17 +280,14 @@ def supervisor_node(state: State) -> dict:
 
     system_prompt = SUPERVISOR_PROMPT
     system_prompt += f"\n\nTask ID: {state.get('task_id', 'N/A')}"
-    existing_requirements = state.get("detected_requirements", [])
+    existing_requirements = get_detected_requirements(state)
     if existing_requirements:
         req_strings = []
         for i, req in enumerate(existing_requirements):
-            if isinstance(req, dict):
-                instruction = req.get("instruction")
-                agent = req.get("assigned_agent")
-            else:
-                instruction = req.instruction
-                agent = req.assigned_agent.value
-            req_strings.append(f"{i+1}. ID:{req.id} {instruction} (Agent: {agent}), status: {steps_status[i] if i < len(steps_status) else 'pending'}")
+            req_id = req.get("id")
+            instruction = req.get("instruction")
+            agent = req.get("assigned_agent")
+            req_strings.append(f"{i+1}. ID:{req_id} {instruction} (Agent: {agent}), status: {steps_status[i] if i < len(steps_status) else 'pending'}")
         req_list = "\n".join(req_strings)
         system_prompt += (
             f"\n\n### ESTABLISHED PLAN\n{req_list}\n"
@@ -285,7 +328,7 @@ def supervisor_node(state: State) -> dict:
     )
 
     
-    existing_requirements = state.get("detected_requirements", [])
+    existing_requirements = get_detected_requirements(state)
     update_step_status(decision, steps_status)
             
     # Check if supervisor wants to end but state shows pending steps
@@ -331,7 +374,11 @@ def supervisor_node(state: State) -> dict:
         name="supervisor"
     )
 
-    output["next_worker"] = decision.next_worker.value
+    output["next_worker"] = (
+        decision.next_worker.value
+        if hasattr(decision.next_worker, "value")
+        else str(decision.next_worker)
+    )
     output["messages"] = [context_message, ai_message]
     return output
 
@@ -370,6 +417,10 @@ def auditor_node(state):
     messages = state["messages"]
     original_request = "Unknown Request"
     last_request_index = -1
+
+    telemetry.update_counter(
+        "agent.invocations.total", attributes={"agent": agent_name}
+    )
 
     llm_profile = (
         settings.agent.auditor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
@@ -465,6 +516,21 @@ def auditor_node(state):
         "response_metadata": {"nodes": nodes},
     }
 
+def human_node(state: State):
+    """
+    This node doesn't 'do' anything itself. 
+    It acts as a placeholder for the Resume operation.
+    When we resume, we will inject a HumanMessage pretending to be this node.
+    """
+    agent_name = "human"
+    messages = state["messages"]
+
+    telemetry.update_counter(
+        "agent.invocations.total", attributes={"agent": agent_name}
+    )
+
+    return {"messages": [messages[-1]]}
+
 
 def delete_tool_messages(messages: list) -> list:
     """Deletes tool messages from the conversation history."""
@@ -548,16 +614,22 @@ async def astream_graph_updates(
         "recursion_limit": settings.graph.recursion_limit,
         "max_concurrency": settings.graph.max_concurrency,
     }
+
+    current_state = await graph.aget_state(config)
+
     initial_input = {
         "messages": [{"role": "user", "content": user_input}],
         "user_id": user_id,
-        "task_id": str(uuid.uuid4()),
         "relevant_memories": "",  # Start with no memories, they will be fetched
         "next_worker": "",
-        "detected_requirements": [],
-        "steps_status": [],
         "response_metadata": {},
     }
+
+    if not current_state.next:
+        initial_input["task_id"] = str(uuid.uuid4())
+        initial_input["detected_requirements"] = []
+        initial_input["steps_status"] = []
+
     async for event in graph.astream(
         initial_input,
         config,

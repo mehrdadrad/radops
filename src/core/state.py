@@ -15,6 +15,7 @@ members = {
 }
 # Add a way to end the conversation
 members["system"] = "system"
+members["human"] = "human"
 members["end"] = "end"
 WorkerEnum = Enum("WorkerEnum", members, type=str)
 
