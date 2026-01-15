@@ -18,6 +18,14 @@ def register_default_metrics(telemetry: "Telemetry"):
         "agent.llm.tokens.total",
         description="Total number of tokens used by LLM calls."
     )
+    telemetry.register_counter(
+        "agent.llm.tokens.cache_read",
+        description="Total number of tokens read from cache by LLM calls."
+    )
+    telemetry.register_counter(
+        "agent.llm.tokens.cache_creation",
+        description="Total number of tokens created in cache by LLM calls."
+    )
     telemetry.register_histogram(
         "agent.tool.duration_seconds",
         unit="s",

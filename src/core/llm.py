@@ -60,11 +60,31 @@ class LLMCallbackHandler(BaseCallbackHandler):
         if response.llm_output and "token_usage" in response.llm_output:
             usage = response.llm_output["token_usage"]
             total_tokens = usage.get("total_tokens", 0)
+            attributes = {}
+            if self.agent_name:
+                attributes["agent"] = self.agent_name
+
             if total_tokens > 0:
-                attributes = {}
-                if self.agent_name:
-                    attributes["agent"] = self.agent_name
                 telemetry.update_counter("agent.llm.tokens.total", total_tokens, attributes=attributes)
+
+            # Prompt Caching Metrics
+            cache_read = 0
+            cache_creation = 0
+
+            # Anthropic strategy
+            if "cache_read_input_tokens" in usage:
+                cache_read = usage.get("cache_read_input_tokens", 0)
+                cache_creation = usage.get("cache_creation_input_tokens", 0)
+            # OpenAI strategy
+            elif "prompt_tokens_details" in usage:
+                details = usage["prompt_tokens_details"]
+                if isinstance(details, dict):
+                    cache_read = details.get("cached_tokens", 0)
+
+            if cache_read > 0:
+                telemetry.update_counter("agent.llm.tokens.cache_read", cache_read, attributes=attributes)
+            if cache_creation > 0:
+                telemetry.update_counter("agent.llm.tokens.cache_creation", cache_creation, attributes=attributes)
 
         if hasattr(response, "generations"):
             for generations in response.generations:
