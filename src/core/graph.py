@@ -327,6 +327,11 @@ def supervisor_node(state: State) -> dict:
         "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
     )
 
+    if hasattr(decision, "detected_requirements") and decision.detected_requirements:
+        telemetry.update_histogram(
+            "agent.supervisor.plan.size", len(decision.detected_requirements)
+        )
+
     
     existing_requirements = get_detected_requirements(state)
     update_step_status(decision, steps_status)
@@ -545,10 +550,18 @@ async def manage_memory_node(state: State) -> dict:
 
     # search
     try:
+        start_time = time.perf_counter()
         memories = await mem0.search(
             messages[-1].content, user_id=user_id, limit=settings.mem0.limit
         )
+        duration = time.perf_counter() - start_time
+        telemetry.update_histogram(
+            "agent.memory.operation.duration_seconds",
+            duration,
+            attributes={"operation": "search"},
+        )
         memory_list = memories["results"]
+        telemetry.update_counter("agent.memory.items.retrieved", len(memory_list))
         context = "Relevant information from previous conversations:\n"
         for memory in memory_list:
             context += f"- {memory['memory']}\n"
@@ -588,9 +601,16 @@ async def manage_memory_node(state: State) -> dict:
                 {"role": "user", "content": last_human_message.content},
                 {"role": "assistant", "content": last_ai_message.content},
             ]
+            start_time = time.perf_counter()
             await mem0.add(
                 messages=interaction_messages,
                 user_id=user_id,
+            )
+            duration = time.perf_counter() - start_time
+            telemetry.update_histogram(
+                "agent.memory.operation.duration_seconds",
+                duration,
+                attributes={"operation": "add"},
             )
             logger.info("Mem0: Added interaction for user '%s'.", user_id)
 

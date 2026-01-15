@@ -89,6 +89,9 @@ The application exposes the following custom metrics via OpenTelemetry:
 | `agent.llm.errors` | Counter | Total number of LLM errors. |
 | `agent.tool.errors` | Counter | Total number of tool execution errors. |
 | `guardrails.blocked.total` | Counter | Total number of requests blocked by guardrails. |
+| `agent.memory.operation.duration_seconds` | Histogram | Duration of memory operations (search/add). |
+| `agent.memory.items.retrieved` | Counter | Total number of memory items retrieved. |
+| `agent.supervisor.plan.size` | Histogram | Number of steps in the generated plan. |
 
 In addition to these custom metrics, the OpenTelemetry instrumentation automatically collects:
 - **Runtime Metrics**: Python runtime statistics (GC, memory).

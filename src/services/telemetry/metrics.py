@@ -51,3 +51,16 @@ def register_default_metrics(telemetry: "Telemetry"):
         "guardrails.blocked.total",
         description="Total number of requests blocked by guardrails."
     )
+    telemetry.register_histogram(
+        "agent.memory.operation.duration_seconds",
+        unit="s",
+        description="Duration of memory operations (search/add)."
+    )
+    telemetry.register_counter(
+        "agent.memory.items.retrieved",
+        description="Total number of memory items retrieved."
+    )
+    telemetry.register_histogram(
+        "agent.supervisor.plan.size",
+        description="Number of steps in the generated plan."
+    )
