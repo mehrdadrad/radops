@@ -231,7 +231,7 @@ def enforce_plan(decision, existing_requirements, steps_status):
     if existing_requirements and decision.next_worker == "end":
         if len(steps_status) < len(existing_requirements):
             next_req_data = existing_requirements[len(steps_status)]
-            
+
             assigned_agent = next_req_data.get("assigned_agent")
             instruction = next_req_data.get("instruction")
 
@@ -287,7 +287,10 @@ async def supervisor_node(state: State) -> dict:
             req_id = req.get("id")
             instruction = req.get("instruction")
             agent = req.get("assigned_agent")
-            req_strings.append(f"{i+1}. ID:{req_id} {instruction} (Agent: {agent}), status: {steps_status[i] if i < len(steps_status) else 'pending'}")
+            status = steps_status[i] if i < len(steps_status) else 'pending'
+            req_strings.append(
+                f"{i+1}. ID:{req_id} {instruction} (Agent: {agent}), status: {status}"
+            )
         req_list = "\n".join(req_strings)
         system_prompt += (
             f"\n\n### ESTABLISHED PLAN\n{req_list}\n"
@@ -295,7 +298,8 @@ async def supervisor_node(state: State) -> dict:
             "1. Identify the next step from the list above that has NOT been completed yet.\n"
             "2. Assign that step to the specified Agent.\n"
             "3. Do NOT change the plan or add new steps.\n"
-            "4. **State Updates:** You MUST update `current_step_status` based on the results of the previous step.\n"
+            "4. **State Updates:** You MUST update `current_step_status` based on "
+            "the results of the previous step.\n"
         )
 
     messages = [SystemMessage(content=system_prompt)] + conversation_messages
@@ -321,7 +325,7 @@ async def supervisor_node(state: State) -> dict:
             )
         else:
             decision = SupervisorAgentOutput(**fallback_args)
-  
+
     duration = time.perf_counter() - start_time
     telemetry.update_histogram(
         "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
@@ -332,10 +336,10 @@ async def supervisor_node(state: State) -> dict:
             "agent.supervisor.plan.size", len(decision.detected_requirements)
         )
 
-    
+
     existing_requirements = get_detected_requirements(state)
     update_step_status(decision, steps_status)
-            
+
     # Check if supervisor wants to end but state shows pending steps
     enforce_plan(decision, existing_requirements, steps_status)
 
@@ -354,7 +358,7 @@ async def supervisor_node(state: State) -> dict:
     should_update_requirements = False
     if state.get("next_worker", "") == "":
         should_update_requirements = True
-    
+
     output = {
         "response_metadata": {"nodes": nodes},
         "detected_requirements": state.get("detected_requirements", []),
@@ -395,7 +399,8 @@ async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
     )
 
     llm_profile = (
-        settings.agent.system.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
+        settings.agent.system.llm_profile
+        or settings.llm.default_profile  # pylint: disable=no-member
     )
     llm = llm_factory(llm_profile, agent_name=node_name)
     llm_with_tools = llm.bind_tools(tools)
@@ -840,10 +845,12 @@ def sanitize_tool_calls(messages: list) -> list:
                     j += 1
 
                 found_ids = {tm.tool_call_id for tm in tool_messages}
-                
+
                 if expected_ids.issubset(found_ids):
                     sanitized.append(msg)
-                    sanitized.extend([tm for tm in tool_messages if tm.tool_call_id in expected_ids])
+                    sanitized.extend(
+                        [tm for tm in tool_messages if tm.tool_call_id in expected_ids]
+                    )
                 else:
                     content = msg.content if msg.content else "..."
                     sanitized.append(AIMessage(content=content, id=msg.id))
@@ -913,7 +920,7 @@ async def summarize_conversation(state: State):
     except Exception as e:
         logger.warning("Failed to count tokens with profile '%s': %s", token_count_profile, e)
         return current_summary, []
-    
+
     token_threshold = settings.memory.summarization.token_threshold
     messages_to_keep = settings.memory.summarization.keep_message
     if tokens < token_threshold and len(messages) < messages_to_keep:
@@ -953,7 +960,10 @@ async def summarize_conversation(state: State):
             llm = llm_factory(summary_profile, agent_name="memory")
             restricted_llm = llm.bind(max_tokens=max_summary_token)
             summary_response = await restricted_llm.ainvoke(
-                SUMMARIZATION_PROMPT.format(conversation_history=history_text, max_summary_tokens=max_summary_token)
+                SUMMARIZATION_PROMPT.format(
+                    conversation_history=history_text,
+                    max_summary_tokens=max_summary_token
+                )
             )
             summary_text = summary_response.content
         except Exception as e:

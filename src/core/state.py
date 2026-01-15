@@ -42,7 +42,8 @@ class State(TypedDict):
 class WorkerAgentOutput(BaseModel):
     """Output model for worker agents."""
     success: bool = Field(
-        description="True if the tool executed correctly (even if no data was found). False ONLY if a technical error occurred."
+        description="True if the tool executed correctly (even if no data was found). "
+        "False ONLY if a technical error occurred."
     )
     failure_reason: str | None = Field(
         default=None,
@@ -81,10 +82,15 @@ class SupervisorAgentOutputBase(BaseModel):
             "1. **Report Immediately:** As soon as you receive data from a worker"
             "you MUST include it in this response. Do not hold it back for a 'final summary'."
             "2. **Incremental Updates Only:** Focus on what *just* happened in the last step. "
-            "You do not need to repeat findings from 3 steps ago (unless relevant to the current context)."
-            "3. **NO AGGREGATION:** Do NOT provide a final summary of all steps at the end. Only report the result of the *current* step. The user has already seen the previous steps."
-            "4. **Briefness:** If the result is huge (e.g. long logs), summarize it. Do not hit the token limit."
-            "5. **Errors:** If a tool failed, timed out, or is partially available, you MUST report the specific error message."
+            "You do not need to repeat findings from 3 steps ago "
+            "(unless relevant to the current context)."
+            "3. **NO AGGREGATION:** Do NOT provide a final summary of all steps at the end. "
+            "Only report the result of the *current* step. "
+            "The user has already seen the previous steps."
+            "4. **Briefness:** If the result is huge (e.g. long logs), summarize it. "
+            "Do not hit the token limit."
+            "5. **Errors:** If a tool failed, timed out, or is partially available, "
+            "you MUST report the specific error message."
         )
     )
     instructions_for_worker: str = Field(
@@ -114,12 +120,13 @@ class SupervisorAgentPlanOutput(SupervisorAgentOutputBase):
     detected_requirements: list[Requirement] = Field(
         description=(
             "The COMPLETE list of requirements extracted from the user's ORIGINAL request. "
-            "CRITICAL: If the user provides a numbered list (e.g. '1- do X, 2- do Y'), you MUST generate a separate Requirement for EACH item. "
+            "CRITICAL: If the user provides a numbered list (e.g. '1- do X, 2- do Y'), "
+            "you MUST generate a separate Requirement for EACH item. "
             "You MUST include ALL steps (both completed and pending) in this list. "
             "Do NOT remove steps that have been finished."
         )
     )
-   
+
 class SupervisorAgentOutput(SupervisorAgentOutputBase):
     """Output model for the supervisor agent (non-first round)."""
     pass
