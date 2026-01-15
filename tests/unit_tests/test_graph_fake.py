@@ -11,7 +11,7 @@ class TestGraphWithFakeLLM(unittest.IsolatedAsyncioTestCase):
     @patch("core.graph.llm_factory")
     @patch("core.graph.settings")
     @patch("core.graph.telemetry")
-    def test_create_agent_conversation_flow(self, mock_telemetry, mock_settings, mock_llm_factory):
+    async def test_create_agent_conversation_flow(self, mock_telemetry, mock_settings, mock_llm_factory):
         """
         Test create_agent using GenericFakeChatModel to simulate a multi-turn conversation.
         """
@@ -40,18 +40,18 @@ class TestGraphWithFakeLLM(unittest.IsolatedAsyncioTestCase):
         }
         
         # First turn
-        result1 = agent_node(state)
+        result1 = await agent_node(state)
         self.assertEqual(result1["messages"][0].content, "Hello! How can I help you?")
         self.assertIn("test_agent", result1["response_metadata"]["nodes"])
         
         # Second turn
-        result2 = agent_node(state)
+        result2 = await agent_node(state)
         self.assertEqual(result2["messages"][0].content, "I can certainly check that for you.")
 
     @patch("core.graph.llm_factory")
     @patch("core.graph.settings")
     @patch("core.graph.telemetry")
-    def test_create_agent_tool_execution(self, mock_telemetry, mock_settings, mock_llm_factory):
+    async def test_create_agent_tool_execution(self, mock_telemetry, mock_settings, mock_llm_factory):
         """
         Test create_agent using GenericFakeChatModel to simulate tool calling.
         """
@@ -81,7 +81,7 @@ class TestGraphWithFakeLLM(unittest.IsolatedAsyncioTestCase):
             "response_metadata": {}
         }
         
-        result = agent_node(state)
+        result = await agent_node(state)
         
         message = result["messages"][0]
         self.assertTrue(message.tool_calls)

@@ -25,7 +25,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
     @patch("core.graph.llm_factory")
     @patch("core.graph.settings")
     @patch("core.graph.telemetry")  # Mock telemetry to avoid side effects
-    def test_create_agent(self, mock_telemetry, mock_settings, mock_llm_factory):
+    async def test_create_agent(self, mock_telemetry, mock_settings, mock_llm_factory):
         """Test that create_agent correctly invokes the LLM with tools."""
         # Setup mocks
         mock_llm = MagicMock()
@@ -34,7 +34,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         mock_llm_factory.return_value = mock_llm
 
         expected_response = AIMessage(content="Test response")
-        mock_llm_with_tools.invoke.return_value = expected_response
+        mock_llm_with_tools.ainvoke = AsyncMock(return_value=expected_response)
 
         state = {
             "messages": [HumanMessage(content="Hello")],
@@ -46,7 +46,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         # Execute
         agent_node = create_agent("common", "system prompt", tools)
-        result = agent_node(state)
+        result = await agent_node(state)
 
         # Verify
         self.assertIn("messages", result)
@@ -56,7 +56,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         mock_llm.bind_tools.assert_called_with(tools)
 
         # Check if invoke was called
-        mock_llm_with_tools.invoke.assert_called()
+        mock_llm_with_tools.ainvoke.assert_called()
 
         # Verify telemetry was updated
         mock_telemetry.update_counter.assert_called_with(
@@ -65,7 +65,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
     @patch("core.graph.llm_factory")
     @patch("core.graph.settings")
-    def test_supervisor_node(self, mock_settings, mock_llm_factory):
+    async def test_supervisor_node(self, mock_settings, mock_llm_factory):
         """Test that supervisor_node returns the correct next_worker."""
         # Setup
         mock_llm = MagicMock()
@@ -84,7 +84,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             current_step_status="pending",
             skipped_step_ids=[],
         )
-        mock_structured_llm.invoke.return_value = mock_output
+        mock_structured_llm.ainvoke = AsyncMock(return_value=mock_output)
 
         state = {
             "messages": [HumanMessage(content="Network issue")],
@@ -93,7 +93,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         }
 
         # Execute
-        result = supervisor_node(state)
+        result = await supervisor_node(state)
 
         # Verify
         self.assertEqual(result["next_worker"], "network_agent")
@@ -101,7 +101,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
     @patch("core.graph.llm_factory")
     @patch("core.graph.settings")
     @patch("core.graph.telemetry")
-    def test_system_node(self, mock_telemetry, mock_settings, mock_llm_factory):
+    async def test_system_node(self, mock_telemetry, mock_settings, mock_llm_factory):
         """Test that system_node correctly invokes the LLM with tools."""
         # Setup mocks
         mock_llm = MagicMock()
@@ -110,7 +110,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         mock_llm_factory.return_value = mock_llm
 
         expected_response = AIMessage(content="System response")
-        mock_llm_with_tools.invoke.return_value = expected_response
+        mock_llm_with_tools.ainvoke = AsyncMock(return_value=expected_response)
 
         # Mock settings
         mock_settings.agent.system.llm_profile = "test-profile"
@@ -124,7 +124,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         tools = [MagicMock()]
 
         # Execute
-        result = system_node(state, tools)
+        result = await system_node(state, tools)
 
         # Verify
         self.assertIn("messages", result)
@@ -135,7 +135,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         mock_llm.bind_tools.assert_called_with(tools)
 
         # Check if invoke was called
-        mock_llm_with_tools.invoke.assert_called()
+        mock_llm_with_tools.ainvoke.assert_called()
 
         # Verify telemetry
         mock_telemetry.update_counter.assert_called_with(
