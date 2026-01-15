@@ -74,11 +74,24 @@ scrape_configs:
 
 ## Available Metrics
 
-The application exposes metrics compatible with the OpenTelemetry standard. While specific metric names depend on the active instrumentation, you can generally expect:
+The application exposes the following custom metrics via OpenTelemetry:
 
+| Metric Name | Type | Description |
+| :--- | :--- | :--- |
+| `agent.invocations.total` | Counter | Total number of times the agent node is invoked. |
+| `agent.llm.duration_seconds` | Histogram | Duration of the LLM call in the agent node. |
+| `agent.llm.tokens.total` | Counter | Total number of tokens used by LLM calls. |
+| `agent.llm.tokens.cache_read` | Counter | Total number of tokens read from cache by LLM calls. |
+| `agent.llm.tokens.cache_creation` | Counter | Total number of tokens created in cache by LLM calls. |
+| `agent.tool.duration_seconds` | Histogram | Duration of tool execution. |
+| `agent.tool.invocations.total` | Counter | Total number of tool executions. |
+| `agent.auditor.score` | Histogram | Quality assurance score assigned by the auditor. |
+| `agent.llm.errors` | Counter | Total number of LLM errors. |
+| `agent.tool.errors` | Counter | Total number of tool execution errors. |
+| `guardrails.blocked.total` | Counter | Total number of requests blocked by guardrails. |
+
+In addition to these custom metrics, the OpenTelemetry instrumentation automatically collects:
 - **Runtime Metrics**: Python runtime statistics (GC, memory).
-- **Agent Metrics**: Execution counts and latency for agent workflows.
-- **Tool Metrics**: Success/failure rates and duration for external tool calls (e.g., AWS, Network tools).
 
 ## Supported SaaS Platforms (OTLP)
 
