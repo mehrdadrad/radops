@@ -1,6 +1,12 @@
 """
 This module provides a command-line interface for interacting with the RadOps backend
 via WebSocket.
+
+Usage:
+    python src/playground/cli.py <user_id> [--host <host>] [--port <port>]
+
+Example:
+    python src/playground/cli.py user123 --host localhost --port 8005
 """
 import argparse
 import readline
