@@ -250,6 +250,17 @@ def enforce_plan(decision, existing_requirements, steps_status):
                 short_instruction,
             )
 
+def check_completion(decision, existing_requirements, steps_status):
+    """Forces the decision to 'end' if all requirements are completed."""
+    if existing_requirements and len(steps_status) >= len(existing_requirements):
+        # Check if any step is still pending
+        if any(status == "pending" for status in steps_status):
+            return
+
+        if decision.next_worker != "end":
+            logger.info("All steps completed. Forcing next_worker to 'end'.")
+            decision.next_worker = "end"
+
 
 async def supervisor_node(state: State) -> dict:
     """The supervisor node that routes to the correct worker or ends."""
@@ -342,6 +353,8 @@ async def supervisor_node(state: State) -> dict:
 
     # Check if supervisor wants to end but state shows pending steps
     enforce_plan(decision, existing_requirements, steps_status)
+    # Check if task(s) are completed but the supervisor doesn't want to end
+    check_completion(decision, existing_requirements, steps_status)
 
     nodes = state["response_metadata"].get("nodes", []) + [node_name]
     ai_message = AIMessage(
@@ -353,6 +366,8 @@ async def supervisor_node(state: State) -> dict:
     logger.info("current step status: %s", decision.current_step_status)
     logger.info("steps status: %s", steps_status)
     logger.info("future skipped steps: %s", decision.skipped_step_ids)
+    logger.info("next worker: %s", decision.next_worker)
+
 
     # Determine if we should update detected_requirements in the state.
     should_update_requirements = False
