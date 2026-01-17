@@ -312,6 +312,22 @@ async def supervisor_node(state: State) -> dict:
             "4. **State Updates:** You MUST update `current_step_status` based on "
             "the results of the previous step.\n"
         )
+    else:
+        last_user_request = next(
+        (
+            m.content
+            for m in reversed(conversation_messages)
+            if isinstance(m, HumanMessage)
+            and getattr(m, "name", None) != "supervisor"
+        ),
+        None,
+        )
+        if last_user_request:
+            system_prompt += f"\n\n### LATEST USER REQUEST\n{last_user_request}\n"
+            system_prompt += (
+                "**FOCUS**: Plan based on this LATEST request. "
+                "Ignore completed tasks from the chat history unless explicitly asked to retry."
+            )
 
     messages = [SystemMessage(content=system_prompt)] + conversation_messages
 
