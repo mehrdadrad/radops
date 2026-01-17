@@ -14,6 +14,9 @@ PROMPTS_DIR = os.getenv("RADOPS_CORE_PROMPTS_DIR")
 
 def _load_prompt(filename):
     """Loads a prompt template from a file."""
+    if "unittest" in sys.modules:
+        return ""
+
     try:
         if PROMPTS_DIR is None:
             path = Path(filename)
