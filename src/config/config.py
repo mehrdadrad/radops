@@ -97,6 +97,7 @@ class SupervisorSettings(BaseModel):
     """Settings for the supervisor agent."""
 
     llm_profile: Optional[str] = None
+    prompt_file: Optional[str] = None
 
 class SystemSettings(BaseModel):
     """Settings for the system agent."""
@@ -109,6 +110,7 @@ class AuditorSettings(BaseModel):
 
     enabled: bool = False
     llm_profile: str = None
+    prompt_file: str = None
     threshold: float = 0.8
 
 
