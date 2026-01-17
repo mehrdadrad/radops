@@ -18,7 +18,11 @@ from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 
 # Suppress Weaviate ResourceWarning on shutdown
-warnings.filterwarnings("ignore", category=ResourceWarning, message=".*The connection to Weaviate was not closed properly.*")
+warnings.filterwarnings(
+    "ignore",
+    category=ResourceWarning,
+    message=".*The connection to Weaviate was not closed properly.*",
+)
 
 async def ainput(prompt: str = "") -> str:
     """Async wrapper for input function."""
@@ -32,7 +36,9 @@ async def main(skip_initial_sync: bool = False):
     tool_registry = None
     try:
         async with get_checkpointer() as (checkpointer, redis_client):
-            tool_registry = ToolRegistry(checkpointer=checkpointer, skip_initial_sync=skip_initial_sync)
+            tool_registry = ToolRegistry(
+                checkpointer=checkpointer, skip_initial_sync=skip_initial_sync
+            )
             graph = await run_graph(checkpointer, tool_registry=tool_registry)
             user_id = await ainput("Please enter your username: ")
             if not user_id:
@@ -87,7 +93,11 @@ async def main(skip_initial_sync: bool = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RadOps Console")
-    parser.add_argument("--skip-initial-sync", action="store_true", help="Skip the initial vector store synchronization.")
+    parser.add_argument(
+        "--skip-initial-sync",
+        action="store_true",
+        help="Skip the initial vector store synchronization.",
+    )
     args = parser.parse_args()
 
     try:

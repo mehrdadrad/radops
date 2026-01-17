@@ -65,7 +65,9 @@ class LLMCallbackHandler(BaseCallbackHandler):
                 attributes["agent"] = self.agent_name
 
             if total_tokens > 0:
-                telemetry.update_counter("agent.llm.tokens.total", total_tokens, attributes=attributes)
+                telemetry.update_counter(
+                    "agent.llm.tokens.total", total_tokens, attributes=attributes
+                )
 
             # Prompt Caching Metrics
             cache_read = 0
@@ -82,9 +84,15 @@ class LLMCallbackHandler(BaseCallbackHandler):
                     cache_read = details.get("cached_tokens", 0)
 
             if cache_read > 0:
-                telemetry.update_counter("agent.llm.tokens.cache_read", cache_read, attributes=attributes)
+                telemetry.update_counter(
+                    "agent.llm.tokens.cache_read", cache_read, attributes=attributes
+                )
             if cache_creation > 0:
-                telemetry.update_counter("agent.llm.tokens.cache_creation", cache_creation, attributes=attributes)
+                telemetry.update_counter(
+                    "agent.llm.tokens.cache_creation",
+                    cache_creation,
+                    attributes=attributes,
+                )
 
         if hasattr(response, "generations"):
             for generations in response.generations:
