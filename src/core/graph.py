@@ -1,4 +1,5 @@
 """This module defines and configures the main LangGraph for the agent."""
+import json
 import logging
 import re
 import time
@@ -37,6 +38,7 @@ from tools import ToolRegistry
 logger = logging.getLogger(__name__)
 
 QA_REJECTION_PREFIX = "QA REJECTION"
+SYSTEM_SUBMIT_WORK = "system__submit_work"
 
 
 def get_detected_requirements(state: dict) -> list[dict]:
@@ -211,20 +213,21 @@ def create_agent(
 
 def update_step_status(decision, steps_status):
     """Updates the status of the current step based on the supervisor's decision."""
+    def _set_status(idx, status):
+        if idx < 0:
+            logger.warning("Invalid step index: %d", idx)
+            return
+        while len(steps_status) <= idx:
+            steps_status.append("pending")
+        steps_status[idx] = status
+
     if decision.current_step_status != "pending" and decision.current_step_id != 0:
-        idx = decision.current_step_id - 1
-        if idx < len(steps_status):
-            steps_status[idx] = decision.current_step_status
-        else:
-            steps_status.insert(idx, decision.current_step_status)
+        _set_status(decision.current_step_id - 1, decision.current_step_status)
 
     if decision.skipped_step_ids:
         for step_id in decision.skipped_step_ids:
             if step_id != 0:
-                if step_id <= len(steps_status):
-                    steps_status[step_id - 1] = "skipped"
-                else:
-                    steps_status.insert(step_id - 1, "skipped")
+                _set_status(step_id - 1, "skipped")
 
 def enforce_plan(decision, existing_requirements, steps_status):
     """Enforces the plan if the supervisor tries to end early."""
@@ -233,7 +236,14 @@ def enforce_plan(decision, existing_requirements, steps_status):
             next_req_data = existing_requirements[len(steps_status)]
 
             assigned_agent = next_req_data.get("assigned_agent")
-            instruction = next_req_data.get("instruction")
+            instruction = next_req_data.get("instruction") or "No instruction provided"
+
+            if not assigned_agent:
+                logger.warning(
+                    "Cannot enforce plan: Missing assigned agent for step %d",
+                      len(steps_status) + 1,
+                )
+                return
 
             decision.next_worker = assigned_agent
             decision.instructions_for_worker = f"Proceed with the next step: {instruction}"
@@ -377,7 +387,8 @@ async def supervisor_node(state: State) -> dict:
         content=decision.response_to_user
     )
     if hasattr(decision, "detected_requirements"):
-        logger.info("requirements: %s", decision.detected_requirements)
+        reqs_data = [req.model_dump(mode="json") for req in decision.detected_requirements]
+        logger.info("requirements:\n%s", json.dumps(reqs_data, indent=2, default=str))
     logger.info("current id: %d", decision.current_step_id)
     logger.info("current step status: %s", decision.current_step_status)
     logger.info("steps status: %s", steps_status)
@@ -408,7 +419,7 @@ async def supervisor_node(state: State) -> dict:
             "COMMAND FROM SUPERVISOR: "
             f"{decision.instructions_for_worker}\n"
             "**CONSTRAINT**: Focus ONLY on this instruction. Do NOT attempt to solve other parts of the user's request found in the chat history.\n"
-            "When finished or if you cannot proceed, use the 'system__submit_work' tool "
+            f"When finished or if you cannot proceed, use the '{SYSTEM_SUBMIT_WORK}' tool "
             "to report the result."
         ),
         name="supervisor"
@@ -477,7 +488,7 @@ async def auditor_node(state):
         m for i, m in enumerate(messages)
         if isinstance(m, ToolMessage)
         and i > last_request_index
-        and m.name != "system__submit_work"
+        and m.name != SYSTEM_SUBMIT_WORK
     ]
     supervisor_messages = [
         str(m.content) for i, m in enumerate(messages)
@@ -740,7 +751,7 @@ def route_back_from_tool(state: State) -> str:
     # Check if the escalation tool was called
     for message in reversed(state.get("messages", [])):
         if isinstance(message, ToolMessage):
-            if message.name == "system__submit_work":
+            if message.name == SYSTEM_SUBMIT_WORK:
                 return "supervisor"
         else:
             break
