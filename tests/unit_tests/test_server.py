@@ -1,8 +1,24 @@
 """
 This module contains tests for the FastAPI server.
 """
+import sys
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+# Mock config.server before importing server to avoid SystemExit
+# when configuration files are missing in the test environment.
+mock_settings = MagicMock()
+mock_settings.auth_disabled = True
+mock_settings.service_api_key = "test"
+mock_settings.service_token = "test"
+mock_settings.skip_initial_sync = True
+mock_settings.plain_message = False
+mock_settings.host = "0.0.0.0"
+mock_settings.port = 8005
+
+mock_config = MagicMock()
+mock_config.server_settings = mock_settings
+sys.modules["config.server"] = mock_config
 
 from fastapi.testclient import TestClient
 

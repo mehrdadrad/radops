@@ -83,6 +83,7 @@ To quickly spin up the required dependencies (Redis, Vault) and an optional Vect
     cp tools.example.yaml tools.yaml
     cp integrations.example.yaml integrations.yaml
     cp rbac.example.yaml rbac.yaml
+    cp server.example.yaml server.yaml
     ```
     *Refer to the `config_guide.md`, `tools_guide.md`, `integrations_guide.md`, and `rbac_guide.md` for detailed configuration options.*
 
@@ -96,6 +97,7 @@ RadOps operates in two distinct modes depending on your use case.
 *   Starts the REST API server to handle incoming requests.
 *   Initializes background schedulers for syncing RAG data sources (e.g., GitHub, Google Drive).
 *   Logs output to the file specified in `config.yaml` (e.g., `logs/app.log`).
+*   Loads server configuration from `config/server.yaml`.
 
 **Command:**
 ```bash
