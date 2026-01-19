@@ -46,7 +46,7 @@ class TestServer(unittest.TestCase):
         mock_redis.aclose.assert_called_once()
         mock_tool_registry.return_value.close.assert_called_once()
 
-    @patch("server.AUTH_DISABLED", True)
+    @patch("server.server_settings.auth_disabled", True)
     @patch("server.get_user_role")
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
@@ -90,8 +90,8 @@ class TestServer(unittest.TestCase):
                 eot = websocket.receive_text()
                 self.assertEqual(eot, "\x03")
 
-    @patch("server.AUTH_DISABLED", True)
-    @patch("server.USE_PLAIN_MESSAGE", True)
+    @patch("server.server_settings.auth_disabled", True)
+    @patch("server.server_settings.plain_message", True)
     @patch("server.get_user_role")
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
@@ -132,7 +132,7 @@ class TestServer(unittest.TestCase):
                 eot = websocket.receive_text()
                 self.assertEqual(eot, "\x03")
 
-    @patch("server.SKIP_INITIAL_SYNC", True)
+    @patch("server.server_settings.skip_initial_sync", True)
     @patch("server.get_checkpointer")
     @patch("server.run_graph", new_callable=AsyncMock)
     @patch("server.mem0_manager")

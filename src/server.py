@@ -2,7 +2,6 @@
 This module implements a FastAPI server for the RadOps assistant.
 """
 import logging
-import os
 import sys
 import warnings
 from contextlib import asynccontextmanager
@@ -13,6 +12,7 @@ initialize_logger()
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status
 
+from config.server import server_settings
 from core.auth import get_user_role
 from core.checkpoint import get_checkpointer
 from core.llm import close_shared_client
@@ -22,17 +22,6 @@ from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
 from libs.status_generator import StatusGenerator
 
-USE_PLAIN_MESSAGE = (
-    os.getenv("PLAIN_MESSAGE", "false").lower() == "true"
-    or "--plain-message" in sys.argv
-)
-SKIP_INITIAL_SYNC = (
-    os.getenv("SKIP_INITIAL_SYNC", "false").lower() in ("true", "1", "t")
-    or "--skip-initial-sync" in sys.argv
-)
-AUTH_DISABLED = (
-    os.getenv("AUTH_DISABLED", "false").lower() == "true"
-)
 
 # Suppress Weaviate ResourceWarning on shutdown
 warnings.filterwarnings(
@@ -54,7 +43,7 @@ def authenticate_websocket(websocket: WebSocket) -> dict:
     Authenticates WebSocket connection using headers.
     Returns service account info or raises WebSocketDisconnect.
     """
-    if AUTH_DISABLED:
+    if server_settings.auth_disabled:
         return {"sub": "dev-service", "role": "service", "type": "development"}
 
     # Extract headers from WebSocket scope
@@ -64,7 +53,7 @@ def authenticate_websocket(websocket: WebSocket) -> dict:
     api_key = headers.get(b"x-api-key")
     if api_key:
         api_key = api_key.decode("utf-8")
-        service_api_key = os.getenv("RADOPS_SERVICE_API_KEY")
+        service_api_key = server_settings.service_api_key
         if service_api_key and api_key == service_api_key:
             return {"sub": "radops-service", "role": "service", "type": "api_key"}
 
@@ -74,7 +63,7 @@ def authenticate_websocket(websocket: WebSocket) -> dict:
         auth_header = auth_header.decode("utf-8")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]  # Remove "Bearer " prefix
-            service_token = os.getenv("RADOPS_SERVICE_TOKEN")
+            service_token = server_settings.service_token
             if service_token and token == service_token:
                 return {"sub": "radops-service", "role": "service", "type": "jwt"}
 
@@ -98,7 +87,7 @@ async def lifespan(fastapi_app: FastAPI):
             try:
                 checkpointer, redis_client = cp, rc
                 tool_registry = ToolRegistry(
-                    checkpointer=checkpointer, skip_initial_sync=SKIP_INITIAL_SYNC
+                    checkpointer=checkpointer, skip_initial_sync=server_settings.skip_initial_sync
                 )
                 fastapi_app.state.graph = await run_graph(checkpointer, tool_registry=tool_registry)
                 fastapi_app.state.checkpointer = checkpointer
@@ -178,7 +167,7 @@ async def websocket_endpoint(
                     if metadata and "nodes" in metadata and metadata["nodes"]:
                         agent_name = metadata["nodes"][-1]
 
-                    if USE_PLAIN_MESSAGE:
+                    if server_settings.plain_message:
                         message = f"Agent: {agent_name} -> Running tool: {tool_name}"
                     else:
                         status = StatusGenerator.parse_tool_call(tool_name, {})
@@ -202,8 +191,8 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="RadOps Chatbot Server")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
-    parser.add_argument("--port", type=int, default=8005, help="Port to bind to")
+    parser.add_argument("--host", default=server_settings.host, help="Host to bind to")
+    parser.add_argument("--port", type=int, default=server_settings.port, help="Port to bind to")
     parser.add_argument(
         "--skip-initial-sync",
         action="store_true",
@@ -215,6 +204,11 @@ if __name__ == "__main__":
         help="Use plain text messages for tool calls.",
     )
     args = parser.parse_args()
+
+    if args.skip_initial_sync:
+        server_settings.skip_initial_sync = True
+    if args.plain_message:
+        server_settings.plain_message = True
 
     uvicorn.run(
         app, host=args.host, port=args.port, log_config=None, ws="wsproto"
