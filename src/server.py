@@ -11,7 +11,7 @@ from libs.logger import initialize_logger
 initialize_logger()
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status
 
 from core.auth import get_user_role
 from core.checkpoint import get_checkpointer
@@ -30,6 +30,9 @@ SKIP_INITIAL_SYNC = (
     os.getenv("SKIP_INITIAL_SYNC", "false").lower() in ("true", "1", "t")
     or "--skip-initial-sync" in sys.argv
 )
+AUTH_DISABLED = (
+    os.getenv("AUTH_DISABLED", "false").lower() == "true"
+)
 
 # Suppress Weaviate ResourceWarning on shutdown
 warnings.filterwarnings(
@@ -44,6 +47,42 @@ app = FastAPI(
     version="1.0",
     description="A simple API server for interacting with RadOps.",
 )
+
+
+def authenticate_websocket(websocket: WebSocket) -> dict:
+    """
+    Authenticates WebSocket connection using headers.
+    Returns service account info or raises WebSocketDisconnect.
+    """
+    if AUTH_DISABLED:
+        return {"sub": "dev-service", "role": "service", "type": "development"}
+
+    # Extract headers from WebSocket scope
+    headers = dict(websocket.scope.get("headers", []))
+    
+    # Check for API Key in X-API-Key header
+    api_key = headers.get(b"x-api-key")
+    if api_key:
+        api_key = api_key.decode("utf-8")
+        service_api_key = os.getenv("RADOPS_SERVICE_API_KEY")
+        if service_api_key and api_key == service_api_key:
+            return {"sub": "radops-service", "role": "service", "type": "api_key"}
+
+    # Check for JWT in Authorization header
+    auth_header = headers.get(b"authorization")
+    if auth_header:
+        auth_header = auth_header.decode("utf-8")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]  # Remove "Bearer " prefix
+            service_token = os.getenv("RADOPS_SERVICE_TOKEN")
+            if service_token and token == service_token:
+                return {"sub": "radops-service", "role": "service", "type": "jwt"}
+
+    # No valid authentication found
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    )
 
 
 @asynccontextmanager
@@ -88,15 +127,38 @@ app.router.lifespan_context = lifespan
 
 
 @app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    user_id: str,
+):
     """
     Handles WebSocket connections for chat, taking user_id from the path.
     """
+    # Authenticate BEFORE accepting the connection
+    try:
+        service_account = authenticate_websocket(websocket)
+    except HTTPException as e:
+        logging.warning(
+            "WebSocket authentication failed for user_id=%s: %s",
+            user_id,
+            e.detail
+        )
+        await websocket.close(code=1008, reason="Authentication failed")
+        return
+
+    # Now accept the connection
     await websocket.accept()
+
+    logging.info(
+        "WebSocket authenticated: service=%s, auth_type=%s, user_id=%s",
+        service_account.get("sub"),
+        service_account.get("type"),
+        user_id
+    )
 
     if not await get_user_role(user_id):
         logging.warning("Connection rejected for unknown user: %s", user_id)
-        await websocket.send_text("Error: Unknown user or forbidden access.")
+        await websocket.send_text("Error: Access denied.")
         await websocket.close(code=1008)
         return
 
@@ -105,7 +167,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
     try:
         async for user_input in websocket.iter_text():
-            logging.info("Received message from %s: %s", user_id, user_input)
+            logging.info("Received message from %s", user_id)
             async for chunk, metadata in astream_graph_updates(
                 graph, user_input, user_id
             ):

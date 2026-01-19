@@ -38,6 +38,11 @@ class SlackSettings(BaseModel):
     """Settings for Slack integration."""
     bot_token: Optional[str] = None
     app_token: Optional[str] = None
+    auth_method: str = "api_key"
+    auth_disabled: bool = False
+    service_api_key: Optional[str] = None
+    service_token: Optional[str] = None
+    server_url: str = "ws://localhost:8005"
     log_level: str = "INFO"
     inactivity_timeout: float = Field(
         default=300.0,
