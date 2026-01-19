@@ -73,12 +73,25 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         mock_llm.with_structured_output.return_value = mock_structured_llm
         mock_llm_factory.return_value = mock_llm
 
+        # Create mock requirements that behave like Pydantic models
+        req1 = MagicMock()
+        req1.model_dump.return_value = {"id": 1, "instruction": "Requirement 1", "assigned_agent": "agent1"}
+        req1.id = 1
+        req1.instruction = "Requirement 1"
+        req1.assigned_agent = "agent1"
+
+        req2 = MagicMock()
+        req2.model_dump.return_value = {"id": 2, "instruction": "Requirement 2", "assigned_agent": "agent2"}
+        req2.id = 2
+        req2.instruction = "Requirement 2"
+        req2.assigned_agent = "agent2"
+
         # Mock the structured output (SupervisorAgentOutput)
         mock_output = MagicMock(
             spec=SupervisorAgentPlanOutput,
             next_worker=MagicMock(value="network_agent"),
             response_to_user="Response for user",
-            detected_requirements=["Requirement 1", "Requirement 2"],
+            detected_requirements=[req1, req2],
             instructions_for_worker="Instructions for worker",
             current_step_id=1,
             current_step_status="pending",
