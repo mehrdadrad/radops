@@ -1,4 +1,6 @@
-# Playground CLI Guide
+## Playground 
+
+# CLI Guide
 
 The Playground CLI (`src/playground/cli.py`) is a standalone WebSocket client designed to interact with the RadOps server. It mimics the behavior of a frontend client, allowing developers to test agent interactions, tool executions, and streaming responses directly from the terminal.
 
@@ -44,3 +46,23 @@ python src/playground/cli.py admin_user --host 10.0.0.5 --port 8080
 - **Streaming**: Responses from the agent are streamed in real-time.
 - **History**: Use the Up/Down arrow keys to cycle through your message history.
 - **Exiting**: Type `quit`, `exit`, `q`, or press `Ctrl+C` to end the session.
+
+
+# Streamlit UI Guide
+
+The Playground UI (`src/playground/ui.py`) provides a web-based chat interface for interacting with the RadOps server.
+
+## Overview
+
+- **File**: `src/playground/ui.py`
+- **Dependencies**: `streamlit`, `websocket-client` (install via `pip install streamlit websocket-client`)
+
+## Usage
+
+To start the web UI, run the following command:
+
+```bash
+streamlit run src/playground/ui.py
+```
+
+Once the application loads in your browser, use the sidebar to configure the connection settings (Host, Port, User ID) and manage your session.
