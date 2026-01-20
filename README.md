@@ -1,6 +1,9 @@
 # RadOps - AI-Powered Operations
 
-RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline diagnostics, troubleshooting, and infrastructure management. RadOps transcends standard chatbots by intelligently managing information *lifespan*, self-validating tasks via a QA Auditor, and integrating seamlessly with live infrastructure.
+RadOps is an AI-powered, multi-agent platform that automates DevOps workflows 
+with human-level reasoning. Unlike traditional chatbots, RadOps remembers 
+context, validates its own work, and executes complex multi-step operations 
+across your entire infrastructure—autonomously.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
@@ -34,11 +37,11 @@ RadOps is a **Stateful, Multi-Agent DevOps Orchestrator** designed to streamline
 * **Ollama** (`ollama`): Local models. If used for agents, the model must support tool calling.
 
 ### Vector Databases
-* **Weaviate**
-* **Qdrant**
-* **Pinecone**
-* **Milvus**
-* **Chroma**
+* **Weaviate** Hybrid search, GraphQL API, multi-tenancy
+* **Qdrant** High performance (Rust), advanced filtering
+* **Pinecone** Managed cloud, serverless, auto-scaling
+* **Milvus** Open source, horizontal scaling, GPU support
+* **Chroma** Lightweight, embedded, perfect for dev/test
 
 ## 📦 Installation
 

@@ -4,7 +4,7 @@ Welcome to the RadOps documentation. Here you will find detailed guides on how t
 
 ## Getting Started
 *   [Installation & Deployment](quick_start.md) - Prerequisites, installation steps, and running modes (Server vs Console).
-*   [Playground CLI](cli.md) - Playground CLI is a tool to try the RadOps from cli.
+*   [Playground](playground.md) - Playground CLI and Streamlit UI to interact with RadOps.
 
 ## Configuration
 *   [Main Configuration](config_guide.md) - Core settings for LLMs, Agents, Memory, and Vector Stores (`config.yaml`).
