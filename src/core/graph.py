@@ -541,6 +541,12 @@ async def auditor_node(state):
                 audit.score,
             )
             return {
+                "messages": [
+                    AIMessage(
+                        content=f"QA Failed after {len(previous_rejections)} "
+                        f"rejections. Finishing job (score: {audit.score})"
+                    )
+                ],
                 "response_metadata": {"nodes": nodes}
             }
 
@@ -936,6 +942,7 @@ def detect_tool_loop(state, limit=3):
         (t['name'] == last_call['name'] and t['args'] == last_call['args'])
         for t in tool_calls[-limit:]
     ):
+        logger.warning("Loop detected on tool: %s", last_call['name'])
         return True
 
     # Check for alternating loops (e.g., A, B, A, B)
