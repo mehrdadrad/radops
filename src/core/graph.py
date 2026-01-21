@@ -346,6 +346,7 @@ async def supervisor_node(state: State) -> dict:
         decision = await llm_structured.ainvoke(messages)
     except Exception as e:
         logger.error("LLM error: %s", e)
+        telemetry.update_counter("agent.llm.errors", attributes={"agent": node_name})
         # Fallback to prevent UnboundLocalError
         fallback_args = {
             "next_worker": "end",
@@ -373,10 +374,7 @@ async def supervisor_node(state: State) -> dict:
             "agent.supervisor.plan.size", len(decision.detected_requirements)
         )
 
-
-    existing_requirements = get_detected_requirements(state)
     update_step_status(decision, steps_status)
-
     # Check if supervisor wants to end but state shows pending steps
     enforce_plan(decision, existing_requirements, steps_status)
     # Check if task(s) are completed but the supervisor doesn't want to end
@@ -418,7 +416,8 @@ async def supervisor_node(state: State) -> dict:
         content=(
             "COMMAND FROM SUPERVISOR: "
             f"{decision.instructions_for_worker}\n"
-            "**CONSTRAINT**: Focus ONLY on this instruction. Do NOT attempt to solve other parts of the user's request found in the chat history.\n"
+            "**CONSTRAINT**: Focus ONLY on this instruction. Do NOT attempt to solve "
+            "other parts of the user's request found in the chat history.\n"
             f"When finished or if you cannot proceed, use the '{SYSTEM_SUBMIT_WORK}' tool "
             "to report the result."
         ),
@@ -430,7 +429,7 @@ async def supervisor_node(state: State) -> dict:
         if hasattr(decision.next_worker, "value")
         else str(decision.next_worker)
     )
-    output["messages"] = [context_message, ai_message]
+    output["messages"] = [ai_message, context_message]
     return output
 
 async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
