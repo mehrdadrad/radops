@@ -466,6 +466,23 @@ async def auditor_node(state):
         return {}
 
     agent_name = "auditor"
+    nodes = state["response_metadata"].get("nodes", []) + [agent_name]
+    steps_status = state.get("steps_status", [])
+
+    if "pending" in steps_status:
+        logger.info("QA Rejected due to pending steps: %s", steps_status)
+        return {
+            "messages": [
+                HumanMessage(
+                    content=f"{QA_REJECTION_PREFIX}: The plan is incomplete. "
+                    f"Steps status: {steps_status}. "
+                    "You MUST complete all pending steps before finishing."
+                )
+            ],
+            "response_metadata": {"nodes": nodes},
+            "next_worker": None,
+        }
+
     messages = state["messages"]
     original_request = "Unknown Request"
     last_request_index = -1
@@ -508,8 +525,6 @@ async def auditor_node(state):
         HumanMessage(content=f"Tool Evidence: {tool_outputs}"),
         HumanMessage(content=f"Supervisor Log: {supervisor_log}")
     ])
-
-    nodes = state["response_metadata"].get("nodes", []) + [agent_name]
 
     telemetry.update_histogram("agent.auditor.score", audit.score)
 
