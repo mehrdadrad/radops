@@ -377,7 +377,10 @@ async def handle_connection_closed(
         auth_method = settings.slack.auth_method.lower()
         credential = 'service_token' if auth_method == 'jwt' else 'service_api_key'
         logger.error("Authentication failed - check slack.%s configuration", credential)
-        raise AuthenticationError("Authentication failed")
+        await say(
+            "Authentication failed. Please contact your administrator.",
+            thread_ts=message_ts
+        )
     elif error.code == 1012 and attempt == 0:  # Service restart - retry
         logger.info("Service restarting, retrying...")
     elif error.code == 1012:
