@@ -65,6 +65,7 @@ def generate_agent_manifest(
         "Provide a structured summary exactly in the following format:\n"
         "- **Role:** [A concise title and role description]\n"
         "   - **Capabilities:** [Comma-separated list of key capabilities]\n"
+        "   - **Technical Keywords:** [List of specific technical terms, protocols, or acronyms this agent handles]\n"
         "   - **Trigger When:** [Specific user intents or keywords]\n"
         "   - **Differentiation:** [When to use this agent over others]\n\n"
         f"System Prompt:\n{prompt_text}"
@@ -99,7 +100,10 @@ def _build_supervisor_prompt():
 """
         idx += 1
 
-    general_instructions = ""
+    general_instructions = (
+        "- **Specificity Rule:** Always prefer a specialized agent over a general agent "
+        "if the request involves technical details.\n"
+    )
     for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
         if agent_config.description:
             general_instructions += (
