@@ -429,7 +429,7 @@ async def supervisor_node(state: State) -> dict:
         if hasattr(decision.next_worker, "value")
         else str(decision.next_worker)
     )
-    output["messages"] = [ai_message, context_message]
+    output["messages"] = [context_message, ai_message]
     return output
 
 async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
