@@ -75,6 +75,31 @@ def get_detected_requirements(state: dict) -> list[dict]:
     return normalized_reqs
 
 
+def configure_agents(graph_builder: StateGraph, tools: Sequence[BaseTool]):
+    """Configures and adds agent nodes to the graph."""
+    for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
+        system_prompt_file = agent_config.system_prompt_file
+        if system_prompt_file:
+            with open(system_prompt_file, "r", encoding="utf-8") as f:
+                system_prompt = f.read()
+        else:
+            raise ValueError("System prompt file not found")
+        logger.info("Configuring agent: %s", agent_name)
+        filtered_tools = filter_tools(tools, agent_config.allow_tools)
+        graph_builder.add_node(
+            agent_name,
+            create_agent(
+                agent_name, system_prompt, filtered_tools, agent_config.llm_profile
+            ),
+        )
+        graph_builder.add_conditional_edges(
+            agent_name,
+            route_after_worker,
+            {"tools": "tools", "supervisor": "supervisor"},
+        )
+        logger.info("Agent configured: %s with %d tools.", agent_name, len(filtered_tools))
+
+
 async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     """Builds and runs the LangGraph application."""
     if tool_registry is None:
@@ -141,29 +166,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         {"tools": "tools", "supervisor": "supervisor"},
     )
 
-    # setup configured agent(s)
-    for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
-        system_prompt_file = agent_config.system_prompt_file
-        if system_prompt_file:
-            with open(system_prompt_file, "r", encoding="utf-8") as f:
-                system_prompt = f.read()
-        else:
-            raise ValueError("System prompt file not found")
-        logger.info("Configuring agent: %s", agent_name)
-        filtered_tools = filter_tools(tools, agent_config.allow_tools)
-        graph_builder.add_node(
-            agent_name,
-            create_agent(
-                agent_name, system_prompt, filtered_tools, agent_config.llm_profile
-            ),
-        )
-        graph_builder.add_conditional_edges(
-            agent_name,
-            route_after_worker,
-            {"tools": "tools", "supervisor": "supervisor"},
-        )
-        logger.info("Agent configured: %s with %d tools.", agent_name, len(filtered_tools))
-
+    configure_agents(graph_builder, tools)
 
     graph = graph_builder.compile(
         checkpointer=checkpointer,
