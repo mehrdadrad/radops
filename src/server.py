@@ -5,12 +5,13 @@ import logging
 import sys
 import warnings
 from contextlib import asynccontextmanager
-from libs.logger import initialize_logger
-
-initialize_logger()
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status
+
+from libs.logger import initialize_logger
+
+initialize_logger()
 
 from config.server import server_settings
 from core.auth import get_user_role
@@ -48,7 +49,7 @@ def authenticate_websocket(websocket: WebSocket) -> dict:
 
     # Extract headers from WebSocket scope
     headers = dict(websocket.scope.get("headers", []))
-    
+
     # Check for API Key in X-API-Key header
     api_key = headers.get(b"x-api-key")
     if api_key:
@@ -213,3 +214,4 @@ if __name__ == "__main__":
     uvicorn.run(
         app, host=args.host, port=args.port, log_config=None, ws="wsproto"
     )
+    
