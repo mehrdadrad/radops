@@ -156,6 +156,8 @@ def _build_supervisor_prompt():
             "- **Agent Discovery:** You MUST use the `system__agent_discovery_tool` "
             "to identify the correct agent for the task. Pass the task description to the tool "
             "to get the recommended agent.\n"
+            "- If the tool returns 'unavailable', you MUST inform the user that no suitable agent was found "
+            "to handle their request and set `next_worker` to 'end'.\n"
         )
     else:
         for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
