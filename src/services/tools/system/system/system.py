@@ -44,15 +44,24 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
 
         This tool takes a list of task descriptions (queries) and returns the name of the
         agent best suited to handle each step, assisting the supervisor in planning.
+        Returns 'unavailable' if no suitable agent is found.
         """
-        print("******* TOOOL CALLED ******", queries)
         agents = []
+        # Threshold for similarity score (L2 distance).
+        # Lower is better. Adjusted to 1.6 based on empirical observations.
+        threshold = 1.6
+
         for query in queries:
-            result = db.similarity_search(query, k=1)
+            result = db.similarity_search_with_score(query, k=1)
             if result:
-                agents.append(result[0].metadata['agent_name'])
+                doc, score = result[0]
+                logger.info("Agent discovery score for query '%s': %f", query, score)
+                if score < threshold:
+                    agents.append(doc.metadata['agent_name'])
+                else:
+                    agents.append("unavailable")
             else:
-                agents.append("unknown")
+                agents.append("unavailable")
 
         return agents        
 
