@@ -98,6 +98,7 @@ class SupervisorSettings(BaseModel):
 
     llm_profile: Optional[str] = None
     prompt_file: Optional[str] = None
+    discovery_mode: str = "prompt"
 
 class SystemSettings(BaseModel):
     """Settings for the system agent."""

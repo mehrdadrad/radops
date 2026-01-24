@@ -31,6 +31,7 @@ from prompts.system import (
     AUDITOR_PROMPT,
     SUMMARIZATION_PROMPT,
 )
+from services.tools.system.system.system import create_agent_discovery_tool
 from services.guardrails.guardrails import guardrails
 from services.telemetry.telemetry import telemetry
 from tools import ToolRegistry
@@ -109,10 +110,16 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
 
     system_tools = await tool_registry.get_system_tools()
 
+    discovery_tool = None
+    discovery_mode = settings.agent.supervisor.discovery_mode
+    if discovery_mode != "prompt":
+        discovery_tool = create_agent_discovery_tool(tools)
+        system_tools.append(discovery_tool)
+
     graph_builder = StateGraph(State)
     graph_builder.add_node("guardrails", guardrails)
     graph_builder.add_node("memory", manage_memory_node)
-    graph_builder.add_node("supervisor", supervisor_node)
+    graph_builder.add_node("supervisor", partial(supervisor_node, discovery_tool=discovery_tool))
     graph_builder.add_node("auditor", auditor_node)
     graph_builder.add_node("human", human_node)
     graph_builder.add_node("system", partial(system_node, tools=system_tools))
@@ -275,23 +282,57 @@ def check_completion(decision, existing_requirements, steps_status):
             decision.next_worker = "end"
 
 
-async def supervisor_node(state: State) -> dict:
+async def _get_supervisor_decision(state: State, messages: list, node_name: str, discovery_tool: BaseTool = None):
+    """Invokes the supervisor LLM to get a decision."""
+    llm_profile = (
+        settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
+    )
+    llm = llm_factory(llm_profile, agent_name=node_name)
+    if discovery_tool:
+        llm = llm.bind_tools([discovery_tool])
+    # Initial Plan: If no worker is assigned (start of task), generate the plan.
+    if state.get("next_worker", "") == "":
+        output_schema = SupervisorAgentPlanOutput
+    # Execution Loop: If a worker is assigned (or returning), continue execution.
+    else:
+        output_schema = SupervisorAgentOutput
+
+    start_time = time.perf_counter()
+    try:
+        decision = await llm.with_structured_output(output_schema).ainvoke(messages)
+    except Exception as e:
+        logger.error("LLM error: %s", e)
+        telemetry.update_counter("agent.llm.errors", attributes={"agent": node_name})
+        # Fallback to prevent UnboundLocalError
+        fallback_args = {
+            "next_worker": "end",
+            "response_to_user": f"The supervisor encountered an error: {str(e)}",
+            "instructions_for_worker": "",
+            "current_step_id": 0,
+            "current_step_status": "failed"
+        }
+        
+        if state.get("next_worker", "") == "":
+            decision = SupervisorAgentPlanOutput(
+                detected_requirements=[],
+                **fallback_args
+            )
+        else:
+            decision = SupervisorAgentOutput(**fallback_args)
+
+    duration = time.perf_counter() - start_time
+    telemetry.update_histogram(
+        "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
+    )
+    return decision
+
+
+async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict:
     """The supervisor node that routes to the correct worker or ends."""
     node_name = "supervisor"
     telemetry.update_counter(
         "agent.invocations.total", attributes={"agent": node_name}
     )
-
-    llm_profile = (
-        settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
-    )
-    llm = llm_factory(llm_profile, agent_name=node_name)
-    # Initial Plan: If no worker is assigned (start of task), generate the plan.
-    if state.get("next_worker", "") == "":
-        llm_structured = llm.with_structured_output(SupervisorAgentPlanOutput)
-    # Execution Loop: If a worker is assigned (or returning), continue execution.
-    else:
-        llm_structured = llm.with_structured_output(SupervisorAgentOutput)
 
     # Sanitize messages to remove orphaned ToolMessages caused by truncation
     conversation_messages = state["messages"]
@@ -344,33 +385,7 @@ async def supervisor_node(state: State) -> dict:
 
     messages = [SystemMessage(content=system_prompt)] + conversation_messages
 
-    start_time = time.perf_counter()
-    try:
-        decision = await llm_structured.ainvoke(messages)
-    except Exception as e:
-        logger.error("LLM error: %s", e)
-        telemetry.update_counter("agent.llm.errors", attributes={"agent": node_name})
-        # Fallback to prevent UnboundLocalError
-        fallback_args = {
-            "next_worker": "end",
-            "response_to_user": f"The supervisor encountered an error: {str(e)}",
-            "instructions_for_worker": "",
-            "current_step_id": 0,
-            "current_step_status": "failed"
-        }
-        
-        if state.get("next_worker", "") == "":
-            decision = SupervisorAgentPlanOutput(
-                detected_requirements=[],
-                **fallback_args
-            )
-        else:
-            decision = SupervisorAgentOutput(**fallback_args)
-
-    duration = time.perf_counter() - start_time
-    telemetry.update_histogram(
-        "agent.llm.duration_seconds", duration, attributes={"agent": node_name}
-    )
+    decision = await _get_supervisor_decision(state, messages, node_name, discovery_tool=discovery_tool)
 
     if hasattr(decision, "detected_requirements") and decision.detected_requirements:
         telemetry.update_histogram(
@@ -421,8 +436,8 @@ async def supervisor_node(state: State) -> dict:
             f"{decision.instructions_for_worker}\n"
             "**CONSTRAINT**: Focus ONLY on this instruction. Do NOT attempt to solve "
             "other parts of the user's request found in the chat history.\n"
-            f"When finished or if you cannot proceed, use the '{SYSTEM_SUBMIT_WORK}' tool "
-            "to report the result."
+            f"When finished or if you cannot proceed, you MUST use the '{SYSTEM_SUBMIT_WORK}' tool "
+            "to report the result. Do NOT reply with text."
         ),
         name="supervisor"
     )
@@ -755,6 +770,10 @@ async def authorize_tools(request, handler) -> ToolMessage:
 
 def route_workflow(state: State) -> str:
     """Routes to the next worker based on the supervisor's decision."""
+    last_message = state["messages"][-1]
+    if isinstance(last_message, AIMessage):
+        if last_message.tool_calls:
+            return "tools"
     next_worker = state["next_worker"]
     if next_worker == "end":
         return "auditor"

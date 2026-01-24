@@ -1,10 +1,17 @@
 """Module for managing system prompts and agent manifests."""
 import logging
 import os
+import re
 import sys
 from pathlib import Path
+from typing import Sequence
+
+from langchain_core.documents import Document
+from langchain_core.tools import BaseTool
+from langchain_community.vectorstores import FAISS
 
 from config.config import settings
+from core.llm import embedding_factory
 from core.llm import llm_factory
 
 logger = logging.getLogger(__name__)
@@ -81,6 +88,44 @@ def generate_agent_manifest(
 
     return content
 
+def build_agent_registry(tools: Sequence[BaseTool]):
+    """Builds the agent registry by registering available agents including prompt and tools."""
+    docs = []
+    for agent_name, agent_config in settings.agent.profiles.items():
+        prompt_text = ""
+        try:
+            prompt_file = agent_config.system_prompt_file
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                prompt_text = f.read()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Couldn't open file: %s, error: %s", prompt_file, e)
+            sys.exit(1)
+
+        # Filter tools for this agent
+        agent_tools = []
+        if agent_config.allow_tools:
+            for tool in tools:
+                for pattern in agent_config.allow_tools:
+                    if re.fullmatch(pattern, tool.name):
+                        agent_tools.append(tool)
+                        break
+
+        if agent_tools:
+            prompt_text += "\n\n### Available Tools\n"
+            for tool in agent_tools:
+                prompt_text += f"- {tool.name}: {tool.description}\n"
+        
+        docs.append( 
+            Document(
+                page_content=prompt_text, 
+                metadata={"agent_name": agent_name}
+            )
+        )
+
+    embedding = embedding_factory("openai-embedding-small") 
+
+    return FAISS.from_documents(docs, embedding)
+
 def _build_supervisor_prompt():
     """Builds the supervisor system prompt."""
     prompt_template = _load_prompt(settings.agent.supervisor.prompt_file)
@@ -104,12 +149,21 @@ def _build_supervisor_prompt():
         "- **Specificity Rule:** Always prefer a specialized agent over a general agent "
         "if the request involves technical details.\n"
     )
-    for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
-        if agent_config.description:
-            general_instructions += (
-                f"- If the user request matches {agent_config.description}, "
-                f"route to `{agent_name}`.\n"
-            )
+
+    discovery_mode = settings.agent.supervisor.discovery_mode
+    if discovery_mode != "prompt":
+        general_instructions += (
+            "- **Agent Discovery:** You MUST use the `system__agent_discovery_tool` "
+            "to identify the correct agent for the task. Pass the task description to the tool "
+            "to get the recommended agent.\n"
+        )
+    else:
+        for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
+            if agent_config.description:
+                general_instructions += (
+                    f"- If the user request matches {agent_config.description}, "
+                    f"route to `{agent_name}`.\n"
+                )
 
     return prompt_template.format(
         workers_prompts=workers_prompts,
