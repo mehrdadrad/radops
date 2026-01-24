@@ -15,6 +15,7 @@ across your entire infrastructure—autonomously.
 
 * **🛡️ Guardrailed Orchestration**: Uses a Supervisor-Worker architecture with strict sequential logic to prevent execution errors.
 * **🧠 3-Tier Cognitive Memory**: Distinguishes between **Working Memory**, **Ephemeral Facts** , and **Core Knowledge** (Permanent Architecture rules).
+* **🔎 Scalable Agent Discovery**: Supports **Prompt Mode** for small teams (<15 agents) and **Discovery Mode** for unlimited scaling via vector-based agent lookup.
 * **🤖 Config-Driven Specialists**: Instantly spin up specialized agents (e.g., Network, Security) by defining personas and toolsets in YAML — no new code required.
 * **👨‍💻 Human-in-the-Loop**: Seamlessly pause workflows for user approval or input before executing sensitive actions.
 * **🔄 Multi-Step Workflows**: Automatically decomposes complex requests into logical steps, executing them sequentially with state tracking and plan enforcement.
