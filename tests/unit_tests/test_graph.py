@@ -157,11 +157,12 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
     def test_route_workflow(self):
         """Test the routing logic from the supervisor."""
+        dummy_msg = HumanMessage(content="test")
         self.assertEqual(
-            route_workflow({"next_worker": "network_agent"}), "network_agent"
+            route_workflow({"next_worker": "network_agent", "messages": [dummy_msg]}), "network_agent"
         )
         self.assertEqual(
-            route_workflow({"next_worker": "common_agent"}), "common_agent"
+            route_workflow({"next_worker": "common_agent", "messages": [dummy_msg]}), "common_agent"
         )
 
     def test_route_after_worker(self):
