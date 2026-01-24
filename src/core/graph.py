@@ -284,22 +284,49 @@ def check_completion(decision, existing_requirements, steps_status):
 
 async def _get_supervisor_decision(state: State, messages: list, node_name: str, discovery_tool: BaseTool = None):
     """Invokes the supervisor LLM to get a decision."""
-    llm_profile = (
-        settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
-    )
-    llm = llm_factory(llm_profile, agent_name=node_name)
-    if discovery_tool:
-        llm = llm.bind_tools([discovery_tool])
     # Initial Plan: If no worker is assigned (start of task), generate the plan.
-    if state.get("next_worker", "") == "":
+    if state.get("next_worker", "") == "" or state.get("detected_requirements", []) == []:
         output_schema = SupervisorAgentPlanOutput
     # Execution Loop: If a worker is assigned (or returning), continue execution.
     else:
         output_schema = SupervisorAgentOutput
 
+    llm_profile = (
+        settings.agent.supervisor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
+    )
+    llm = llm_factory(llm_profile, agent_name=node_name)
+
     start_time = time.perf_counter()
     try:
-        decision = await llm.with_structured_output(output_schema).ainvoke(messages)
+        if discovery_tool:
+            llm = llm.bind_tools([discovery_tool, output_schema])    
+            decision = await llm.ainvoke(messages)
+            if decision.tool_calls:
+                if decision.tool_calls[0]["name"] == discovery_tool.name:
+                    return {
+                        "messages": [decision],
+                        "response_metadata": {"nodes": [node_name]},
+                        "next_worker": "supervisor"
+                    }
+                return output_schema(**decision.tool_calls[0]["args"])
+
+            # If no tool calls were made, treat the content as the response to user and end.
+            response_content = decision.content if decision.content else "I'm sorry, I couldn't determine how to proceed."
+            fallback_args = {
+                "next_worker": "end",
+                "response_to_user": response_content,
+                "instructions_for_worker": "",
+                "current_step_id": 0,
+                "current_step_status": "failed",
+                "skipped_step_ids": []
+            }
+            if output_schema == SupervisorAgentPlanOutput:
+                fallback_args["detected_requirements"] = []
+            return output_schema(**fallback_args)
+        else:
+            decision = await llm.with_structured_output(output_schema).ainvoke(messages)
+        
+
     except Exception as e:
         logger.error("LLM error: %s", e)
         telemetry.update_counter("agent.llm.errors", attributes={"agent": node_name})
@@ -387,6 +414,9 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
 
     decision = await _get_supervisor_decision(state, messages, node_name, discovery_tool=discovery_tool)
 
+    if isinstance(decision, dict):
+        return decision
+
     if hasattr(decision, "detected_requirements") and decision.detected_requirements:
         telemetry.update_histogram(
             "agent.supervisor.plan.size", len(decision.detected_requirements)
@@ -414,7 +444,7 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
 
     # Determine if we should update detected_requirements in the state.
     should_update_requirements = False
-    if state.get("next_worker", "") == "":
+    if state.get("next_worker", "") == "" or state.get("detected_requirements", []) == []:
         should_update_requirements = True
 
     output = {
