@@ -298,7 +298,10 @@ async def _get_supervisor_decision(state: State, messages: list, node_name: str,
 
     start_time = time.perf_counter()
     try:
-        if discovery_tool:
+        # Only enable discovery tool if we haven't established requirements yet
+        enable_discovery = discovery_tool and not state.get("detected_requirements")
+
+        if enable_discovery:
             llm = llm.bind_tools([discovery_tool, output_schema])    
             decision = await llm.ainvoke(messages)
             if decision.tool_calls:
