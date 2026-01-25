@@ -104,7 +104,8 @@ class AsyncConnectionManager:
         async with self.lock:
             if user_identifier in self.connections:
                 await self._refresh_connection_timer(user_identifier)
-                return self.connections[user_identifier]['ws']
+                conn = self.connections[user_identifier]
+                return conn['ws'], conn['lock']
 
             if len(self.connections) >= self.max_connections:
                 raise ConnectionPoolFullError(
@@ -145,10 +146,12 @@ class AsyncConnectionManager:
             await ws.ping()
 
             timer = asyncio.create_task(self._start_timer(user_identifier))
+            lock = asyncio.Lock()
             self.connections[user_identifier] = {
                 'ws': ws,
                 'timer': timer,
-                'created_at': time.time()
+                'created_at': time.time(),
+                'lock': lock
             }
 
             if settings.slack.auth_disabled:
@@ -158,7 +161,7 @@ class AsyncConnectionManager:
             logger.info(
                 "WebSocket connection established for %s (%s)", user_identifier, auth_status
             )
-            return ws
+            return ws, lock
 
         except websockets.exceptions.InvalidStatusCode as e:
             if e.status_code == 401:
@@ -338,24 +341,27 @@ async def add_reaction(client: Any, channel_id: str, message_ts: str, emoji: str
 
 async def process_message(text: str, user_email: str, say: Callable, message_ts: str):
     """Process message through WebSocket connection."""
-    ws = await manager.get_connection(user_email)
-    if not ws:
+    conn = await manager.get_connection(user_email)
+    if not conn:
         await say("Service unavailable.", thread_ts=message_ts)
         return
 
-    await ws.send(text)
+    ws, lock = conn
 
-    try:
-        async with asyncio.timeout(MESSAGE_TIMEOUT):
-            while True:
-                result = await ws.recv()
-                if result == '\x03':  # End of transmission
-                    break
-                await say(result, thread_ts=message_ts)
-    except asyncio.TimeoutError:
-        logger.warning("Message processing timeout for user: %s", user_email)
-        await say("Request timed out. Please try again.", thread_ts=message_ts)
-        await manager.close_connection(user_email)
+    async with lock:
+        await ws.send(text)
+
+        try:
+            async with asyncio.timeout(MESSAGE_TIMEOUT):
+                while True:
+                    result = await ws.recv()
+                    if result == '\x03':  # End of transmission
+                        break
+                    await say(result, thread_ts=message_ts)
+        except asyncio.TimeoutError:
+            logger.warning("Message processing timeout for user: %s", user_email)
+            await say("Request timed out. Please try again.", thread_ts=message_ts)
+            await manager.close_connection(user_email)
 
 
 async def handle_connection_closed(
