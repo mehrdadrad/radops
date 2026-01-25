@@ -126,11 +126,16 @@ Configures the specialized agents that the Supervisor delegates tasks to.
 
 ### Adding a Custom Agent
 
-To create a new agent, add an entry under `agent.profiles`.
+To add a new agent to the team, simply define it in `config.yaml`. In **Prompt Mode** (default), the system automatically registers the agent with the Supervisor.
+
+**Routing Logic:**
+The Supervisor needs to know what each agent does to route tasks effectively. RadOps constructs this "Team Member Description" using:
+1.  **`system_prompt_file`**: If provided, the content of this file is used to describe the agent.
+2.  **`description`**: If the file is missing, the system falls back to this short description string.
 
 | Parameter | Description |
 | :--- | :--- |
-| `description` | Used by the Supervisor to route requests. Be specific about what the agent can and cannot do. |
+| `description` | Fallback description for the Supervisor if `system_prompt_file` is not set. |
 | `llm_profile` | The ID of the LLM profile to use (defined in the `llm` section). |
 | `manifest_llm_profile` | (Optional) A specific profile for generating the agent's capability manifest at startup. |
 | `system_prompt_file` | Path to the text file containing the agent's instructions. |

@@ -6,6 +6,13 @@ RadOps supports two distinct modes for routing tasks to agents, allowing you to 
 
 In **Prompt Mode**, the Supervisor is explicitly aware of every available agent. The system injects the description and capabilities of all configured agents directly into the Supervisor's system prompt.
 
+### How Agents are Added to the Prompt
+
+When the Supervisor is initialized, it iterates through all agents defined in `config.yaml`. It constructs a description for each team member using the following precedence:
+
+1.  **System Prompt File**: If `system_prompt_file` is defined, its content is included in the Supervisor's prompt. This allows the Supervisor to have a deep understanding of the agent's persona and instructions.
+2.  **Description Field**: If no file is provided, the `description` field from `config.yaml` is used as a fallback.
+
 *   **Best For:** Small deployments (typically < 15 agents).
 *   **Mechanism:** The LLM sees the full list of agents and selects the best one based on the user's request.
 *   **Pros:**
@@ -38,4 +45,6 @@ agent:
   supervisor:
     # Options: "prompt" (default) or "auto" (enables discovery)
     discovery_mode: "prompt"
+    # The threshold for agent discovery relevance (default: 1.6)
+    discovery_threshold: 1.6
 ```
