@@ -3,6 +3,7 @@ from typing import Any, List, Sequence
 from langchain_core.tools import tool
 from core.state import WorkerAgentOutput
 from langchain_core.tools import BaseTool
+from config.config import settings
 from prompts.system import build_agent_registry
 
 logger = logging.getLogger(__name__)
@@ -48,8 +49,8 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
         """
         agents = []
         # Threshold for similarity score (L2 distance).
-        # Lower is better. Adjusted to 1.6 based on empirical observations.
-        threshold = 1.6
+        # Lower is better.
+        threshold = settings.agent.supervisor.discovery_threshold
 
         for query in queries:
             result = db.similarity_search_with_score(query, k=1)

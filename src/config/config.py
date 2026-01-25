@@ -99,6 +99,7 @@ class SupervisorSettings(BaseModel):
     llm_profile: Optional[str] = None
     prompt_file: Optional[str] = None
     discovery_mode: str = "prompt"
+    discovery_threshold: float = 1.6
 
 class SystemSettings(BaseModel):
     """Settings for the system agent."""
