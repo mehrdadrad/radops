@@ -14,6 +14,22 @@ It is important to distinguish between the **LLM's intent** and the **System's p
 
 This ensures that while the LLM provides the intelligence to select tools, `rbac.yaml` provides the security to restrict them.
 
+```mermaid
+flowchart TD
+    User([User Request]) --> Auth{Authentication}
+    Auth -->|Identity Verified| Lookup[Role Lookup]
+    Auth -->|Failed| Deny([Access Denied])
+    
+    subgraph RBAC["rbac.yaml"]
+        Lookup -->|Finds User| Role[Get Role]
+        Role -->|Refers| Perms[Role Permissions]
+    end
+    
+    Perms --> Check{Tool Allowed?}
+    Check -->|Yes| Allow([Execute Tool])
+    Check -->|No| Block([Permission Denied])
+```
+
 ## Local Users
 
 Maps user IDs (typically email addresses) to their settings, including roles and profile information.

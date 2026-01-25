@@ -7,6 +7,25 @@ This allows the agent to:
 2.  **Filter** results using metadata extracted from filenames (e.g., "Show me configs for site `sjc01`").
 3.  **Rerank** results for higher precision using local cross-encoders.
 
+## Architecture Overview
+
+```mermaid
+flowchart TB
+    subgraph Ingestion [Ingestion Loop]
+        direction LR
+        Source["Data Sources(GitHub, GDrive, FS)"] -->|1. Load & Chunk| Meta[Metadata Extraction]
+        Meta -->|2. Embed & Store| VDB[(Vector Store)]
+    end
+
+    subgraph Retrieval [Retrieval Flow]
+        direction LR
+        Agent -->|3. Call Tool| Tool[Knowledge Base Tool]
+        Tool -->|4. Vector Search| VDB
+        VDB -->|5. Candidates| Rerank["Reranker(Optional)"]
+        Rerank -->|6. Final Context| Agent
+    end
+```
+
 ## 1. Vector Store Providers
 
 First, configure the backend database where vectors are stored in `config.yaml`.

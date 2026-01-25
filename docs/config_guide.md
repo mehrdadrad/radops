@@ -39,6 +39,21 @@ logging:
 
 Defines the AI models used by the system. You can define multiple profiles and select a default.
 
+```mermaid
+flowchart LR
+    subgraph Config["config.yaml"]
+        direction TB
+        Def[default_profile] -->|Selects| Prof[Profile: openai-main]
+        Prof -->|Refers| Key[api_key: vault:...]
+    end
+    
+    subgraph Vault["HashiCorp Vault"]
+        Secret[Actual API Key]
+    end
+
+    Key -.->|Retrieves| Secret
+```
+
 ### Supported Providers
 *   **OpenAI** (`openai`): Cloud models such as `gpt-5` and `gpt-5-nano`.
 *   **Anthropic** (`anthropic`): Cloud models such as `claude-4-5-sonnet` and `claude-4-5-opus`.
@@ -127,6 +142,22 @@ Configures the specialized agents that the Supervisor delegates tasks to.
 ### Adding a Custom Agent
 
 To add a new agent to the team, simply define it in `config.yaml`. In **Prompt Mode** (default), the system automatically registers the agent with the Supervisor.
+
+```mermaid
+flowchart LR
+    subgraph Config["config.yaml"]
+        Agent[Agent Profile]
+        LLM[LLM Profile]
+    end
+    
+    subgraph Files["File System"]
+        Prompt[System Prompt File]
+    end
+
+    Agent -->|llm_profile| LLM
+    Agent -->|system_prompt_file| Prompt
+    Agent -->|allow_tools| Tools[Tool Definitions]
+```
 
 **Routing Logic:**
 The Supervisor needs to know what each agent does to route tasks effectively. RadOps constructs this "Team Member Description" using:

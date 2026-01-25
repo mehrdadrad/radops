@@ -2,6 +2,8 @@
 
 RadOps supports two distinct modes for routing tasks to agents, allowing you to scale from a handful of specialists to hundreds of agents without overwhelming the Supervisor's context window.
 
+
+
 ## 1. Prompt Mode (Default)
 
 In **Prompt Mode**, the Supervisor is explicitly aware of every available agent. The system injects the description and capabilities of all configured agents directly into the Supervisor's system prompt.
@@ -21,6 +23,16 @@ When the Supervisor is initialized, it iterates through all agents defined in `c
 *   **Cons:**
     *   **Context Limit:** As you add more agents, the system prompt grows, consuming valuable tokens and potentially confusing the LLM.
 
+```mermaid
+flowchart LR
+    User([User Request]) --> Supervisor
+    subgraph Context [System Prompt]
+        List[Full List of Agents]
+    end
+    Context -.-> Supervisor
+    Supervisor -->|Direct Routing| Worker([Worker Agent])
+```
+
 ## 2. Discovery Mode
 
 In **Discovery Mode**, the Supervisor does not know about all agents upfront. Instead, it uses a specialized tool (`system__agent_discovery_tool`) to search for the right agent based on the task description.
@@ -35,6 +47,15 @@ In **Discovery Mode**, the Supervisor does not know about all agents upfront. In
     *   **Focus:** The Supervisor focuses on planning rather than memorizing agent capabilities.
 *   **Cons:**
     *   **Latency:** Requires one additional tool execution step to find the agent.
+
+```mermaid
+flowchart LR
+    User([User Request]) --> Supervisor
+    Supervisor -->|1. Search| Tool([Discovery Tool])
+    Tool <-->|2. Query| VDB[(Vector DB In-Memory)]
+    Tool -->|3. Return Agent| Supervisor
+    Supervisor -->|4. Route| Worker([Worker Agent])
+```
 
 ## Configuration
 

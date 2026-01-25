@@ -6,6 +6,28 @@ This guide focuses on configuring data sources for the Knowledge Base (Vector St
 
 Defined in `config.yaml` under `vector_store.profiles`, these settings determine how documents are ingested into the RAG system.
 
+```mermaid
+flowchart LR
+    subgraph Sources
+        FS[File System]
+        GD[Google Drive]
+        GH[GitHub]
+    end
+
+    subgraph Process["Ingestion Process"]
+        Loader[Loader] --> Meta[Metadata Extraction]
+    end
+
+    subgraph DB["Vector Store"]
+        Coll[Collection]
+    end
+
+    FS --> Loader
+    GD --> Loader
+    GH --> Loader
+    Meta -->|Embeds & Stores| Coll
+```
+
 ### Common Configuration
 
 | Parameter | Description |
@@ -77,6 +99,25 @@ metadata:
 ```
 
 ## External Service Setup
+
+```mermaid
+flowchart LR
+    User([User]) -->|Chat Command| Agent
+    Agent -->|Invokes| Tool[Integration Tool]
+    
+    subgraph Security["Secret Management"]
+        Vault[(HashiCorp Vault)]
+    end
+    
+    subgraph External["External API"]
+        Jira[Jira]
+        GitHub[GitHub]
+    end
+
+    Tool -.->|Fetch Credentials| Vault
+    Tool -->|Authenticated Request| Jira
+    Tool -->|Authenticated Request| GitHub
+```
 
 ### Setting up Google Drive Auth
 1.  Go to Google Cloud Console.
