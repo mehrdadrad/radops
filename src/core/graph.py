@@ -1,4 +1,15 @@
-"""This module defines and configures the main LangGraph for the agent."""
+"""
+This module defines the core execution graph for the RadOps agent system.
+
+It implements a Supervisor-Worker architecture using LangGraph, where a central
+Supervisor agent plans tasks and delegates them to specialized worker agents.
+The graph handles:
+- State management (messages, requirements, memory).
+- Routing logic between Supervisor, Workers, and Tools.
+- Memory management (short-term summarization and long-term vector storage).
+- Tool execution and authorization.
+- Auditing and guardrails.
+"""
 import json
 import logging
 import re
@@ -23,7 +34,12 @@ from config.config import settings
 from core.auth import is_tool_authorized
 from core.llm import llm_factory
 from core.memory import get_mem0_client
-from core.state import State, SupervisorAgentOutput, SupervisorAgentPlanOutput, AuditReport
+from core.state import (
+    AuditReport,
+    State,
+    SupervisorAgentOutput,
+    SupervisorAgentPlanOutput,
+)
 from prompts.system import (
     EXTENSION_PROMPT,
     SUPERVISOR_PROMPT,
@@ -282,7 +298,9 @@ def check_completion(decision, existing_requirements, steps_status):
             decision.next_worker = "end"
 
 
-async def _get_supervisor_decision(state: State, messages: list, node_name: str, discovery_tool: BaseTool = None):
+async def _get_supervisor_decision(
+    state: State, messages: list, node_name: str, discovery_tool: BaseTool = None
+):
     """Invokes the supervisor LLM to get a decision."""
     # Initial Plan: If no worker is assigned (start of task), generate the plan.
     if state.get("next_worker", "") == "" or state.get("detected_requirements", []) == []:
@@ -302,7 +320,7 @@ async def _get_supervisor_decision(state: State, messages: list, node_name: str,
         enable_discovery = discovery_tool and not state.get("detected_requirements")
 
         if enable_discovery:
-            llm = llm.bind_tools([discovery_tool, output_schema])    
+            llm = llm.bind_tools([discovery_tool, output_schema])
             decision = await llm.ainvoke(messages)
             if decision.tool_calls:
                 if decision.tool_calls[0]["name"] == discovery_tool.name:
@@ -314,7 +332,11 @@ async def _get_supervisor_decision(state: State, messages: list, node_name: str,
                 return output_schema(**decision.tool_calls[0]["args"])
 
             # If no tool calls were made, treat the content as the response to user and end.
-            response_content = decision.content if decision.content else "I'm sorry, I couldn't determine how to proceed."
+            response_content = (
+                decision.content
+                if decision.content
+                else "I'm sorry, I couldn't determine how to proceed."
+            )
             fallback_args = {
                 "next_worker": "end",
                 "response_to_user": response_content,
@@ -328,7 +350,6 @@ async def _get_supervisor_decision(state: State, messages: list, node_name: str,
             return output_schema(**fallback_args)
         else:
             decision = await llm.with_structured_output(output_schema).ainvoke(messages)
-        
 
     except Exception as e:
         logger.error("LLM error: %s", e)
@@ -341,7 +362,7 @@ async def _get_supervisor_decision(state: State, messages: list, node_name: str,
             "current_step_id": 0,
             "current_step_status": "failed"
         }
-        
+
         if state.get("next_worker", "") == "":
             decision = SupervisorAgentPlanOutput(
                 detected_requirements=[],
@@ -512,6 +533,7 @@ async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
     return {"messages": [decision], "response_metadata": {"nodes": nodes}}
 
 async def auditor_node(state):
+    """Audits the execution of the plan."""
     if not settings.agent.auditor.enabled:
         return {}
 
@@ -542,7 +564,8 @@ async def auditor_node(state):
     )
 
     llm_profile = (
-        settings.agent.auditor.llm_profile or settings.llm.default_profile  # pylint: disable=no-member
+        settings.agent.auditor.llm_profile
+        or settings.llm.default_profile  # pylint: disable=no-member
     )
 
     for i in range(len(messages) - 1, -1, -1):
@@ -1023,6 +1046,7 @@ def detect_tool_loop(state, limit=3):
     return False
 
 async def summarize_conversation(state: State):
+    """Summarizes the conversation if it exceeds the token threshold."""
     messages = state["messages"]
     current_summary = state.get("summary", "")
 
