@@ -501,7 +501,7 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
         if hasattr(decision.next_worker, "value")
         else str(decision.next_worker)
     )
-    output["messages"] = [context_message, ai_message]
+    output["messages"] = [ai_message, context_message]
     return output
 
 async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
@@ -791,14 +791,23 @@ async def astream_graph_updates(
         initial_input["detected_requirements"] = []
         initial_input["steps_status"] = []
 
+    processed_len = len(current_state.values.get("messages", [])) if current_state.values else 0
+
     async for event in graph.astream(
         initial_input,
         config,
         stream_mode="values",
     ):
-        last_message = event["messages"][-1]
-        if isinstance(last_message, AIMessage):
-            yield last_message, event["response_metadata"]
+        messages = event["messages"]
+        # In case messages has been summarized
+        if len(messages) < processed_len:
+            processed_len = len(messages)
+        if len(messages) > processed_len:
+            new_messages = messages[processed_len:]
+            processed_len = len(messages)
+            for message in new_messages:
+                if isinstance(message, AIMessage):
+                    yield message, event["response_metadata"]
 
 
 async def authorize_tools(request, handler) -> ToolMessage:
