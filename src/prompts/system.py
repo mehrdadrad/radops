@@ -17,6 +17,30 @@ from core.llm import llm_factory
 logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = os.getenv("RADOPS_CORE_PROMPTS_DIR")
+SYSTEM_AGENTS = [
+    {
+        "name": "system",
+        "description": (
+            "Internal system operations manager. "
+            "Capabilities: Clear memory (short/long term), manage user secrets (GitHub, Jira), "
+            "MCP server health & connectivity check. "
+            "Trigger When: User asks to clear memory, forget conversation, set API keys/secrets, "
+            "or check MCP server health/connectivity. "
+            "Differentiation: Use ONLY for internal bot management tasks."
+        ),
+    },
+    {
+        "name": "human",
+        "description": (
+            "The end-user (Human in the loop). "
+            "Capabilities: Provide approval, confirmation, or missing configuration parameters. "
+            "Trigger When: You need explicit approval before executing a sensitive action "
+            "(e.g., modifying infrastructure, deleting data) or need to ask a clarifying question "
+            "*mid-workflow*. "
+            "Differentiation: Use human to PAUSE execution for input. Use end to FINISH execution."
+        ),
+    },
+]
 
 
 def _load_prompt(filename):
@@ -91,6 +115,17 @@ def generate_agent_manifest(
 def build_agent_registry(tools: Sequence[BaseTool]):
     """Builds the agent registry by registering available agents including prompt and tools."""
     docs = []
+
+    # system agents
+    for agent in SYSTEM_AGENTS:
+        docs.append(
+            Document(
+                page_content=agent["description"],
+                metadata={"agent_name": agent["name"]},
+            )
+        )
+
+    # dynamic agents
     for agent_name, agent_config in settings.agent.profiles.items():
         prompt_text = ""
         try:

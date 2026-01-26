@@ -60,9 +60,9 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
                 if score < threshold:
                     agents.append(doc.metadata['agent_name'])
                 else:
-                    agents.append("unavailable")
+                    agents.append("end")
             else:
-                agents.append("unavailable")
+                agents.append("end")
 
         return agents        
 
