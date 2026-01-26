@@ -15,7 +15,7 @@ from core.llm import close_shared_client
 from core.memory import mem0_manager
 from core.auth import get_user_role
 from services.telemetry.telemetry import telemetry
-from tools import ToolRegistry
+from registry.tools import ToolRegistry
 
 # Suppress Weaviate ResourceWarning on shutdown
 warnings.filterwarnings(

@@ -20,7 +20,7 @@ from core.llm import close_shared_client
 from core.graph import astream_graph_updates, run_graph
 from core.memory import mem0_manager
 from services.telemetry.telemetry import telemetry
-from tools import ToolRegistry
+from registry.tools import ToolRegistry
 from libs.status_generator import StatusGenerator
 
 

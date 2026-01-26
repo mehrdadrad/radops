@@ -50,7 +50,7 @@ from prompts.system import (
 from services.tools.system.system.system import create_agent_discovery_tool
 from services.guardrails.guardrails import guardrails
 from services.telemetry.telemetry import telemetry
-from tools import ToolRegistry
+from registry.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
