@@ -1,4 +1,4 @@
-from libs.secrets import get_user_secrets
+from utils.secrets import get_user_secrets
 from config.tools import tool_settings as settings
 from github import Github, GithubException, Auth
 

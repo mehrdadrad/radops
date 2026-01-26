@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 import hvac
 import yaml
 
-from libs.vault_resolver import resolve_vault_secrets
+from utils.vault_resolver import resolve_vault_secrets
 
 logger = logging.getLogger(__name__)
 

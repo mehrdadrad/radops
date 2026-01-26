@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status
 
-from libs.logger import initialize_logger
+from utils.logger import initialize_logger
 
 initialize_logger()
 
@@ -21,7 +21,7 @@ from core.graph import astream_graph_updates, run_graph
 from core.memory import mem0_manager
 from services.telemetry.telemetry import telemetry
 from registry.tools import ToolRegistry
-from libs.status_generator import StatusGenerator
+from utils.status_generator import StatusGenerator
 
 
 # Suppress Weaviate ResourceWarning on shutdown

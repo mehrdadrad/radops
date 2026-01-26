@@ -5,7 +5,7 @@ import asyncio
 import argparse
 import logging
 import warnings
-from libs.logger import initialize_logger
+from utils.logger import initialize_logger
 
 initialize_logger()
 

@@ -7,7 +7,7 @@ from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field
 
 from config.config import settings
-from libs.secrets import vault_client
+from utils.secrets import vault_client
 
 
 class SetSecretsInput(BaseModel):

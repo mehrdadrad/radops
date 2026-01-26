@@ -6,7 +6,7 @@ from langchain_core.tools import tool, ToolException
 from pydantic import BaseModel, Field
 
 from config.tools import tool_settings as settings
-from libs.secrets import get_user_secrets
+from utils.secrets import get_user_secrets
 
 class JiraBaseInput(BaseModel):
     """Base input schema for Jira tools."""
