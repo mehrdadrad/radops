@@ -45,9 +45,12 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
 
         This tool takes a list of task descriptions (queries) and returns the name of the
         agent best suited to handle each step, assisting the supervisor in planning.
-        Returns 'unavailable' if no suitable agent is found.
+        Returns 'end' if no suitable agent is found.
+
+        Args:
+            queries: A mandatory list of strings, where each string describes a specific task or step.
         """
-        agents = []
+        results = []
         # Threshold for similarity score (L2 distance).
         # Lower is better.
         threshold = settings.agent.supervisor.discovery_threshold
@@ -58,13 +61,13 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
                 doc, score = result[0]
                 logger.info("Agent discovery score for query '%s': %f", query, score)
                 if score < threshold:
-                    agents.append(doc.metadata['agent_name'])
+                    results.append(f"Query: '{query}' -> Agent: '{doc.metadata['agent_name']}'")
                 else:
-                    agents.append("end")
+                    results.append(f"Query: '{query}' -> Agent: 'end' (Score {score:.2f} > {threshold})")
             else:
-                agents.append("end")
+                results.append(f"Query: '{query}' -> Agent: 'end' (No match)")
 
-        return agents        
+        return "\n".join(results)
 
     return system__agent_discovery_tool
                  
