@@ -198,6 +198,8 @@ You can also configure the built-in system agents.
 agent:
   supervisor:
     llm_profile: "openai-main"
+    discovery_mode: "prompt" # Options: "prompt" or "auto"
+    discovery_threshold: 1.6
   auditor:
     enabled: true
     llm_profile: "openai-main"
@@ -247,58 +249,29 @@ vector_store:
 
 ## Memory & Persistence
 
-Configures Short-term (Redis) and Long-term (Mem0) memory.
+Configures Short-term and Long-term memory.
 
-### Redis (Short-term)
-Stores active conversation history.
-
-```yaml
-memory:
-  redis:
-    endpoint: "redis://localhost:6379"
-    ttl:
-      time_minutes: 60
-      refresh_on_read: true
-```
-
-### Summarization
-Configures how the agent manages context window limits by summarizing older parts of the conversation.
-
-The summarization process is triggered if **either** of the following thresholds is exceeded:
-1.  **Token Count**: The total tokens in the conversation history exceed `token_threshold`.
-2.  **Message Count**: The total number of messages exceeds `keep_message`.
-
-When triggered, the system retains the most recent `keep_message` messages in their raw format and summarizes all older messages into a single text block. This summary is then injected into the system prompt for future turns.
-
-| Parameter | Description |
-| :--- | :--- |
-| `keep_message` | The number of most recent messages to retain. If set to `0`, all messages are summarized. |
-| `token_threshold` | The token count threshold that triggers the summarization check. |
-| `llm_profile` | The LLM profile used to generate the summary. If left empty, old messages are pruned without summarization. |
+### Short-term Memory
+Stores active conversation history and handles summarization.
 
 ```yaml
 memory:
-  summarization:
-    keep_message: 40
-    token_threshold: 2000
-    llm_profile: "openai-summary"
-```
-
-### Mem0 (Long-term)
-Stores user facts and preferences across sessions.
-
-```yaml
-mem0:
-  llm_profile: "openai-main"
-  embedding_profile: "openai-embedding"
-  vector_store:
-    provider: "weaviate"
+  short_term:
+    provider: "redis"
     config:
-      collection_name: "Mem0_Memory"
-      cluster_url: "http://localhost:8080"
-  excluded_tools:
-    - "set_user_secrets"
+      url: "redis://localhost:6379"
+      ttl:
+        time_minutes: 60
+        refresh_on_read: true
+    summarization:
+      keep_message: 40
+      token_threshold: 2000
+      llm_profile: "openai-summary"
 ```
+
+## Summarization
+
+## Long term memory
 
 ## Vector Store Providers
 

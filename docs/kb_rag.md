@@ -13,7 +13,7 @@ This allows the agent to:
 flowchart TB
     subgraph Ingestion [Ingestion Loop]
         direction LR
-        Source["Data Sources(GitHub, GDrive, FS)"] -->|1. Load & Chunk| Meta[Metadata Extraction]
+        Source["Data Sources(GitHub, GDrive, FS, Notion)"] -->|1. Load & Chunk| Meta[Metadata Extraction]
         Meta -->|2. Embed & Store| VDB[(Vector Store)]
     end
 

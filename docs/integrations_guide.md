@@ -12,6 +12,7 @@ flowchart LR
         FS[File System]
         GD[Google Drive]
         GH[GitHub]
+        Notion[Notion]
     end
 
     subgraph Process["Ingestion Process"]
@@ -25,6 +26,7 @@ flowchart LR
     FS --> Loader
     GD --> Loader
     GH --> Loader
+    Notion --> Loader
     Meta -->|Embeds & Stores| Coll
 ```
 

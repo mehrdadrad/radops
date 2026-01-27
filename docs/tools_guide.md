@@ -105,6 +105,7 @@ mcp:
       transport: "streamable_http"
       headers:
         Authorization: "vault:tools/jenkins#token"
+```
 
 ### MCP Client Configuration
 
