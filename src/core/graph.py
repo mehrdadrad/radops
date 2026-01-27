@@ -693,7 +693,7 @@ async def manage_memory_node(state: State) -> dict:
     try:
         start_time = time.perf_counter()
         memories = await mem0.search(
-            messages[-1].content, user_id=user_id, limit=settings.mem0.limit
+            messages[-1].content, user_id=user_id, limit=settings.memory.long_term.config.limit
         )
         duration = time.perf_counter() - start_time
         telemetry.update_histogram(
@@ -1072,8 +1072,12 @@ async def summarize_conversation(state: State):
         logger.warning("Failed to count tokens with profile '%s': %s", token_count_profile, e)
         return current_summary, []
 
-    token_threshold = settings.memory.summarization.token_threshold
-    messages_to_keep = settings.memory.summarization.keep_message
+    if not settings.memory.short_term:
+        return current_summary, []
+
+    summarization_settings = settings.memory.short_term.summarization
+    token_threshold = summarization_settings.token_threshold
+    messages_to_keep = summarization_settings.keep_message
     if tokens < token_threshold and len(messages) < messages_to_keep:
         return current_summary, []
 
@@ -1103,7 +1107,7 @@ async def summarize_conversation(state: State):
             history_text += f"Assistant: {m.content}\n"
 
     summary_text = current_summary
-    summary_profile = settings.memory.summarization.llm_profile
+    summary_profile = summarization_settings.llm_profile
     max_summary_token = int(token_threshold * 0.70)
 
     if summary_profile in settings.llm.profiles:

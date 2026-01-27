@@ -141,25 +141,21 @@ class TTLSettings(BaseModel):
     refresh_on_read: bool
 
 
-class RedisSettings(BaseModel):
-    """Settings for Redis memory backend."""
-
-    endpoint: str
-    ttl: TTLSettings
-
-
-class MemorySettings(BaseModel):
-    """Settings for conversation memory."""
-
-    redis: Optional[RedisSettings] = None
-    summarization: SummarizationSettings = Field(
-        default_factory=SummarizationSettings
-    )
+class ShortTermMemoryConfig(BaseModel):
+    """Configuration for short-term memory backend."""
+    url: str
+    ttl: Optional[TTLSettings] = None
 
 
-class Mem0VectorStoreConfigSettings(BaseModel):
+class ShortTermMemorySettings(BaseModel):
+    """Settings for short-term memory."""
+    provider: str = "redis"
+    config: ShortTermMemoryConfig
+    summarization: SummarizationSettings = Field(default_factory=SummarizationSettings)
+
+
+class LongTermMemoryBackendConfig(BaseModel):
     """Settings for mem0 vector store config."""
-
     path: Optional[str] = None
     collection_name: Optional[str] = None
     cluster_url: Optional[str] = None
@@ -171,21 +167,26 @@ class Mem0VectorStoreConfigSettings(BaseModel):
     port: Optional[int] = None
 
 
-class Mem0VectorStoreSettings(BaseModel):
-    """Settings for mem0 vector store."""
-
-    provider: str
-    config: Mem0VectorStoreConfigSettings
-
-
-class Mem0Settings(BaseModel):
-    """Settings for Mem0."""
-
+class LongTermMemoryConfig(BaseModel):
+    """Settings for mem0 general config."""
     llm_profile: str
     embedding_profile: str
     limit: int = 10
-    vector_store: Mem0VectorStoreSettings
     excluded_tools: list[str] = Field(default_factory=list)
+
+
+class LongTermMemorySettings(BaseModel):
+    """Settings for long-term memory."""
+    provider: str = "mem0"
+    backend: str
+    config: LongTermMemoryConfig
+    backend_config: LongTermMemoryBackendConfig
+
+
+class MemorySettings(BaseModel):
+    """Settings for conversation memory."""
+    short_term: Optional[ShortTermMemorySettings] = None
+    long_term: Optional[LongTermMemorySettings] = None
 
 class GraphSettings(BaseModel):
     """Settings for graph execution."""
@@ -305,9 +306,6 @@ class Settings(BaseSettings):
 
     # Memory
     memory: MemorySettings = Field(default_factory=MemorySettings)
-
-    # Mem0
-    mem0: Mem0Settings = Field(default_factory=Mem0Settings)
 
     # Vault
     vault: VaultSettings = Field(default_factory=VaultSettings)

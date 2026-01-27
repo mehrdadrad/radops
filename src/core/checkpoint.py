@@ -15,21 +15,22 @@ async def get_checkpointer():
     Context manager that yields a checkpointer (Redis or in-memory).
     Handles setup and potential connection errors.
     """
-    if settings.memory.redis is not None and settings.memory.redis.endpoint:
+    short_term = settings.memory.short_term
+    if short_term and short_term.provider == "redis" and short_term.config.url:
         ttl_config = None
-        if settings.memory.redis.ttl:
+        if short_term.config.ttl:
             ttl_config = {
-                "default_ttl": settings.memory.redis.ttl.time_minutes,
-                "refresh_on_read": settings.memory.redis.ttl.refresh_on_read,
+                "default_ttl": short_term.config.ttl.time_minutes,
+                "refresh_on_read": short_term.config.ttl.refresh_on_read,
             }
 
         logging.info("Persistence is enabled. Connecting to Redis ...")
-        logging.info("  - %s", settings.memory.redis.endpoint)
+        logging.info("  - %s", short_term.config.url)
         logging.info("  - TTL config: %s", ttl_config)
 
         redis_client = None
         try:
-            redis_client = AsyncRedis.from_url(settings.memory.redis.endpoint)
+            redis_client = AsyncRedis.from_url(short_term.config.url)
             async with AsyncRedisSaver(
                 redis_client=redis_client, ttl=ttl_config
             ) as checkpointer:

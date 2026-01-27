@@ -24,10 +24,12 @@ class Mem0Manager:
 
     async def get_client(self) -> AsyncMemory:
         if self._mem0_client is None:
-            mem0_config = settings.mem0
-            llm_profile_name = mem0_config.llm_profile
+            mem0_config = settings.memory.long_term
+            if not mem0_config:
+                return None
+            llm_profile_name = mem0_config.config.llm_profile
             llm_profile = settings.llm.profiles[llm_profile_name]
-            embedder_profile_name = mem0_config.embedding_profile
+            embedder_profile_name = mem0_config.config.embedding_profile
             embedder_profile = settings.llm.profiles[embedder_profile_name]
 
             # Build vector store config dynamically based on provider
@@ -39,14 +41,14 @@ class Mem0Manager:
                 "qdrant": ["collection_name", "url", "host", "port", "api_key", "path"],
                 "milvus": ["collection_name", "uri", "token", "user", "password"],
             }
-            for field in provider_fields_map.get(mem0_config.vector_store.provider, []):
-                if value := getattr(mem0_config.vector_store.config, field, None):
+            for field in provider_fields_map.get(mem0_config.backend, []):
+                if value := getattr(mem0_config.backend_config, field, None):
                     vector_store_config[field] = value
 
             # Construct the configuration for mem0's Memory.from_config
             config = {
                 "vector_store": {
-                    "provider": mem0_config.vector_store.provider,
+                    "provider": mem0_config.backend,
                     "config": vector_store_config
                 },
                 "llm": {
