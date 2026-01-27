@@ -10,7 +10,7 @@ It serves as the central configuration hub, defining the infrastructure connecti
 2. [LLM (Large Language Models)](#llm-large-language-models)
 3. [Agents](#agents)
 4. [Sync Locations (RAG Data Sources)](#sync-locations-rag-data-sources)
-5. [Memory & Persistence](#memory--persistence)
+5. [Memory Configuration](#memory-configuration-guide)
 6. [Vector Store Providers](#vector-store-providers)
 7. [Graph Execution](#graph-execution)
 8. [Vault (Secret Management)](#vault-secret-management)
