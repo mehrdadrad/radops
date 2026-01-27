@@ -11,6 +11,8 @@ across your entire infrastructure—autonomously.
 
 ![RadOps Architecture](/assets/radops_arch_diagram.png)
 
+[▶️ Watch the Introduction Video (8 min)](https://www.youtube.com/watch?v=LVlML1CDI28)
+
 ## 🚀 Key Highlights
 
 * **🛡️ Guardrailed Orchestration**: Uses a Supervisor-Worker architecture with strict sequential logic to prevent execution errors.
