@@ -102,28 +102,29 @@ vector_store:
 # Conversation Memory (Short-term)
 # Stores the immediate chat history.
 memory:
-  redis:
-    endpoint: "redis://localhost:6379"
-    ttl:
-      time_minutes: 60
-      refresh_on_read: true
-  summarization:
-    keep_message: 50 # Number of messages to keep before summarizing
-    token_threshold: 2000
-    llm_profile: "openai-summary"
-
-# Long-term Memory (Mem0)
-# Stores facts and user preferences across sessions.
-mem0:
-  llm_profile: "openai-summary"
-  embedding_profile: "openai-embedding-small"
-  limit: 5
-  vector_store:
-    provider: "weaviate"
+  short_term:
     config:
-      collection_name: "mem0_memory"
-      host: "localhost"
-      port: 6333
+      url: "redis://localhost:6379"
+      ttl:
+        time_minutes: 60
+        refresh_on_read: true
+    summarization:
+      keep_message: 50 # Number of messages to keep before summarizing
+      token_threshold: 2000
+      llm_profile: "openai-summary"
+
+  long_term:
+    backend: "weaviate"
+    config:
+      llm_profile: "openai-main"
+      embedding_profile: "openai-embedding-small"
+      limit: 3
+      excluded_tools:
+        - router_configuration_retriever
+        - set_user_secrets
+    backend_config:
+      collection_name: long_term_memory
+      cluster_url: http://127.0.0.1:8088
 
 # LLM Profiles
 # Define different models for different tasks (e.g., cheap models for summary, smart models for reasoning).

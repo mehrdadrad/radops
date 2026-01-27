@@ -247,31 +247,91 @@ vector_store:
 
 > **Note:** For detailed setup instructions (e.g., Google Drive credentials), refer to the **Integrations Guide**.
 
-## Memory & Persistence
+# Memory Configuration Guide
 
-Configures Short-term and Long-term memory.
+RadOps employs a hybrid memory system to maintain context and learn from user interactions. This guide details the configuration for both Short-term (Session) and Long-term (Persistent) memory.
 
-### Short-term Memory
-Stores active conversation history and handles summarization.
+## Short-term Memory
+
+Short-term memory retains the context of the current conversation session. It is typically backed by Redis.
+
+### Configuration Structure
 
 ```yaml
 memory:
   short_term:
-    provider: "redis"
     config:
       url: "redis://localhost:6379"
       ttl:
         time_minutes: 60
         refresh_on_read: true
     summarization:
-      keep_message: 40
+      keep_message: 50
       token_threshold: 2000
       llm_profile: "openai-summary"
 ```
 
-## Summarization
+### Summarization
 
-## Long term memory
+To manage the context window of the LLM effectively, RadOps includes an automatic summarization mechanism.
+
+*   **`keep_message`**: The number of most recent messages to keep in their original, raw format.
+*   **`token_threshold`**: The threshold of tokens in the conversation history that triggers a summarization.
+*   **`llm_profile`**: The LLM profile used to generate the summary.
+
+**Behavior:**
+When the token count exceeds `token_threshold`, the system summarizes the conversation history excluding the last `keep_message` messages. This summary is then prepended to the context sent to the LLM.
+
+## Long-term Memory
+
+Long-term memory enables the agent to persist facts, user preferences, and learned information across different sessions. RadOps uses Mem0 for this functionality.
+
+### Configuration Structure
+
+```yaml
+memory:
+  long_term:
+    backend: "weaviate"
+    config:
+      llm_profile: "openai-main"
+      embedding_profile: "openai-embedding-small"
+      limit: 3
+      excluded_tools:
+        - router_configuration_retriever
+    backend_config:
+      collection_name: "radops_memories"
+      cluster_url: "http://localhost:8080"
+```
+
+### Parameters
+
+*   **`provider`**: The memory provider (currently `mem0`).
+*   **`backend`**: The vector store backend used by Mem0 (e.g., `weaviate`, `qdrant`, `chroma`).
+*   **`config`**:
+    *   `llm_profile`: The LLM used to extract facts from messages.
+    *   `embedding_profile`: The model used to embed memories for retrieval.
+    *   `limit`: The number of relevant memories to retrieve per interaction.
+    *   `excluded_tools`: A list of tools where memory storage should be skipped (e.g., retrieving large configs).
+*   **`backend_config`**: Specific connection details for the chosen backend.
+
+### Supported Backends
+
+#### Weaviate
+```yaml
+backend: "weaviate"
+backend_config:
+  collection_name: "radops_memories"
+  cluster_url: "http://localhost:8080"
+```
+
+#### Qdrant
+```yaml
+backend: "qdrant"
+backend_config:
+  collection_name: "radops_memories"
+  url: "http://localhost:6333"
+  api_key: "vault:system#qdrant_key"
+```
 
 ## Vector Store Providers
 
