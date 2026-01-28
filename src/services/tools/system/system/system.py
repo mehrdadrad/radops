@@ -41,14 +41,14 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
     @tool
     def system__agent_discovery_tool(queries: list[str]):
         """
-        Analyzes task steps to identify the appropriate agent for each step.
+        USE THIS TOOL ONLY TO FIND AGENTS.
 
         This tool takes a list of task descriptions (queries) and returns the name of the
-        agent best suited to handle each step, assisting the supervisor in planning.
-        Returns 'end' if no suitable agent is found.
+        agent best suited to handle each step.
 
         Args:
-            queries: A mandatory list of strings, where each string describes a specific task or step.
+            queries: A list of strings. Each string describes a specific task.
+                     Do not pass any other arguments.
         """
         results = []
         # Threshold for similarity score (L2 distance).
