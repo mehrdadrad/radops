@@ -487,7 +487,11 @@ def _rerank_documents(
         kwargs = {"top_n": top_n}
         if "model" in rerank_config:
             kwargs["model"] = rerank_config["model"]
-        compressor = FlashrankRerank(**kwargs)
+        try:
+            compressor = FlashrankRerank(**kwargs)
+        except Exception as e:
+            logger.error("Failed to initialize Flashrank reranker: %s", e)
+            return docs
 
     try:
         return compressor.compress_documents(docs, query)
