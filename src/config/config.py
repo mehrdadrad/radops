@@ -257,6 +257,13 @@ class VaultSettings(BaseModel):
     mount_point: str = "secret"
 
 
+class LearningSettings(BaseModel):
+    """Settings for adaptive learning."""
+
+    enabled: bool = False
+    dataset_path: str = "data/fine_tuning_dataset.jsonl"
+
+
 class Settings(BaseSettings):
     """
     Centralized application settings.
@@ -309,6 +316,9 @@ class Settings(BaseSettings):
 
     # Vault
     vault: VaultSettings = Field(default_factory=VaultSettings)
+
+    # Learning
+    learning: LearningSettings = Field(default_factory=LearningSettings)
 
     # Observability
     observability: Dict[str, Any] = Field(default_factory=dict)

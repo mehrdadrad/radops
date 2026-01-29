@@ -50,6 +50,7 @@ from prompts.system import (
 from services.tools.system.system.system import create_agent_discovery_tool
 from services.guardrails.guardrails import guardrails
 from services.telemetry.telemetry import telemetry
+from services.learning.recorder import AdaptiveLearningEngine
 from registry.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ logger = logging.getLogger(__name__)
 QA_REJECTION_PREFIX = "QA REJECTION"
 SYSTEM_SUBMIT_WORK = "system__submit_work"
 
+learning_engine = AdaptiveLearningEngine(dataset_path=settings.learning.dataset_path)
 
 def get_detected_requirements(state: dict) -> list[dict]:
     """
@@ -535,6 +537,8 @@ async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
 async def auditor_node(state):
     """Audits the execution of the plan."""
     if not settings.agent.auditor.enabled:
+        if settings.learning.enabled:
+            learning_engine.log_interaction(state["messages"], summary=state.get("summary"))
         return {}
 
     agent_name = "auditor"
@@ -607,6 +611,8 @@ async def auditor_node(state):
             audit.score,
             settings.agent.auditor.threshold,
         )
+        if settings.learning.enabled:
+            learning_engine.log_interaction(state["messages"], summary=state.get("summary"))
         return {
             "messages": [
                 AIMessage(content=f"QA Passed. Finishing job (score: {audit.score})")

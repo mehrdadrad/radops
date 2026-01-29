@@ -15,6 +15,7 @@ It serves as the central configuration hub, defining the infrastructure connecti
 7. [Graph Execution](#graph-execution)
 8. [Vault (Secret Management)](#vault-secret-management)
 9. [Observability](#observability)
+10. [Learning (Adaptive Learning)](#learning-adaptive-learning)
 
 ## Logging
 
@@ -400,4 +401,17 @@ observability:
   prometheus:
     address: "0.0.0.0"
     port: 9464
+```
+
+## Learning (Adaptive Learning) 
+Configures the adaptive learning engine which records successful interactions to a dataset for future fine-tuning. 
+| Parameter | Description | 
+| :--- | :--- | 
+| enabled | Whether to enable recording of interactions. Default is false. | 
+| dataset_path | Path to the JSONL file where interactions are saved. | 
+
+```yaml 
+learning:
+  enabled: false
+  dataset_path: "data/fine_tuning_dataset.jsonl" 
 ```
