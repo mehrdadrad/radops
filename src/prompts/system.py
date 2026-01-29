@@ -161,6 +161,24 @@ def build_agent_registry(tools: Sequence[BaseTool]):
 
     return FAISS.from_documents(docs, embedding)
 
+def get_system_capabilities() -> str:
+    """
+    Generates a dynamic string of system capabilities based on registered agents.
+    Used for guardrails to determine relevance.
+    """
+    capabilities = ["conversation history", "internal system operations"]
+
+    for _, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
+        if agent_config.description:
+            capabilities.append(agent_config.description)
+
+    return ", ".join(capabilities)
+
+def _build_guardrails_prompt():
+    """Builds the guardrails system prompt."""
+    prompt_template = _load_prompt(settings.agent.guardrails.prompt_file)
+    return prompt_template.format(agent_capabilities=get_system_capabilities())
+
 def _build_supervisor_prompt():
     """Builds the supervisor system prompt."""
     prompt_template = _load_prompt(settings.agent.supervisor.prompt_file)
@@ -208,6 +226,7 @@ def _build_supervisor_prompt():
     )
 
 SUPERVISOR_PROMPT = _build_supervisor_prompt()
+GUARDRAILS_PROMPT = _build_guardrails_prompt()
 
 PLATFORM_PROMPT = """
 You are the System Agent. You are responsible for internal system operations.

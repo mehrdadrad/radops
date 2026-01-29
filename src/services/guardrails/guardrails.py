@@ -1,4 +1,5 @@
 """Guardrails service to check user input safety."""
+import logging
 import time
 from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage, AIMessage
@@ -7,6 +8,9 @@ from config.config import settings
 from core.state import State
 from core.llm import llm_factory
 from services.telemetry.telemetry import telemetry
+from prompts.system import GUARDRAILS_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 class GuardrailsOutput(BaseModel):
@@ -18,7 +22,11 @@ class GuardrailsOutput(BaseModel):
         )
     )
     reasoning: str = Field(description="Brief explanation of the safety decision.")
-
+    violation_type: str = Field(
+        description=(
+            "jailbreak | irrelevant | null"
+        )
+    )
 
 def guardrails(state: State):
     """Check if the user input is safe and relevant."""
@@ -37,11 +45,8 @@ def guardrails(state: State):
 
     user_input = [msg for msg in state["messages"] if isinstance(msg, HumanMessage)]
 
-    with open(settings.agent.guardrails.prompt_file, "r", encoding="utf-8") as f:
-        guardrail_instructions = f.read()
-
     content = user_input[-1].content if user_input else ''
-    prompt = f"{guardrail_instructions}\n\nUser Input: {content}"
+    prompt = f"{GUARDRAILS_PROMPT}\n\nUser Input: {content}"
     start_time = time.perf_counter()
     guardrails_result = llm_structured.invoke(prompt)
     duration = time.perf_counter() - start_time
@@ -51,6 +56,7 @@ def guardrails(state: State):
 
     if not guardrails_result.is_safe:
         telemetry.update_counter("guardrails.blocked.total")
+        logger.info("Guardrails blocked request: %s", guardrails_result.reasoning)
         error_message = (
             f"🚨 I cannot assist with that request. Reason: {guardrails_result.reasoning}"
         )
