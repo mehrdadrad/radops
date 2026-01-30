@@ -23,7 +23,7 @@ class Requirement(BaseModel):
     """Represents a single requirement with an assigned agent."""
     id: int = Field(description="The unique identifier for this step, starting at 1.")
     instruction: str = Field(description="The specific requirement or step.")
-    assigned_agent: WorkerEnum = Field(description="The agent that MUST handle this step.")
+    assigned_agent: WorkerEnum = Field(description="The agent that MUST handle this step. Use 'human' for approvals.")
 
 class State(TypedDict):
     """Represents the state of the agent execution graph."""
@@ -120,10 +120,21 @@ class SupervisorAgentPlanOutput(SupervisorAgentOutputBase):
     detected_requirements: list[Requirement] = Field(
         description=(
             "The COMPLETE list of requirements extracted from the user's ORIGINAL request. "
-            "CRITICAL: If the user provides a numbered list (e.g. '1- do X, 2- do Y'), "
-            "you MUST generate a separate Requirement for EACH item. "
-            "You MUST include ALL steps (both completed and pending) in this list. "
+            "CRITICAL RULES:\n"
+            "1. **Decompose**: Split complex requests into individual steps.\n"
+            "2. **Approvals**: If the request implies approval (e.g. 'if I approve', 'ask me first'), "
+            "you MUST create a dedicated step for the 'human' agent to get confirmation. "
+            "This 'human' step must be BEFORE the action that requires approval.\n"
+            "3. **Completeness**: Include ALL steps (both completed and pending). "
             "Do NOT remove steps that have been finished."
+        )
+    )
+    response_to_user: str = Field(
+        description=(
+            "Communication to the user. Since this is the planning phase, you MUST:\n"
+            "1. Acknowledge the user's request.\n"
+            "2. Present the plan you have generated (the steps in `detected_requirements`) to the user so they know what will happen.\n"
+            "3. Inform them you are starting the first step."
         )
     )
 
