@@ -22,7 +22,7 @@ SYSTEM_AGENTS = [
         "name": "system",
         "description": (
             "Internal system operations manager. "
-            "Capabilities: Clear memory (short/long term), manage user secrets (GitHub, Jira), "
+            "Capabilities: Clear memory (short/long term), manage configuration and secrets (e.g. API keys), "
             "MCP server health & connectivity check. "
             "Trigger When: User asks to clear memory, forget conversation, set API keys/secrets, "
             "or check MCP server health/connectivity. "
@@ -127,14 +127,11 @@ def build_agent_registry(tools: Sequence[BaseTool]):
 
     # dynamic agents
     for agent_name, agent_config in settings.agent.profiles.items():
-        prompt_text = ""
-        try:
-            prompt_file = agent_config.system_prompt_file
-            with open(prompt_file, "r", encoding="utf-8") as f:
-                prompt_text = f.read()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error("Couldn't open file: %s, error: %s", prompt_file, e)
-            sys.exit(1)
+        prompt_text = generate_agent_manifest(
+            agent_name,
+            agent_config.system_prompt_file,
+            agent_config.manifest_llm_profile or settings.llm.default_profile,  # pylint: disable=no-member
+        )
 
         # Filter tools for this agent
         agent_tools = []
