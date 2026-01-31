@@ -716,10 +716,31 @@ def human_node(state: State):
 
     return {"messages": [messages[-1]]}
 
-
 def delete_tool_messages(messages: list) -> list:
-    """Deletes tool messages from the conversation history."""
-    return [RemoveMessage(id=m.id) for m in messages if isinstance(m, ToolMessage)]
+    """Deletes tool messages and strips tool calls from AIMessages."""
+    updates = []
+    for m in messages:
+        if isinstance(m, ToolMessage):
+            updates.append(RemoveMessage(id=m.id))
+        elif isinstance(m, AIMessage) and (m.tool_calls or getattr(m, "invalid_tool_calls", None)):
+            if isinstance(m.content, list):
+                content = "".join(
+                    block.get("text", "") for block in m.content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                )
+            else:
+                content = m.content
+            content = content if content else "..."
+            updates.append(
+                AIMessage(
+                    id=m.id,
+                    content=content,
+                    tool_calls=[],
+                    invalid_tool_calls=[],
+                    additional_kwargs={},
+                )
+            )
+    return updates
 
 async def manage_memory_node(state: State) -> dict:
     """Manages short-term and long-term memory for the conversation."""
@@ -794,10 +815,11 @@ async def manage_memory_node(state: State) -> dict:
             )
             logger.info("Mem0: Added interaction for user '%s'.", user_id)
 
-    # Summarization if needed
-    summarized_result, messages = await summarize_conversation(state)
     # delete tools message
     deleted_tool_messages = delete_tool_messages(state["messages"])
+    # Summarization if needed
+    summarized_result, messages = await summarize_conversation(state)
+    
     if len(deleted_tool_messages) > 0:
         logger.info("Deleting %d tool messages.", len(deleted_tool_messages))
         messages.extend(deleted_tool_messages)
@@ -1018,8 +1040,23 @@ def sanitize_tool_calls(messages: list) -> list:
 
         if isinstance(msg, AIMessage):
             if getattr(msg, "invalid_tool_calls", None):
-                content = msg.content if msg.content else "..."
-                sanitized.append(AIMessage(content=content, id=msg.id))
+                if isinstance(msg.content, list):
+                    content = "".join(
+                        block.get("text", "") for block in msg.content
+                        if isinstance(block, dict) and block.get("type") == "text"
+                    )
+                else:
+                    content = msg.content
+                content = content if content else "..."
+                sanitized.append(
+                    AIMessage(
+                        content=content,
+                        id=msg.id,
+                        tool_calls=[],
+                        invalid_tool_calls=[],
+                        additional_kwargs={},
+                    )
+                )
                 i += 1
                 continue
 
@@ -1040,8 +1077,23 @@ def sanitize_tool_calls(messages: list) -> list:
                         [tm for tm in tool_messages if tm.tool_call_id in expected_ids]
                     )
                 else:
-                    content = msg.content if msg.content else "..."
-                    sanitized.append(AIMessage(content=content, id=msg.id))
+                    if isinstance(msg.content, list):
+                        content = "".join(
+                            block.get("text", "") for block in msg.content
+                            if isinstance(block, dict) and block.get("type") == "text"
+                        )
+                    else:
+                        content = msg.content
+                    content = content if content else "..."
+                    sanitized.append(
+                        AIMessage(
+                            content=content,
+                            id=msg.id,
+                            tool_calls=[],
+                            invalid_tool_calls=[],
+                            additional_kwargs={},
+                        )
+                    )
 
                 i = j
                 continue
