@@ -260,31 +260,41 @@ def update_step_status(decision, steps_status):
 def enforce_plan(decision, existing_requirements, steps_status):
     """Enforces the plan if the supervisor tries to end early."""
     if existing_requirements and decision.next_worker == "end":
+        # If the current step failed, we respect the decision to end (abort plan).
+        if decision.current_step_status == "failed":
+            logger.info("Plan enforcement skipped: Step failed, aborting plan.")
+            return
+
         if len(steps_status) < len(existing_requirements):
             next_req_data = existing_requirements[len(steps_status)]
 
-            assigned_agent = next_req_data.get("assigned_agent")
-            instruction = next_req_data.get("instruction") or "No instruction provided"
+            # Check if the supervisor is pausing for user approval/confirmation.
+            response_lower = decision.response_to_user.lower()
+            approval_keywords = ["approve", "permission", "authorize", "please confirm"]
+            
+            is_asking_approval = any(k in response_lower for k in approval_keywords)
+            next_agent_is_human = next_req_data.get("assigned_agent") == "human"
 
-            if not assigned_agent:
-                logger.warning(
-                    "Cannot enforce plan: Missing assigned agent for step %d",
-                      len(steps_status) + 1,
-                )
+            if is_asking_approval or next_agent_is_human:
+                logger.warning("Plan enforcement skipped: Supervisor is seeking approval or next step is human.")
                 return
 
-            decision.next_worker = assigned_agent
-            decision.instructions_for_worker = f"Proceed with the next step: {instruction}"
+            instruction = next_req_data.get("instruction") or "No instruction provided"
+
+            decision.next_worker = "supervisor"
+            decision.instructions_for_worker = (
+                f"You attempted to end the task, but there are still pending steps (e.g., Step {len(steps_status) + 1}: {instruction}).\n"
+                "1. If you want to SKIP these steps, you MUST populate 'skipped_step_ids' with their IDs.\n"
+                "2. If you want to EXECUTE them, assign 'next_worker' to the appropriate agent."
+            )
             decision.response_to_user += (
-                f"\n\n**Plan Enforcement:** Proceeding to next step: {instruction}"
+                f"\n\n**Plan Enforcement:** Pending step detected (Step {len(steps_status) + 1}: {instruction}). Asking Supervisor to clarify intent (Skip or Execute)."
             )
             short_instruction = (
                 instruction[:20] + "..." if len(instruction) > 20 else instruction
             )
-            agent_name = assigned_agent
             logger.info(
-                "enforcing plan: next worker: %s, instruction: %s",
-                agent_name,
+                "enforcing plan: routing back to supervisor. instruction: %s",
                 short_instruction,
             )
 
@@ -448,6 +458,20 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
             "agent.supervisor.plan.size", len(decision.detected_requirements)
         )
 
+    # Prevent hallucinated completion when assigning the worker for the step.
+    next_worker_val = decision.next_worker.value if hasattr(decision.next_worker, "value") else str(decision.next_worker)
+    if decision.current_step_status == "completed" and next_worker_val not in ["end", "supervisor"]:
+        step_idx = decision.current_step_id - 1
+        if 0 <= step_idx < len(existing_requirements):
+            req_agent = existing_requirements[step_idx].get("assigned_agent")
+            
+            if req_agent == next_worker_val:
+                logger.warning(
+                    "Supervisor marked step %d as completed but is routing to assigned agent %s. Forcing status to pending.",
+                    decision.current_step_id, next_worker_val
+                )
+                decision.current_step_status = "pending"
+
     update_step_status(decision, steps_status)
     # Check if supervisor wants to end but state shows pending steps
     enforce_plan(decision, existing_requirements, steps_status)
@@ -546,6 +570,15 @@ async def auditor_node(state):
     steps_status = state.get("steps_status", [])
 
     if "pending" in steps_status:
+        # Check if Supervisor is asking for approval
+        last_msg = state["messages"][-1]
+        if isinstance(last_msg, AIMessage):
+            response_lower = last_msg.content.lower()
+            approval_keywords = ["approve", "permission", "authorize", "please confirm"]
+            if any(k in response_lower for k in approval_keywords):
+                logger.info("QA: Supervisor is seeking approval. Bypassing audit to allow user response.")
+                return {"response_metadata": {"nodes": nodes}}
+
         logger.info("QA Rejected due to pending steps: %s", steps_status)
         return {
             "messages": [
