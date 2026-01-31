@@ -28,7 +28,11 @@ def create_mcp_server_health_tool(mcp_clients: List[Any]):
         if not mcp_clients:
             return "No MCP servers configured."
 
-        results = [f"- {c.name}: {'Healthy' if c.session and c._running else 'Disconnected'} ({len(c.tools)} tools)" for c in mcp_clients]
+        results = []
+        for c in mcp_clients:
+            status = "Healthy" if c.session and c._running else "Disconnected"
+            results.append(f"- {c.name}: {status} ({len(c.tools)} tools)")
+
         return "\n".join(results)
 
     return system__list_mcp_servers_health
@@ -56,17 +60,35 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
         threshold = settings.agent.supervisor.discovery_threshold
 
         for query in queries:
-            result = db.similarity_search_with_score(query, k=1)
-            if result:
-                doc, score = result[0]
-                logger.info("Agent discovery score for query '%s': %f", query, score)
-                if score < threshold:
-                    results.append(f"Query: '{query}' -> Agent: '{doc.metadata['agent_name']}'")
+            search_results = db.similarity_search_with_score(query, k=2)
+            candidates = []
+            if search_results:
+                for doc, score in search_results:
+                    logger.info(
+                        "Agent discovery score for query '%s': %f (Agent: %s)",
+                        query,
+                        score,
+                        doc.metadata["agent_name"],
+                    )
+                    if score <= threshold:
+                        candidates.append(
+                            f"'{doc.metadata['agent_name']}' (Score: {score:.2f})"
+                        )
+
+                if candidates:
+                    results.append(
+                        f"Query: '{query}' -> Recommended Agents: "
+                        f"[{', '.join(candidates)}] (Lower score is a better match)"
+                    )
                 else:
-                    results.append(f"Query: '{query}' -> Agent: 'end' (Score {score:.2f} > {threshold})")
+                    top_doc, top_score = search_results[0]
+                    results.append(
+                        f"Query: '{query}' -> Agent: 'end|{top_doc.metadata['agent_name']}' "
+                        f"(Score {top_score:.2f} > {threshold})"
+                    )
             else:
                 results.append(f"Query: '{query}' -> Agent: 'end' (No match)")
-
+        
         return "\n".join(results)
 
     return system__agent_discovery_tool
