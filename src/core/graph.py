@@ -137,7 +137,9 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     graph_builder = StateGraph(State)
     graph_builder.add_node("guardrails", guardrails)
     graph_builder.add_node("memory", manage_memory_node)
-    graph_builder.add_node("supervisor", partial(supervisor_node, discovery_tool=discovery_tool))
+    graph_builder.add_node(
+        "supervisor", partial(supervisor_node, discovery_tool=discovery_tool)
+    )
     graph_builder.add_node("auditor", auditor_node)
     graph_builder.add_node("human", human_node)
     graph_builder.add_node("system", partial(system_node, tools=system_tools))
@@ -283,12 +285,15 @@ def enforce_plan(decision, existing_requirements, steps_status):
 
             decision.next_worker = "supervisor"
             decision.instructions_for_worker = (
-                f"You attempted to end the task, but there are still pending steps (e.g., Step {len(steps_status) + 1}: {instruction}).\n"
-                "1. If you want to SKIP these steps, you MUST populate 'skipped_step_ids' with their IDs.\n"
+                f"You attempted to end the task, but there are still pending steps "
+                f"(e.g., Step {len(steps_status) + 1}: {instruction}).\n"
+                "1. If you want to SKIP these steps, you MUST populate 'skipped_step_ids' "
+                "with their IDs.\n"
                 "2. If you want to EXECUTE them, assign 'next_worker' to the appropriate agent."
             )
             decision.response_to_user += (
-                f"\n\n**Plan Enforcement:** Pending step detected (Step {len(steps_status) + 1}: {instruction}). Asking Supervisor to clarify intent (Skip or Execute)."
+                f"\n\n**Plan Enforcement:** Pending step detected (Step {len(steps_status) + 1}: "
+                f"{instruction}). Asking Supervisor to clarify intent (Skip or Execute)."
             )
             short_instruction = (
                 instruction[:20] + "..." if len(instruction) > 20 else instruction
@@ -459,16 +464,25 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
         )
 
     # Prevent hallucinated completion when assigning the worker for the step.
-    next_worker_val = decision.next_worker.value if hasattr(decision.next_worker, "value") else str(decision.next_worker)
-    if decision.current_step_status == "completed" and next_worker_val not in ["end", "supervisor"]:
+    next_worker_val = (
+        decision.next_worker.value
+        if hasattr(decision.next_worker, "value")
+        else str(decision.next_worker)
+    )
+    if decision.current_step_status == "completed" and next_worker_val not in [
+        "end",
+        "supervisor",
+    ]:
         step_idx = decision.current_step_id - 1
         if 0 <= step_idx < len(existing_requirements):
             req_agent = existing_requirements[step_idx].get("assigned_agent")
             
             if req_agent == next_worker_val:
                 logger.warning(
-                    "Supervisor marked step %d as completed but is routing to assigned agent %s. Forcing status to pending.",
-                    decision.current_step_id, next_worker_val
+                    "Supervisor marked step %d as completed but is routing to assigned agent %s. "
+                    "Forcing status to pending.",
+                    decision.current_step_id,
+                    next_worker_val,
                 )
                 decision.current_step_status = "pending"
 
@@ -490,7 +504,6 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
     logger.info("steps status: %s", steps_status)
     logger.info("future skipped steps: %s", decision.skipped_step_ids)
     logger.info("next worker: %s", decision.next_worker)
-
 
     # Determine if we should update detected_requirements in the state.
     should_update_requirements = False
@@ -516,8 +529,8 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
             f"{decision.instructions_for_worker}\n"
             "**CONSTRAINT**: Focus ONLY on this instruction. Do NOT attempt to solve "
             "other parts of the user's request found in the chat history.\n"
-            f"When finished or if you cannot proceed, you MUST use the '{SYSTEM_SUBMIT_WORK}' tool "
-            "to report the result. Do NOT reply with text."
+            f"When finished or if you cannot proceed, you MUST use the '{SYSTEM_SUBMIT_WORK}' "
+            "tool to report the result. Do NOT reply with text."
         ),
         name="supervisor"
     )
