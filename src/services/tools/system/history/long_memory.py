@@ -1,11 +1,15 @@
+"""Tools for managing long-term memory."""
+import logging
+from typing import Annotated
+
 from langchain_core.tools import tool
-from core.memory import get_mem0_client
 from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field
-import logging
-from typing import Annotated, Optional
+
+from core.memory import get_mem0_client
 
 class MemoryClearInput(BaseModel):
+    """Input schema for clearing long-term memory."""
     user_id: Annotated[str, InjectedState("user_id")] = Field(
         description="The unique identifier for the current user."
     )
@@ -27,3 +31,4 @@ async def memory__clear_long_term_memory(user_id: str):
     except Exception as e:      # pylint: disable=broad-exception-caught
         logger.error("Error clearing memory: %s for user: %s", e, user_id)
         return "Error clearing memory"
+    
