@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, RemoveMessage
 from core.state import SupervisorAgentPlanOutput
 from core.graph import (
     create_agent,
@@ -18,7 +18,14 @@ from core.graph import (
     system_node,
     tools_condition,
     sanitize_tool_calls,
-    enforce_plan
+    enforce_plan,
+    get_detected_requirements,
+    update_step_status,
+    check_completion,
+    filter_tools,
+    contains_sensitive_data,
+    delete_tool_messages,
+    auditor_node
 )
 
 
@@ -539,3 +546,160 @@ class TestEnforcePlan(unittest.TestCase):
         
         self.assertEqual(self.decision.next_worker, "supervisor")
         self.assertIn("Step 3", self.decision.instructions_for_worker)        
+
+class TestGraphUtilities(unittest.TestCase):
+    def test_get_detected_requirements(self):
+        # Case 1: Pydantic-like objects
+        req1 = MagicMock()
+        req1.id = 1
+        req1.instruction = "instr 1"
+        req1.assigned_agent = MagicMock(value="agent1")
+        
+        state = {"detected_requirements": [req1]}
+        result = get_detected_requirements(state)
+        self.assertEqual(result[0]["id"], 1)
+        self.assertEqual(result[0]["assigned_agent"], "agent1")
+
+        # Case 2: Dicts
+        req2 = {"id": 2, "instruction": "instr 2", "assigned_agent": "agent2"}
+        state = {"detected_requirements": [req2]}
+        result = get_detected_requirements(state)
+        self.assertEqual(result[0]["id"], 2)
+
+    def test_update_step_status(self):
+        steps_status = ["pending", "pending"]
+        decision = MagicMock()
+        decision.current_step_id = 1
+        decision.current_step_status = "completed"
+        decision.skipped_step_ids = [2]
+
+        update_step_status(decision, steps_status)
+        
+        self.assertEqual(steps_status[0], "completed")
+        self.assertEqual(steps_status[1], "skipped")
+
+    def test_check_completion(self):
+        decision = MagicMock()
+        decision.next_worker = "supervisor"
+        
+        # Case 1: All completed
+        existing_reqs = [{"id": 1}, {"id": 2}]
+        steps_status = ["completed", "completed"]
+        
+        check_completion(decision, existing_reqs, steps_status)
+        self.assertEqual(decision.next_worker, "end")
+
+        # Case 2: Pending exists
+        decision.next_worker = "supervisor"
+        steps_status = ["completed", "pending"]
+        check_completion(decision, existing_reqs, steps_status)
+        self.assertEqual(decision.next_worker, "supervisor")
+
+    def test_filter_tools(self):
+        tool1 = MagicMock()
+        tool1.name = "allowed_tool"
+        tool2 = MagicMock()
+        tool2.name = "blocked_tool"
+        tools = [tool1, tool2]
+
+        # Allow list
+        filtered = filter_tools(tools, ["allowed_tool"])
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0].name, "allowed_tool")
+
+        # Regex
+        filtered_regex = filter_tools(tools, ["allowed_.*"])
+        self.assertEqual(len(filtered_regex), 1)
+        
+        # None (all)
+        filtered_all = filter_tools(tools, None)
+        self.assertEqual(len(filtered_all), 2)
+
+    def test_contains_sensitive_data(self):
+        self.assertTrue(contains_sensitive_data("Here is the api_key: 12345"))
+        self.assertTrue(contains_sensitive_data("Bearer token 123"))
+        self.assertFalse(contains_sensitive_data("Hello world"))
+
+    def test_delete_tool_messages(self):
+        msgs = [
+            ToolMessage(content="res", tool_call_id="1", name="t1"),
+            AIMessage(content="thought", tool_calls=[{"id": "1", "name": "t1", "args": {}}], id="ai1"),
+            HumanMessage(content="hi")
+        ]
+        updates = delete_tool_messages(msgs)
+        
+        # Should have RemoveMessage for ToolMessage
+        self.assertIsInstance(updates[0], RemoveMessage)
+        self.assertEqual(updates[0].id, msgs[0].id)
+        
+        # Should have replacement AIMessage
+        self.assertIsInstance(updates[1], AIMessage)
+        self.assertEqual(updates[1].id, "ai1")
+        self.assertEqual(updates[1].tool_calls, [])
+
+class TestAuditorNode(unittest.IsolatedAsyncioTestCase):
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_auditor_node_pass(self, mock_settings, mock_llm_factory):
+        mock_settings.agent.auditor.enabled = True
+        mock_settings.agent.auditor.threshold = 0.8
+        
+        mock_llm = MagicMock()
+        mock_structured = MagicMock()
+        mock_llm.with_structured_output.return_value = mock_structured
+        mock_llm_factory.return_value = mock_llm
+        
+        mock_report = MagicMock()
+        mock_report.score = 0.9
+        mock_report.verifications = []
+        mock_structured.ainvoke = AsyncMock(return_value=mock_report)
+        
+        state = {
+            "messages": [HumanMessage(content="req"), AIMessage(content="done")],
+            "response_metadata": {}
+        }
+        
+        result = await auditor_node(state)
+        self.assertIn("QA Passed", result["messages"][0].content)
+
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_auditor_node_fail(self, mock_settings, mock_llm_factory):
+        mock_settings.agent.auditor.enabled = True
+        mock_settings.agent.auditor.threshold = 0.8
+        
+        mock_llm = MagicMock()
+        mock_structured = MagicMock()
+        mock_llm.with_structured_output.return_value = mock_structured
+        mock_llm_factory.return_value = mock_llm
+        
+        mock_report = MagicMock()
+        mock_report.score = 0.5
+        mock_verification = MagicMock()
+        mock_verification.is_success = False
+        mock_verification.missing_information = "Missing X"
+        mock_verification.correction_instruction = "Do X"
+        mock_report.verifications = [mock_verification]
+        mock_structured.ainvoke = AsyncMock(return_value=mock_report)
+        
+        state = {
+            "messages": [HumanMessage(content="req"), AIMessage(content="done")],
+            "response_metadata": {}
+        }
+        
+        result = await auditor_node(state)
+        self.assertIn("QA REJECTION", result["messages"][0].content)
+        self.assertIsNone(result["next_worker"])
+
+    @patch("core.graph.settings")
+    async def test_auditor_node_pending_steps(self, mock_settings):
+        mock_settings.agent.auditor.enabled = True
+        state = {
+            "messages": [AIMessage(content="working")],
+            "steps_status": ["completed", "pending"],
+            "response_metadata": {}
+        }
+        
+        result = await auditor_node(state)
+        self.assertIn("QA REJECTION", result["messages"][0].content)
+        self.assertIn("plan is incomplete", result["messages"][0].content)

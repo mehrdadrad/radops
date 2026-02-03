@@ -1042,7 +1042,7 @@ def contains_sensitive_data(text: Any) -> bool:
     """
     # This pattern looks for keywords followed by a value, which is a strong
     # indicator of a secret.
-    secret_pattern = r'(?i)\b(token|key|password|secret|authorization|bearer)\s*[:=]?\s+([^\s]+)'
+    secret_pattern = r'(?i)\b(api[_-]?key|token|key|password|secret|authorization|bearer)\s*[:=]?\s+([^\s]+)'
     return bool(re.search(secret_pattern, str(text)))
 
 def sanitize_tool_calls(messages: list) -> list:
