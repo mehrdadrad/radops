@@ -2,6 +2,12 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 from config.integrations import IntegrationSettings
+from config.config import (
+    GuardrailsSettings,
+    Settings,
+    yaml_config_settings_source,
+)
+from pydantic import ValidationError
 
 
 class TestIntegrationSettings(unittest.TestCase):
@@ -94,3 +100,64 @@ class TestIntegrationSettings(unittest.TestCase):
 
         # Should fall back to raw YAML value since resolution was skipped
         self.assertEqual(settings.slack.bot_token, "vault:secret#token")
+
+
+class TestMainConfig(unittest.TestCase):
+    def setUp(self):
+        self.env_patcher = patch.dict(os.environ, {}, clear=True)
+        self.env_patcher.start()
+
+    def tearDown(self):
+        self.env_patcher.stop()
+
+    def test_guardrails_validation(self):
+        """Test GuardrailsSettings validation logic."""
+        # Valid: disabled
+        settings = GuardrailsSettings(enabled=False)
+        self.assertFalse(settings.enabled)
+
+        # Valid: enabled with required fields
+        settings = GuardrailsSettings(
+            enabled=True, llm_profile="test", prompt_file="test.txt"
+        )
+        self.assertTrue(settings.enabled)
+
+        # Invalid: enabled missing llm_profile
+        with self.assertRaises(ValidationError):
+            GuardrailsSettings(enabled=True, prompt_file="test.txt")
+
+        # Invalid: enabled missing prompt_file
+        with self.assertRaises(ValidationError):
+            GuardrailsSettings(enabled=True, llm_profile="test")
+
+    @patch("config.config.process_vault_secrets")
+    @patch("config.config.load_yaml_config")
+    @patch("config.config.get_config_path")
+    def test_yaml_source(self, mock_get_path, mock_load_yaml, mock_process_vault):
+        """Test the YAML settings source loader."""
+        mock_get_path.return_value = "/tmp/config.yaml"
+        mock_load_yaml.return_value = {"vault": {"url": "http://vault"}}
+        mock_process_vault.return_value = {"processed": True}
+
+        # Call the source function
+        result = yaml_config_settings_source(Settings)
+
+        mock_get_path.assert_called_with("config.yaml")
+        mock_load_yaml.assert_called_with("/tmp/config.yaml")
+        mock_process_vault.assert_called()
+        self.assertEqual(result, {"processed": True})
+
+    @patch("config.config.yaml_config_settings_source")
+    def test_settings_load(self, mock_yaml_source):
+        """Test loading the main Settings object."""
+        # Mock the YAML source to return minimal valid data
+        mock_yaml_source.return_value = {
+            "llm": {
+                "default_profile": "test",
+                "profiles": {"test": {"provider": "openai", "model": "gpt-4"}}
+            }
+        }
+
+        settings = Settings()
+        self.assertEqual(settings.llm.default_profile, "test")
+        self.assertEqual(settings.llm.profiles["test"].provider, "openai")
