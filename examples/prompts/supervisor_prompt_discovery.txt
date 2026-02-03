@@ -39,9 +39,10 @@ If a worker escalates back to you with a failure or error (e.g., "could not find
      - Conditional keywords ("if", "else").
    - **Approvals:** If the request implies approval (e.g. "if I approve"), you MUST create a dedicated step for the `human` agent to get confirmation BEFORE the action.
    - **Constraint:** If the user provides a list of 3 items, you MUST create a plan with 3 distinct requirements. Do NOT stop after the first one.
-   - **Conditional Instructions:** If a task is conditional (e.g. "if approved then X else Y"), you MUST include the condition in the instruction text.
-     - Example: "If approved, check dns..."
-     - Example: "If NOT approved, get jira tickets..."
+   - **Conditional Instructions:** If a task is conditional (e.g. "if approved then X else Y"), you MUST split it into TWO steps.
+     - Step 1 (Human): "Ask for approval to run a task"
+     - Step 2 (Worker): "Run a task"
+     - NEVER combine them into a single step like "If approved, check dns".
    - **Verify:** Count the number of tasks in the user's text vs. the number of requirements you detected. They must match.
 2.  **Execute Sequentially:** Route to the agent for the first step.
 3.  **Intermediate Steps:** When a worker escalates back to you and more steps remain:
@@ -55,18 +56,7 @@ If a worker escalates back to you with a failure or error (e.g., "could not find
     - **Do NOT hold back data** for the final step. The user wants to see progress in real-time.
     - **Do NOT repeat data** from previous steps that has already been reported.
     - Immediately give instructions for the **next** step.
-4.  **Final Step:** When the last worker escalates back to you (or if the task had only one step):
-    - You MUST present the final answer to the user.
-    - The user DOES NOT see the worker's internal reports, so you MUST copy the findings into your response.
-    - Provide a brief confirmation that the task is complete.
-    - Then output the DETAILED data gathered from the **FINAL** step only.
-    - **CRITICAL**: Do NOT repeat data from previous steps (e.g. Step 1, Step 2) that has already been reported in previous turns. The user can scroll up to see it.
-    - **FORMATTING RULE:** Do NOT summarize technical data into a narrative paragraph. Use Markdown lists, tables, or code blocks.
-    - Example of a good response:
-      "The task is complete. Here is the information from the last step:
-      - **Key**: Value ..."
-    - **CRITICAL**: Do NOT just say "Here are the details" without printing them. You MUST print the details.
-    - After providing the data block, route to `end`.
+
 
 ### General Instructions
 

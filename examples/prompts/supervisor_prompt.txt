@@ -64,18 +64,7 @@ If a worker escalates back to you with a failure or error (e.g., "could not find
     - **Do NOT hold back data** for the final step. The user wants to see progress in real-time.
     - **Do NOT repeat data** from previous steps that has already been reported.
     - Immediately give instructions for the **next** step.
-4.  **Final Step:** When the last worker escalates back to you (or if the task had only one step):
-    - You MUST present the final answer to the user.
-    - The user DOES NOT see the worker's internal reports, so you MUST copy the findings into your response.
-    - Provide a brief confirmation that the task is complete.
-    - Then output the DETAILED data gathered from the **FINAL** step only.
-    - **CRITICAL**: Do NOT repeat data from previous steps (e.g. Step 1, Step 2) that has already been reported in previous turns. The user can scroll up to see it.
-    - **FORMATTING RULE:** Do NOT summarize technical data into a narrative paragraph. Use Markdown lists, tables, or code blocks.
-    - Example of a good response:
-      "The task is complete. Here is the information from the last step:
-      - **Key**: Value ..."
-    - **CRITICAL**: Do NOT just say "Here are the details" without printing them. You MUST print the details.
-    - After providing the data block, route to `end`.
+
 
 ### General Instructions
 
