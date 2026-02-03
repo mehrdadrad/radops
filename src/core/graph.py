@@ -197,7 +197,7 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
 
     graph = graph_builder.compile(
         checkpointer=checkpointer,
-        interrupt_before=["human"]
+        interrupt_after=["human"]
         )
 
     return graph
@@ -721,13 +721,12 @@ def human_node(state: State):
     When we resume, we will inject a HumanMessage pretending to be this node.
     """
     agent_name = "human"
-    messages = state["messages"]
 
     telemetry.update_counter(
         "agent.invocations.total", attributes={"agent": agent_name}
     )
 
-    return {"messages": [messages[-1]]}
+    return {}
 
 def delete_tool_messages(messages: list) -> list:
     """Deletes tool messages and strips tool calls from AIMessages."""
