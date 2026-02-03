@@ -17,7 +17,8 @@ from core.graph import (
     supervisor_node,
     system_node,
     tools_condition,
-    sanitize_tool_calls
+    sanitize_tool_calls,
+    enforce_plan
 )
 
 
@@ -447,3 +448,94 @@ class TestSanitizeToolCalls(unittest.TestCase):
         self.assertEqual(sanitized[3].content, "thinking")
         # AI (end) - The orphaned tool message 'r3' is skipped.
         self.assertEqual(sanitized[4].content, "end")
+
+class TestEnforcePlan(unittest.TestCase):
+    def setUp(self):
+        # Mock the decision object (SupervisorAgentOutput)
+        self.decision = MagicMock()
+        self.decision.next_worker = "end"
+        self.decision.current_step_status = "completed"
+        self.decision.response_to_user = "Task finished."
+        self.decision.instructions_for_worker = ""
+        self.decision.skipped_step_ids = []
+
+        # Standard requirements setup
+        self.requirements = [
+            {"id": 1, "instruction": "Step 1", "assigned_agent": "agent1"},
+            {"id": 2, "instruction": "Step 2", "assigned_agent": "agent2"},
+            {"id": 3, "instruction": "Step 3", "assigned_agent": "agent3"},
+        ]
+
+    def test_enforce_plan_no_pending_steps(self):
+        """Should not modify decision if all steps are completed."""
+        steps_status = ["completed", "completed", "completed"]
+        enforce_plan(self.decision, self.requirements, steps_status)
+        self.assertEqual(self.decision.next_worker, "end")
+
+    def test_enforce_plan_pending_step_explicit(self):
+        """Should redirect to supervisor if a step is explicitly marked 'pending'."""
+        # Step 2 is pending
+        steps_status = ["completed", "pending", "pending"]
+        enforce_plan(self.decision, self.requirements, steps_status)
+        
+        self.assertEqual(self.decision.next_worker, "supervisor")
+        self.assertIn("pending steps", self.decision.instructions_for_worker)
+        self.assertIn("Step 2", self.decision.instructions_for_worker)
+
+    def test_enforce_plan_pending_step_implicit_length(self):
+        """Should redirect to supervisor if steps_status list is shorter than requirements."""
+        # Only Step 1 is recorded, Step 2 and 3 are implicitly pending
+        steps_status = ["completed"]
+        enforce_plan(self.decision, self.requirements, steps_status)
+        
+        self.assertEqual(self.decision.next_worker, "supervisor")
+        self.assertIn("pending steps", self.decision.instructions_for_worker)
+        # Should identify the first missing step (index 1 -> Step 2)
+        self.assertIn("Step 2", self.decision.instructions_for_worker)
+
+    def test_enforce_plan_abort_on_failure(self):
+        """Should allow ending if the current step failed (abort plan)."""
+        self.decision.current_step_status = "failed"
+        # Even though steps are pending, failure should allow exit
+        steps_status = ["completed", "pending"]
+        enforce_plan(self.decision, self.requirements, steps_status)
+        
+        self.assertEqual(self.decision.next_worker, "end")
+
+    def test_enforce_plan_skip_if_asking_approval(self):
+        """Should allow ending if supervisor is asking for user approval."""
+        steps_status = ["completed", "pending"]
+        self.decision.response_to_user = "Please approve the next step before I continue."
+        
+        enforce_plan(self.decision, self.requirements, steps_status)
+        
+        self.assertEqual(self.decision.next_worker, "end")
+
+    def test_enforce_plan_skip_if_next_agent_human(self):
+        """Should allow ending if the next pending step is assigned to 'human'."""
+        steps_status = ["completed", "pending"]
+        # Modify requirement 2 to be human
+        self.requirements[1]["assigned_agent"] = "human"
+        
+        enforce_plan(self.decision, self.requirements, steps_status)
+        
+        self.assertEqual(self.decision.next_worker, "end")
+
+    def test_enforce_plan_not_ending(self):
+        """Should do nothing if supervisor is not trying to end."""
+        self.decision.next_worker = "agent2"
+        steps_status = ["completed", "pending"]
+        
+        enforce_plan(self.decision, self.requirements, steps_status)
+        
+        self.assertEqual(self.decision.next_worker, "agent2")
+
+    def test_enforce_plan_mixed_status_with_skipped(self):
+        """Should handle skipped steps correctly."""
+        # Step 1 completed, Step 2 skipped, Step 3 pending
+        steps_status = ["completed", "skipped", "pending"]
+        
+        enforce_plan(self.decision, self.requirements, steps_status)
+        
+        self.assertEqual(self.decision.next_worker, "supervisor")
+        self.assertIn("Step 3", self.decision.instructions_for_worker)        
