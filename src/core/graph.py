@@ -267,8 +267,15 @@ def enforce_plan(decision, existing_requirements, steps_status):
             logger.info("Plan enforcement skipped: Step failed, aborting plan.")
             return
 
-        if len(steps_status) < len(existing_requirements):
-            next_req_data = existing_requirements[len(steps_status)]
+        # Check for any pending steps (either explicit 'pending' status or implicit missing status)
+        pending_step_idx = -1
+        if "pending" in steps_status:
+            pending_step_idx = steps_status.index("pending")
+        elif len(steps_status) < len(existing_requirements):
+            pending_step_idx = len(steps_status)
+
+        if pending_step_idx != -1 and pending_step_idx < len(existing_requirements):
+            next_req_data = existing_requirements[pending_step_idx]
 
             # Check if the supervisor is pausing for user approval/confirmation.
             response_lower = decision.response_to_user.lower()
@@ -286,13 +293,13 @@ def enforce_plan(decision, existing_requirements, steps_status):
             decision.next_worker = "supervisor"
             decision.instructions_for_worker = (
                 f"You attempted to end the task, but there are still pending steps "
-                f"(e.g., Step {len(steps_status) + 1}: {instruction}).\n"
+                f"(e.g., Step {pending_step_idx + 1}: {instruction}).\n"
                 "1. If you want to SKIP these steps, you MUST populate 'skipped_step_ids' "
                 "with their IDs.\n"
                 "2. If you want to EXECUTE them, assign 'next_worker' to the appropriate agent."
             )
             decision.response_to_user += (
-                f"\n\n**Plan Enforcement:** Pending step detected (Step {len(steps_status) + 1}: "
+                f"\n\n**Plan Enforcement:** Pending step detected (Step {pending_step_idx + 1}: "
                 f"{instruction}). Asking Supervisor to clarify intent (Skip or Execute)."
             )
             short_instruction = (
