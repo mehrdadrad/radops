@@ -5,7 +5,7 @@ from config.config import settings
 
 def _parse_size(size_str: str) -> int:
     """Parses a size string (e.g., '10 MB') into bytes."""
-    units = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3}
+    units = {"GB": 1024**3, "MB": 1024**2, "KB": 1024, "B": 1}
     size_str = size_str.upper().strip()
     for unit, multiplier in units.items():
         if size_str.endswith(unit):
