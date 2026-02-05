@@ -18,41 +18,39 @@ To quickly spin up the required dependencies (Redis, Vault) and an optional Vect
 1.  **Create `docker-compose.yml`:**
 
     ```yaml
-    version: '3.8'
+  services:
+    # 1. Redis (Required for Memory)
+    redis:
+      image: redis/redis-stack-server:latest
+      container_name: radops-redis
+      ports:
+        - "6379:6379"
 
-    services:
-      # 1. Redis (Required for Memory)
-      redis:
-        image: redis:7-alpine
-        container_name: radops-redis
-        ports:
-          - "6379:6379"
+    # 2. Vault (Required for Secrets)
+    vault:
+      image: hashicorp/vault:latest
+      container_name: radops-vault
+      ports:
+        - "8200:8200"
+      environment:
+        VAULT_DEV_ROOT_TOKEN_ID: 'my-dev-token'
+      cap_add:
+        - IPC_LOCK
 
-      # 2. Vault (Required for Secrets)
-      vault:
-        image: hashicorp/vault:latest
-        container_name: radops-vault
-        ports:
-          - "8200:8200"
-        environment:
-          VAULT_DEV_ROOT_TOKEN_ID: 'my-dev-token'
-        cap_add:
-          - IPC_LOCK
-
-      # 3. Vector DB (Optional - Example: Weaviate)
-      weaviate:
-        image: semitechnologies/weaviate:1.24.1
-        container_name: radops-weaviate
-        ports:
-          - "8080:8080"
-          - "50051:50051"
-        environment:
-          QUERY_DEFAULTS_LIMIT: 25
-          AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
-          PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
-          DEFAULT_VECTORIZER_MODULE: 'none'
-          ENABLE_MODULES: ''
-          CLUSTER_HOSTNAME: 'node1'
+    # 3. Vector DB (Optional - Example: Weaviate)
+    weaviate:
+      image: semitechnologies/weaviate:1.27.0
+      container_name: radops-weaviate
+      ports:
+        - "8080:8080"
+        - "50051:50051"
+      environment:
+        QUERY_DEFAULTS_LIMIT: 25
+        AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+        PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+        DEFAULT_VECTORIZER_MODULE: 'none'
+        ENABLE_MODULES: ''
+        CLUSTER_HOSTNAME: 'node1'
     ```
 
 2.  **Run the stack:**
