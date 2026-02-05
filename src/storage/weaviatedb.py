@@ -3,6 +3,7 @@ This module implements the WeaviateVectorStoreManager for managing Weaviate vect
 """
 import logging
 import os
+import warnings
 from functools import partial
 from pathlib import Path
 from typing import List
@@ -20,6 +21,9 @@ from integrations.github.github_loader import GithubLoader
 from storage.protocols import LoadedDocument
 
 logger = logging.getLogger(__name__)
+
+# Suppress DeprecationWarnings from Weaviate client (likely from dependencies like mem0)
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="weaviate.warnings")
 
 
 class WeaviateVectorStoreManager:
@@ -61,6 +65,9 @@ class WeaviateVectorStoreManager:
                 logger.info("Successfully connected to Weaviate.")
                 logger.info("  - Weaviate Server Version: %s", server_version)
                 logger.info("  - Weaviate Client Version: %s", weaviate.__version__)
+        except weaviate.exceptions.WeaviateStartUpError as e:
+            logger.error("Failed to connect to Weaviate: %s", e)
+            raise
         except Exception as e:
             logger.error("Failed to connect to Weaviate: %s", e, exc_info=True)
             raise
