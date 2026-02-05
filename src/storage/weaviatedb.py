@@ -65,7 +65,7 @@ class WeaviateVectorStoreManager:
                 logger.info("Successfully connected to Weaviate.")
                 logger.info("  - Weaviate Server Version: %s", server_version)
                 logger.info("  - Weaviate Client Version: %s", weaviate.__version__)
-        except weaviate.exceptions.WeaviateStartUpError as e:
+        except (weaviate.exceptions.WeaviateStartUpError, weaviate.exceptions.WeaviateConnectionError) as e:
             logger.error("Failed to connect to Weaviate: %s", e)
             raise
         except Exception as e:
