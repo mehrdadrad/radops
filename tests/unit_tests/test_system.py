@@ -1,17 +1,21 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from services.tools.system.kb.kb_tools import (
     create_kb_tools, _generic_retriever, VectorStoreError,
     create_dynamic_input, validate_retrieval_config, _sanitize_milvus_value,
     _format_results, _rerank_documents,
-    retriever_chroma, retriever_weaviate, retriever_qdrant, retriever_milvus,
+    retriever_chroma, retriever_qdrant, retriever_milvus,
     _validate_prompt_file_path
+)
+from services.tools.system.history.long_memory import memory__clear_long_term_memory
+from services.tools.system.history.history_tools import (
+    create_history_deletion_tool, create_history_retrieval_tool
 )
 from langchain_core.tools import StructuredTool
 from langchain_weaviate.vectorstores import WeaviateVectorStore
 from langchain_core.documents import Document
-
+from langchain_core.messages import HumanMessage
 
 class TestKBTools(unittest.TestCase):
     @patch("services.tools.system.kb.kb_tools.settings")
@@ -191,3 +195,89 @@ class TestKBTools(unittest.TestCase):
         _, kwargs = mock_store.similarity_search.call_args
         # Check expr
         self.assertIn('category == "docs"', kwargs.get("expr"))
+
+
+class TestLongMemoryTools(unittest.IsolatedAsyncioTestCase):
+    @patch("services.tools.system.history.long_memory.get_mem0_client")
+    async def test_memory_clear_long_term_memory_success(self, mock_get_client):
+        """Test successful memory clearing."""
+        mock_client = MagicMock()
+        mock_client.delete_all = AsyncMock()
+        mock_get_client.return_value = mock_client
+
+        result = await memory__clear_long_term_memory.ainvoke({"user_id": "test_user"})
+
+        mock_client.delete_all.assert_called_with(user_id="test_user")
+        self.assertEqual(result, "Memory cleared")
+
+    @patch("services.tools.system.history.long_memory.get_mem0_client")
+    async def test_memory_clear_long_term_memory_failure(self, mock_get_client):
+        """Test memory clearing failure."""
+        mock_client = MagicMock()
+        mock_client.delete_all = AsyncMock(side_effect=Exception("DB Error"))
+        mock_get_client.return_value = mock_client
+
+        result = await memory__clear_long_term_memory.ainvoke({"user_id": "test_user"})
+
+        self.assertEqual(result, "Error clearing memory")
+
+
+class TestHistoryTools(unittest.IsolatedAsyncioTestCase):
+    async def test_deletion_tool_no_checkpointer(self):
+        """Test deletion tool when checkpointer is missing."""
+        tool = create_history_deletion_tool(None)
+        result = await tool.ainvoke({"user_id": "u1"})
+        self.assertIn("History is not being saved", result["content"])
+
+    async def test_deletion_tool_success(self):
+        """Test successful history deletion."""
+        mock_cp = MagicMock()
+        mock_cp.adelete_thread = AsyncMock()
+        
+        tool = create_history_deletion_tool(mock_cp)
+        result = await tool.ainvoke({"user_id": "u1"})
+        
+        mock_cp.adelete_thread.assert_called_with("u1")
+        self.assertIn("successfully deleted", result["content"])
+
+    async def test_retrieval_tool_no_checkpointer(self):
+        """Test retrieval tool when checkpointer is missing."""
+        tool = create_history_retrieval_tool(None)
+        result = await tool.ainvoke({"user_id": "u1"})
+        self.assertIn("History is not being saved", result)
+
+    async def test_retrieval_tool_no_history(self):
+        """Test retrieval tool when no history exists."""
+        mock_cp = MagicMock()
+        # Mock alist to return empty async iterator
+        async def empty_gen():
+            if False: yield
+        mock_cp.alist.return_value = empty_gen()
+        
+        tool = create_history_retrieval_tool(mock_cp)
+        result = await tool.ainvoke({"user_id": "u1"})
+        
+        self.assertIn("No history found", result)
+
+    async def test_retrieval_tool_success(self):
+        """Test successful history retrieval with truncation."""
+        mock_cp = MagicMock()
+        
+        # Create 25 messages to test truncation (limit is 20)
+        messages = [HumanMessage(content=f"msg {i}") for i in range(25)]
+        
+        checkpoint = {"channel_values": {"messages": messages}}
+        tuple_mock = MagicMock()
+        tuple_mock.checkpoint = checkpoint
+        
+        async def gen():
+            yield tuple_mock
+            
+        mock_cp.alist.return_value = gen()
+        
+        tool = create_history_retrieval_tool(mock_cp)
+        result = await tool.ainvoke({"user_id": "u1"})
+        
+        self.assertIn("msg 24", result)
+        self.assertNotIn("msg 4", result) # Should be truncated (0-4 are first 5, 5-24 are last 20)
+        self.assertIn("Displaying the most recent part", result)
