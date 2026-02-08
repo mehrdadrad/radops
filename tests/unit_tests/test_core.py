@@ -1,5 +1,6 @@
 import unittest
 import asyncio
+import sys
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from pydantic import ValidationError
@@ -97,6 +98,25 @@ class TestAuth(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user.role, "editor")
 
+    @patch("core.auth.httpx.AsyncClient")
+    @patch("core.auth.settings")
+    async def test_get_oidc_user_failure(self, mock_settings, mock_client_cls):
+        mock_settings.get_user.return_value = None
+        mock_settings.oidc.enabled = True
+        mock_settings.oidc.userinfo_endpoint = "http://oidc/userinfo"
+        mock_settings.oidc.cache_ttl_seconds = 300
+        
+        mock_client = AsyncMock()
+        mock_client_cls.return_value.__aenter__.return_value = mock_client
+        mock_client_cls.return_value.__aexit__.return_value = None
+        
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_client.get.return_value = mock_response
+        
+        user = await get_user("user_fail")
+        self.assertIsNone(user)
+
 class TestCheckpoint(unittest.IsolatedAsyncioTestCase):
     @patch("core.checkpoint.settings")
     async def test_get_checkpointer_memory(self, mock_settings):
@@ -127,6 +147,14 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         }
         llm_factory("default")
         mock_chat_openai.assert_called_once()
+
+    @patch("core.llm.settings")
+    def test_llm_factory_unknown_provider(self, mock_settings):
+        mock_settings.llm.profiles = {
+            "unknown": MagicMock(provider="unknown_provider")
+        }
+        with self.assertRaises(ValueError):
+            llm_factory("unknown")
 
     @patch("core.llm.OpenAIEmbeddings")
     @patch("core.llm.settings")
@@ -203,6 +231,17 @@ class TestVectorStore(unittest.TestCase):
         self.assertEqual(len(managers), 1)
         mock_chroma.assert_called_once()
 
+    @patch("core.vector_store.settings")
+    @patch("core.vector_store.embedding_factory")
+    def test_vector_store_factory_unknown_provider(self, mock_emb_factory, mock_settings):
+        profile = MagicMock()
+        profile.provider = "unknown"
+        profile.name = "test_unknown"
+        mock_settings.vector_store.profiles = [profile]
+        
+        with self.assertRaises(ValueError):
+            vector_store_factory()
+
 class TestMCPClient(unittest.IsolatedAsyncioTestCase):
     @patch("core.mcp_client.ClientSession")
     @patch("core.mcp_client.stdio_client")
@@ -231,6 +270,19 @@ class TestMCPClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tools[0].name, "test__tool1")
         
         await client.stop()
+
+    @patch("core.mcp_client.ClientSession")
+    @patch("core.mcp_client.stdio_client")
+    async def test_mcp_client_connection_error(self, mock_stdio, mock_session_cls):
+        config = {"transport": "stdio", "command": sys.executable}
+        client = MCPClient("test", config)
+        
+        mock_stdio.side_effect = Exception("Connection failed")
+        
+        # start() swallows connection errors and logs them
+        await client.start()
+        await asyncio.sleep(0.1)
+        self.assertTrue(mock_stdio.called)
 
     def test_sanitize_kwargs(self):
         # Test JSON parsing
