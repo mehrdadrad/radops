@@ -119,6 +119,8 @@ def validate_retrieval_config(config: Dict[str, Any]) -> Dict[str, Any]:
     if search_type not in valid_search_types:
         logger.warning("Invalid search_type '%s', using '%s'", search_type, SEARCH_TYPE_SIMILARITY)
         validated["search_type"] = SEARCH_TYPE_SIMILARITY
+    else:
+        validated["search_type"] = search_type
     
     # Validate k
     num_results = validated.get("k", DEFAULT_K)
@@ -128,6 +130,8 @@ def validate_retrieval_config(config: Dict[str, Any]) -> Dict[str, Any]:
     elif num_results > MAX_RESULTS:
         logger.warning("Requested k=%d exceeds maximum %d", num_results, MAX_RESULTS)
         validated["k"] = MAX_RESULTS
+    else:
+        validated["k"] = num_results
     
     # Validate score_threshold
     if "score_threshold" in validated:
