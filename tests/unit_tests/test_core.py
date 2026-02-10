@@ -117,6 +117,17 @@ class TestAuth(unittest.IsolatedAsyncioTestCase):
         user = await get_user("user_fail")
         self.assertIsNone(user)
 
+    @patch("core.auth.settings")
+    async def test_is_tool_authorized_wildcard(self, mock_settings):
+        # Mock get_user_role via settings.get_user
+        mock_settings.get_user.return_value = UserSettings(role="admin")
+        mock_settings.role_permissions = {
+            "admin": [".*"]
+        }
+        
+        self.assertTrue(await is_tool_authorized("any_tool", "user"))
+        self.assertTrue(await is_tool_authorized("another_tool", "user"))
+
 class TestCheckpoint(unittest.IsolatedAsyncioTestCase):
     @patch("core.checkpoint.settings")
     async def test_get_checkpointer_memory(self, mock_settings):

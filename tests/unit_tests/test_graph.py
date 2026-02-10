@@ -615,10 +615,22 @@ class TestGraphUtilities(unittest.TestCase):
         filtered_all = filter_tools(tools, None)
         self.assertEqual(len(filtered_all), 2)
 
+    def test_filter_tools_empty(self):
+        tool1 = MagicMock()
+        tool1.name = "allowed_tool"
+        tools = [tool1]
+
+        # Empty allow list
+        filtered = filter_tools(tools, [])
+        self.assertEqual(len(filtered), 0)
+
     def test_contains_sensitive_data(self):
         self.assertTrue(contains_sensitive_data("Here is the api_key: 12345"))
         self.assertTrue(contains_sensitive_data("Bearer token 123"))
         self.assertFalse(contains_sensitive_data("Hello world"))
+
+    def test_contains_sensitive_data_extended(self):
+        self.assertTrue(contains_sensitive_data("password = 'secret'"))
 
     def test_delete_tool_messages(self):
         msgs = [

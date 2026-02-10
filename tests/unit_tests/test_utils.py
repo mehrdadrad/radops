@@ -51,6 +51,11 @@ class TestLoggerUtils(unittest.TestCase):
         self.assertEqual(_parse_size("2 GB"), 2 * 1024**3)
         self.assertEqual(_parse_size("invalid"), 10 * 1024**2) # Default
 
+    def test_parse_size_case_insensitive(self):
+        self.assertEqual(_parse_size("1 kb"), 1024)
+        self.assertEqual(_parse_size("1 MB"), 1024**2)
+        self.assertEqual(_parse_size("500 b"), 500)
+
     @patch("src.utils.logger.logging")
     @patch("src.utils.logger.RotatingFileHandler")
     @patch("src.utils.logger.settings")
