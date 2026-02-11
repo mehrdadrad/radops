@@ -56,6 +56,9 @@ class TestLoggerUtils(unittest.TestCase):
         self.assertEqual(_parse_size("1 MB"), 1024**2)
         self.assertEqual(_parse_size("500 b"), 500)
 
+    def test_parse_size_float(self):
+        self.assertEqual(_parse_size("1.5 KB"), int(1.5 * 1024))
+
     @patch("src.utils.logger.logging")
     @patch("src.utils.logger.RotatingFileHandler")
     @patch("src.utils.logger.settings")
@@ -164,6 +167,16 @@ class TestVaultResolver(unittest.TestCase):
         self.assertEqual(res["a"], "val_a")
         self.assertEqual(res["b"][0], "val_b")
         self.assertEqual(res["c"], "plain")
+
+    def test_resolve_vault_secrets_nested_list(self):
+        config = {"list": ["vault:path/to#key", "plain"]}
+        
+        self.mock_client.secrets.kv.v2.read_secret_version.return_value = {
+            "data": {"data": {"key": "value"}}
+        }
+        res = resolve_vault_secrets(config, self.mock_client, self.mount_point)
+        self.assertEqual(res["list"][0], "value")
+        self.assertEqual(res["list"][1], "plain")
 
 class TestSecretsModule(unittest.TestCase):
     def setUp(self):

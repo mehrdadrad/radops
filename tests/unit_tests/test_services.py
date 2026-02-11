@@ -87,6 +87,36 @@ class TestGuardrails(unittest.IsolatedAsyncioTestCase):
         result = guardrails(state)
         self.assertEqual(result["end_status"], "continue")
 
+    @patch("builtins.open", new_callable=mock_open, read_data="system prompt")
+    @patch("services.guardrails.guardrails.llm_factory")
+    @patch("services.guardrails.guardrails.settings")
+    async def test_guardrails_unsafe(self, mock_settings, mock_llm_factory, mock_file):
+        mock_settings.agent.guardrails.enabled = True
+        mock_settings.agent.guardrails.llm_profile = "default"
+        mock_settings.agent.guardrails.prompt_file = "prompt.txt"
+        
+        mock_llm = MagicMock()
+        mock_structured = MagicMock()
+        mock_llm.with_structured_output.return_value = mock_structured
+        mock_llm_factory.return_value = mock_llm
+        
+        class MockOutput(dict):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.__dict__ = self
+            def model_dump(self):
+                return self
+            def dict(self):
+                return self
+
+        mock_decision = MockOutput(action="block", reason="Unsafe content", reasoning="Unsafe content", is_safe=False)
+        mock_structured.invoke.return_value = mock_decision
+        
+        state = {"messages": [HumanMessage(content="Bad content")], "user_id": "test_user", "response_metadata": {}}
+        
+        result = guardrails(state)
+        self.assertEqual(result["end_status"], "end")
+
 class TestTelemetry(unittest.TestCase):
     def test_telemetry_methods(self):
         # Verify methods exist and run without error

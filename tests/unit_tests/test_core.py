@@ -128,6 +128,14 @@ class TestAuth(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await is_tool_authorized("any_tool", "user"))
         self.assertTrue(await is_tool_authorized("another_tool", "user"))
 
+    @patch("core.auth.settings")
+    async def test_is_tool_authorized_no_permissions_for_role(self, mock_settings):
+        mock_settings.get_user.return_value = UserSettings(role="guest")
+        mock_settings.role_permissions = {
+            "admin": [".*"]
+        }
+        self.assertFalse(await is_tool_authorized("any_tool", "user"))
+
 class TestCheckpoint(unittest.IsolatedAsyncioTestCase):
     @patch("core.checkpoint.settings")
     async def test_get_checkpointer_memory(self, mock_settings):
@@ -166,6 +174,12 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         }
         with self.assertRaises(ValueError):
             llm_factory("unknown")
+
+    @patch("core.llm.settings")
+    def test_llm_factory_missing_profile(self, mock_settings):
+        mock_settings.llm.profiles = {}
+        with self.assertRaises(Exception):
+            llm_factory("missing")
 
     @patch("core.llm.OpenAIEmbeddings")
     @patch("core.llm.settings")
@@ -227,6 +241,12 @@ class TestMemory(unittest.IsolatedAsyncioTestCase):
         
         await manager.close()
         mock_client.vector_store.client.close.assert_called_once()
+
+    async def test_mem0_manager_singleton_behavior(self):
+        Mem0Manager._instance = None
+        m1 = Mem0Manager()
+        m2 = Mem0Manager()
+        self.assertIs(m1, m2)
 
 class TestVectorStore(unittest.TestCase):
     @patch("core.vector_store.settings")

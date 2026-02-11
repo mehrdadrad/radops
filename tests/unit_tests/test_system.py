@@ -240,6 +240,14 @@ class TestHistoryTools(unittest.IsolatedAsyncioTestCase):
         mock_cp.adelete_thread.assert_called_with("u1")
         self.assertIn("successfully deleted", result["content"])
 
+    async def test_deletion_tool_error(self):
+        mock_cp = MagicMock()
+        mock_cp.adelete_thread = AsyncMock(side_effect=Exception("Fail"))
+        
+        tool = create_history_deletion_tool(mock_cp)
+        with self.assertRaises(Exception):
+            await tool.ainvoke({"user_id": "u1"})
+
     async def test_retrieval_tool_no_checkpointer(self):
         """Test retrieval tool when checkpointer is missing."""
         tool = create_history_retrieval_tool(None)

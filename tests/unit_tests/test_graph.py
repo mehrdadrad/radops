@@ -595,6 +595,14 @@ class TestGraphUtilities(unittest.TestCase):
         check_completion(decision, existing_reqs, steps_status)
         self.assertEqual(decision.next_worker, "supervisor")
 
+    def test_check_completion_all_skipped(self):
+        decision = MagicMock()
+        decision.next_worker = "supervisor"
+        existing_reqs = [{"id": 1}]
+        steps_status = ["skipped"]
+        check_completion(decision, existing_reqs, steps_status)
+        self.assertEqual(decision.next_worker, "end")
+
     def test_filter_tools(self):
         tool1 = MagicMock()
         tool1.name = "allowed_tool"
