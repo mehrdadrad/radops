@@ -136,6 +136,16 @@ class TestAuth(unittest.IsolatedAsyncioTestCase):
         }
         self.assertFalse(await is_tool_authorized("any_tool", "user"))
 
+    @patch("core.auth.settings")
+    async def test_get_user_none(self, mock_settings):
+        """Test get_user when no provider is enabled/found."""
+        mock_settings.get_user.return_value = None
+        mock_settings.oidc.enabled = False
+        mock_settings.auth0.enabled = False
+        
+        user = await get_user("unknown@example.com")
+        self.assertIsNone(user)
+
 class TestCheckpoint(unittest.IsolatedAsyncioTestCase):
     @patch("core.checkpoint.settings")
     async def test_get_checkpointer_memory(self, mock_settings):
@@ -273,6 +283,25 @@ class TestVectorStore(unittest.TestCase):
         with self.assertRaises(ValueError):
             vector_store_factory()
 
+    @patch("core.vector_store.settings")
+    @patch("core.vector_store.embedding_factory")
+    @patch("core.vector_store.ChromaVectorStoreManager")
+    def test_vector_store_factory_skip_sync(self, mock_chroma, mock_emb_factory, mock_settings):
+        """Test vector_store_factory with skip_initial_sync."""
+        profile = MagicMock()
+        profile.provider = "chroma"
+        profile.name = "test_chroma"
+        mock_settings.vector_store.profiles = [profile]
+        
+        vector_store_factory(skip_initial_sync=True)
+        
+        mock_chroma.assert_called_with(
+            "test_chroma", 
+            profile.sync_locations, 
+            mock_emb_factory.return_value, 
+            skip_initial_sync=True
+        )
+
 class TestMCPClient(unittest.IsolatedAsyncioTestCase):
     @patch("core.mcp_client.ClientSession")
     @patch("core.mcp_client.stdio_client")
@@ -314,6 +343,45 @@ class TestMCPClient(unittest.IsolatedAsyncioTestCase):
         await client.start()
         await asyncio.sleep(0.1)
         self.assertTrue(mock_stdio.called)
+
+    @patch("core.mcp_client.ClientSession")
+    @patch("core.mcp_client.stdio_client")
+    async def test_mcp_client_call_tool(self, mock_stdio, mock_session_cls):
+        """Test calling a tool via MCPClient."""
+        config = {"transport": "stdio", "command": "cmd"}
+        client = MCPClient("test", config)
+        
+        mock_session = AsyncMock()
+        mock_session_cls.return_value.__aenter__.return_value = mock_session
+        mock_session_cls.return_value.__aexit__.return_value = None
+        
+        # Mock list_tools to return a tool definition
+        mock_tool_def = MagicMock()
+        mock_tool_def.name = "tool1"
+        mock_tool_def.inputSchema = {
+            "type": "object",
+            "properties": {
+                "arg": {"type": "string"}
+            }
+        }
+        mock_session.list_tools.return_value.tools = [mock_tool_def]
+
+        mock_result = MagicMock()
+        mock_result.isError = False
+        content_item = MagicMock()
+        content_item.type = "text"
+        content_item.text = "result"
+        mock_result.content = [content_item]
+        mock_session.call_tool.return_value = mock_result
+        
+        await client.start()
+        tools = await client.get_tools()
+        result = await tools[0].ainvoke({"arg": "val"})
+        
+        mock_session.call_tool.assert_called_with("tool1", arguments={"arg": "val"})
+        self.assertEqual(result, "result")
+        
+        await client.stop()
 
     def test_sanitize_kwargs(self):
         # Test JSON parsing
