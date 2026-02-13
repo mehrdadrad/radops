@@ -21,6 +21,7 @@ mock_config.server_settings = mock_settings
 sys.modules["config.server"] = mock_config
 
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from server import app
 
@@ -174,3 +175,70 @@ class TestServer(unittest.TestCase):
         # Verify ToolRegistry called with skip_initial_sync=True
         _, kwargs = mock_tool_registry.call_args
         self.assertTrue(kwargs.get("skip_initial_sync"))
+
+    @patch("server.server_settings.auth_disabled", True)
+    @patch("server.get_user_role")
+    @patch("server.get_checkpointer")
+    @patch("server.run_graph", new_callable=AsyncMock)
+    @patch("server.astream_graph_updates")
+    @patch("server.mem0_manager")
+    @patch("server.telemetry")
+    @patch("server.ToolRegistry")
+    def test_websocket_error_handling(
+        self,
+        mock_tool_registry,
+        mock_telemetry,
+        mock_mem0,
+        mock_astream,
+        mock_run_graph,
+        mock_get_cp,
+        mock_get_user_role,
+    ):
+        """Test exception handling during graph execution."""
+        mock_get_user_role.return_value = "user"
+        mock_redis = AsyncMock()
+        mock_cp_ctx = AsyncMock()
+        mock_cp_ctx.__aenter__.return_value = (MagicMock(), mock_redis)
+        mock_get_cp.return_value = mock_cp_ctx
+        mock_run_graph.return_value = MagicMock()
+        mock_mem0.close = AsyncMock()
+        mock_tool_registry.return_value.close = AsyncMock()
+
+        # Mock streaming to raise exception
+        mock_astream.side_effect = Exception("Graph failure")
+
+        with TestClient(app) as client:
+            with client.websocket_connect("/ws/test_user") as websocket:
+                websocket.send_text("Trigger error")
+
+                # The server logs the error and closes the connection
+                with self.assertRaises(WebSocketDisconnect):
+                    websocket.receive_text()
+
+    @patch("server.server_settings.auth_disabled", False)
+    @patch("server.get_checkpointer")
+    @patch("server.run_graph", new_callable=AsyncMock)
+    @patch("server.mem0_manager")
+    @patch("server.telemetry")
+    @patch("server.ToolRegistry")
+    def test_websocket_auth_failure(
+        self,
+        mock_tool_registry,
+        mock_telemetry,
+        mock_mem0,
+        mock_run_graph,
+        mock_get_cp,
+    ):
+        """Test WebSocket connection rejected when auth is enabled and missing."""
+        mock_redis = AsyncMock()
+        mock_cp_ctx = AsyncMock()
+        mock_cp_ctx.__aenter__.return_value = (MagicMock(), mock_redis)
+        mock_get_cp.return_value = mock_cp_ctx
+        mock_run_graph.return_value = MagicMock()
+        mock_mem0.close = AsyncMock()
+        mock_tool_registry.return_value.close = AsyncMock()
+
+        with TestClient(app) as client:
+            with self.assertRaises(WebSocketDisconnect):
+                with client.websocket_connect("/ws/test_user"):
+                    pass
