@@ -177,6 +177,39 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         llm_factory("default")
         mock_chat_openai.assert_called_once()
 
+    @patch("core.llm.AzureChatOpenAI")
+    @patch("core.llm.settings")
+    def test_llm_factory_azure(self, mock_settings, mock_azure):
+        mock_settings.llm.profiles = {
+            "azure": MagicMock(
+                provider="azure",
+                model="gpt-4",
+                api_key="key",
+                api_base="endpoint",
+                api_version="2023-05-15"
+            )
+        }
+        llm_factory("azure")
+        mock_azure.assert_called_once()
+
+    @patch("core.llm.ChatAnthropic")
+    @patch("core.llm.settings")
+    def test_llm_factory_anthropic(self, mock_settings, mock_anthropic):
+        mock_settings.llm.profiles = {
+            "claude": MagicMock(provider="anthropic", model="claude-3", api_key="key")
+        }
+        llm_factory("claude")
+        mock_anthropic.assert_called_once()
+
+    @patch("core.llm.ChatGoogleGenerativeAI")
+    @patch("core.llm.settings")
+    def test_llm_factory_google(self, mock_settings, mock_google):
+        mock_settings.llm.profiles = {
+            "gemini": MagicMock(provider="gemini", model="gemini-pro", credentials="creds")
+        }
+        llm_factory("gemini")
+        mock_google.assert_called_once()
+
     @patch("core.llm.settings")
     def test_llm_factory_unknown_provider(self, mock_settings):
         mock_settings.llm.profiles = {

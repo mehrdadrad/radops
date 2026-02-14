@@ -173,6 +173,13 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             route_workflow({"next_worker": "common_agent", "messages": [dummy_msg]}), "common_agent"
         )
 
+    def test_route_workflow_unknown(self):
+        """Test routing with an unknown worker."""
+        dummy_msg = HumanMessage(content="test")
+        self.assertEqual(
+            route_workflow({"next_worker": "unknown", "messages": [dummy_msg]}), "unknown"
+        )
+
     def test_route_after_worker(self):
         """Test routing logic after a worker agent finishes."""
         # Tool calls present -> route to tools
@@ -240,6 +247,21 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             ]
         }
         self.assertTrue(detect_tool_loop(state_alternating))
+
+    def test_detect_tool_loop_different_args(self):
+        """Test that same tool with different args is not a loop."""
+        call_a = {"name": "tool_a", "args": {"x": 1}, "id": "1"}
+        call_b = {"name": "tool_a", "args": {"x": 2}, "id": "2"}
+        state = {
+            "messages": [
+                AIMessage(content="", tool_calls=[call_a]),
+                ToolMessage(content="res", tool_call_id="1", name="tool_a"),
+                AIMessage(content="", tool_calls=[call_b]),
+                ToolMessage(content="res", tool_call_id="2", name="tool_a"),
+                AIMessage(content="", tool_calls=[call_a]),
+            ]
+        }
+        self.assertFalse(detect_tool_loop(state))
 
     def test_route_after_worker_loop_detection(self):
         """Test that route_after_worker catches loops."""
@@ -577,6 +599,17 @@ class TestGraphUtilities(unittest.TestCase):
         
         self.assertEqual(steps_status[0], "completed")
         self.assertEqual(steps_status[1], "skipped")
+
+    def test_update_step_status_invalid_id(self):
+        """Test update_step_status with an ID that doesn't exist."""
+        steps_status = ["pending"]
+        decision = MagicMock()
+        decision.current_step_id = 99
+        decision.current_step_status = "completed"
+        decision.skipped_step_ids = []
+
+        update_step_status(decision, steps_status)
+        self.assertEqual(steps_status[0], "pending")
 
     def test_check_completion(self):
         decision = MagicMock()

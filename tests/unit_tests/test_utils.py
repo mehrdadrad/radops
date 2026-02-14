@@ -43,6 +43,11 @@ class TestStatusGenerator(unittest.TestCase):
         res = StatusGenerator.parse_tool_call("test", {"items": [1, 2, 3]})
         self.assertIn(": 3 items", res)
 
+    def test_parse_tool_call_no_args(self):
+        res = StatusGenerator.parse_tool_call("simple_tool", {})
+        self.assertIn("Processing", res)
+        self.assertIn("Simple", res)
+
 class TestLoggerUtils(unittest.TestCase):
     def test_parse_size(self):
         self.assertEqual(_parse_size("10B"), 10)
@@ -58,6 +63,9 @@ class TestLoggerUtils(unittest.TestCase):
 
     def test_parse_size_float(self):
         self.assertEqual(_parse_size("1.5 KB"), int(1.5 * 1024))
+
+    def test_parse_size_no_space(self):
+        self.assertEqual(_parse_size("1KB"), 1024)
 
     @patch("src.utils.logger.logging")
     @patch("src.utils.logger.RotatingFileHandler")
