@@ -210,6 +210,49 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         llm_factory("gemini")
         mock_google.assert_called_once()
 
+    @patch("core.llm.ChatGroq")
+    @patch("core.llm.settings")
+    def test_llm_factory_groq(self, mock_settings, mock_groq):
+        mock_settings.llm.profiles = {
+            "groq": MagicMock(provider="groq", model="llama3", api_key="key")
+        }
+        llm_factory("groq")
+        mock_groq.assert_called_once()
+
+    @patch("core.llm.ChatMistralAI")
+    @patch("core.llm.settings")
+    def test_llm_factory_mistral(self, mock_settings, mock_mistral):
+        mock_settings.llm.profiles = {
+            "mistral": MagicMock(provider="mistral", model="mistral-large", api_key="key", base_url="url")
+        }
+        llm_factory("mistral")
+        mock_mistral.assert_called_once()
+
+    @patch("core.llm.ChatBedrockConverse")
+    @patch("core.llm.settings")
+    def test_llm_factory_bedrock(self, mock_settings, mock_bedrock):
+        mock_settings.llm.profiles = {
+            "bedrock": MagicMock(
+                provider="bedrock", 
+                model="anthropic.claude-3", 
+                aws_region="us-east-1",
+                aws_access_key_id="key",
+                aws_secret_access_key="secret",
+                aws_session_token="token"
+            )
+        }
+        llm_factory("bedrock")
+        mock_bedrock.assert_called_once()
+
+    @patch("core.llm.ChatOllama")
+    @patch("core.llm.settings")
+    def test_llm_factory_ollama(self, mock_settings, mock_ollama):
+        mock_settings.llm.profiles = {
+            "ollama": MagicMock(provider="ollama", model="llama2", base_url="http://localhost:11434")
+        }
+        llm_factory("ollama")
+        mock_ollama.assert_called_once()
+
     @patch("core.llm.settings")
     def test_llm_factory_unknown_provider(self, mock_settings):
         mock_settings.llm.profiles = {
@@ -233,6 +276,54 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         embedding_factory("default")
         mock_openai_emb.assert_called_once()
 
+    @patch("core.llm.AzureOpenAIEmbeddings")
+    @patch("core.llm.settings")
+    def test_embedding_factory_azure(self, mock_settings, mock_azure):
+        mock_settings.llm.profiles = {
+            "azure": MagicMock(
+                provider="azure", model="ada", api_key="key", base_url="url", api_version="v1"
+            )
+        }
+        embedding_factory("azure")
+        mock_azure.assert_called_once()
+
+    @patch("core.llm.GoogleGenerativeAIEmbeddings")
+    @patch("core.llm.settings")
+    def test_embedding_factory_gemini(self, mock_settings, mock_gemini):
+        mock_settings.llm.profiles = {
+            "gemini": MagicMock(provider="gemini", model="embedding-001", api_key="key")
+        }
+        embedding_factory("gemini")
+        mock_gemini.assert_called_once()
+
+    @patch("core.llm.BedrockEmbeddings")
+    @patch("core.llm.settings")
+    def test_embedding_factory_bedrock(self, mock_settings, mock_bedrock):
+        mock_settings.llm.profiles = {
+            "bedrock": MagicMock(
+                provider="bedrock", model="titan", aws_region="us-east-1"
+            )
+        }
+        embedding_factory("bedrock")
+        mock_bedrock.assert_called_once()
+
+    @patch("core.llm.OllamaEmbeddings")
+    @patch("core.llm.settings")
+    def test_embedding_factory_ollama(self, mock_settings, mock_ollama):
+        mock_settings.llm.profiles = {
+            "ollama": MagicMock(provider="ollama", model="nomic", base_url="url")
+        }
+        embedding_factory("ollama")
+        mock_ollama.assert_called_once()
+
+    @patch("core.llm.settings")
+    def test_embedding_factory_unknown(self, mock_settings):
+        mock_settings.llm.profiles = {
+            "unknown": MagicMock(provider="unknown")
+        }
+        with self.assertRaises(ValueError):
+            embedding_factory("unknown")
+
     @patch("core.llm.telemetry")
     def test_callback_handler(self, mock_telemetry):
         handler = LLMCallbackHandler(agent_name="test_agent")
@@ -246,6 +337,54 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         handler.on_llm_end(output)
         mock_telemetry.update_counter.assert_called()
 
+    @patch("core.llm.telemetry")
+    def test_callback_handler_errors(self, mock_telemetry):
+        handler = LLMCallbackHandler(agent_name="test_agent")
+        
+        # Tool error
+        handler.on_tool_error(ValueError("tool fail"))
+        mock_telemetry.update_counter.assert_called_with(
+            "agent.tool.errors", attributes={"agent": "test_agent"}
+        )
+        
+        # Chain error
+        handler.on_chain_error(ValueError("chain fail"))
+
+    @patch("core.llm.telemetry")
+    def test_callback_handler_cache_metrics(self, mock_telemetry):
+        handler = LLMCallbackHandler(agent_name="test_agent")
+        
+        # Anthropic style
+        output = MagicMock()
+        output.llm_output = {
+            "token_usage": {
+                "total_tokens": 100,
+                "cache_read_input_tokens": 50,
+                "cache_creation_input_tokens": 20
+            }
+        }
+        handler.on_llm_end(output)
+        
+        mock_telemetry.update_counter.assert_any_call(
+            "agent.llm.tokens.cache_read", 50, attributes={"agent": "test_agent"}
+        )
+        mock_telemetry.update_counter.assert_any_call(
+            "agent.llm.tokens.cache_creation", 20, attributes={"agent": "test_agent"}
+        )
+
+        # OpenAI style
+        output_openai = MagicMock()
+        output_openai.llm_output = {
+            "token_usage": {
+                "total_tokens": 100,
+                "prompt_tokens_details": {"cached_tokens": 30}
+            }
+        }
+        handler.on_llm_end(output_openai)
+        mock_telemetry.update_counter.assert_any_call(
+            "agent.llm.tokens.cache_read", 30, attributes={"agent": "test_agent"}
+        )
+
     @patch("core.llm._shared_http_aclient")
     async def test_close_shared_client(self, mock_client):
         mock_client.is_closed = False
@@ -253,6 +392,15 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         
         await close_shared_client()
         mock_client.aclose.assert_called_once()
+
+    @patch("core.llm._shared_http_aclient")
+    @patch("core.llm.logger")
+    async def test_close_shared_client_error(self, mock_logger, mock_client):
+        mock_client.is_closed = False
+        mock_client.aclose = AsyncMock(side_effect=Exception("Close error"))
+        
+        await close_shared_client()
+        mock_logger.error.assert_called()
 
 class TestMemory(unittest.IsolatedAsyncioTestCase):
     @patch("core.memory.AsyncMemory")
@@ -366,6 +514,14 @@ class TestMCPClient(unittest.IsolatedAsyncioTestCase):
 
     @patch("core.mcp_client.ClientSession")
     @patch("core.mcp_client.stdio_client")
+    async def test_mcp_client_get_tools_not_started(self, mock_stdio, mock_session_cls):
+        config = {"transport": "stdio", "command": "cmd"}
+        client = MCPClient("test", config)
+        tools = await client.get_tools()
+        self.assertEqual(tools, [])
+
+    @patch("core.mcp_client.ClientSession")
+    @patch("core.mcp_client.stdio_client")
     async def test_mcp_client_connection_error(self, mock_stdio, mock_session_cls):
         config = {"transport": "stdio", "command": sys.executable}
         client = MCPClient("test", config)
@@ -414,6 +570,38 @@ class TestMCPClient(unittest.IsolatedAsyncioTestCase):
         mock_session.call_tool.assert_called_with("tool1", arguments={"arg": "val"})
         self.assertEqual(result, "result")
         
+        await client.stop()
+
+    @patch("core.mcp_client.ClientSession")
+    @patch("core.mcp_client.stdio_client")
+    async def test_mcp_client_tool_timeout(self, mock_stdio, mock_session_cls):
+        """Test tool execution timeout."""
+        config = {"transport": "stdio", "command": "cmd", "execution_timeout": 0.01}
+        client = MCPClient("test", config)
+        
+        mock_session = AsyncMock()
+        mock_session_cls.return_value.__aenter__.return_value = mock_session
+        mock_session_cls.return_value.__aexit__.return_value = None
+        
+        # Mock tool def
+        mock_tool_def = MagicMock()
+        mock_tool_def.name = "tool1"
+        mock_tool_def.inputSchema = {"type": "object"}
+        mock_session.list_tools.return_value.tools = [mock_tool_def]
+        
+        # Mock call_tool to sleep longer than timeout
+        async def slow_tool(*args, **kwargs):
+            await asyncio.sleep(0.1)
+            return MagicMock()
+        
+        mock_session.call_tool.side_effect = slow_tool
+        
+        await client.start()
+        tools = await client.get_tools()
+        
+        with self.assertRaises(TimeoutError):
+            await tools[0].ainvoke({})
+            
         await client.stop()
 
     def test_sanitize_kwargs(self):
