@@ -23,7 +23,7 @@ SYSTEM_AGENTS = [
         "description": (
             "Internal system operations manager. "
             "Capabilities: Clear memory (short/long term), manage configuration and secrets (e.g. API keys), "
-            "MCP server health & connectivity check. "
+            "MCP server health/connectivity/status check"
             "Trigger When: User asks to clear memory, forget conversation, set API keys/secrets, "
             "or check MCP server health/connectivity. "
             "Differentiation: Use ONLY for internal bot management tasks."
