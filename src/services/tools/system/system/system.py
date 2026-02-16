@@ -37,6 +37,36 @@ def create_mcp_server_health_tool(mcp_clients: List[Any]):
 
     return system__list_mcp_servers_health
 
+def create_mcp_server_tools_tool(mcp_clients: List[Any]):
+    """
+    Creates a tool to list tools available on a specific MCP server.
+    """
+    @tool
+    def system__list_mcp_server_tools(server_name: str):
+        """
+        Lists all available tools for a specific MCP server.
+        
+        Args:
+            server_name: The name of the MCP server to inspect.
+        """
+        if not mcp_clients:
+            return "No MCP servers configured."
+
+        for c in mcp_clients:
+            if c.name.lower() == server_name.lower():
+                if not c.tools:
+                    return f"No tools found for server '{c.name}'."
+                
+                results = [f"Tools for server '{c.name}':"]
+                for t in c.tools:
+                    results.append(f"- {t.name}: {t.description}")
+                return "\n".join(results)
+        
+        available = ", ".join([c.name for c in mcp_clients])
+        return f"MCP server '{server_name}' not found. Available servers: {available}"
+
+    return system__list_mcp_server_tools
+
 def create_agent_discovery_tool(tools: Sequence[BaseTool]):
     """
     Creates a tool to find agents.

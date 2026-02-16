@@ -21,6 +21,7 @@ from services.tools.system.history.long_memory import memory__clear_long_term_me
 from services.tools.system.kb.kb_tools import create_kb_tools
 from services.tools.system.system.system import (
     create_mcp_server_health_tool,
+    create_mcp_server_tools_tool,
     system__submit_work
 )
 
@@ -122,6 +123,7 @@ class ToolRegistry:
             create_history_deletion_tool(self.checkpointer),
             create_history_retrieval_tool(self.checkpointer),
             create_mcp_server_health_tool(self.mcp_clients),
+            create_mcp_server_tools_tool(self.mcp_clients),
             secret__set_user_secrets,
             system__submit_work
         ]
