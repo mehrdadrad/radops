@@ -177,6 +177,15 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         llm_factory("default")
         mock_chat_openai.assert_called_once()
 
+    @patch("core.llm.ChatOpenAI")
+    @patch("core.llm.settings")
+    def test_llm_factory_deepseek(self, mock_settings, mock_chat_openai):
+        mock_settings.llm.profiles = {
+            "deepseek": MagicMock(provider="deepseek", model="deepseek-chat", api_key="key")
+        }
+        llm_factory("deepseek")
+        mock_chat_openai.assert_called_once()
+
     @patch("core.llm.AzureChatOpenAI")
     @patch("core.llm.settings")
     def test_llm_factory_azure(self, mock_settings, mock_azure):
@@ -276,6 +285,15 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         embedding_factory("default")
         mock_openai_emb.assert_called_once()
 
+    @patch("core.llm.OpenAIEmbeddings")
+    @patch("core.llm.settings")
+    def test_embedding_factory_deepseek(self, mock_settings, mock_openai_emb):
+        mock_settings.llm.profiles = {
+            "deepseek": MagicMock(provider="deepseek", model="deepseek-emb", api_key="key")
+        }
+        embedding_factory("deepseek")
+        mock_openai_emb.assert_called_once()
+
     @patch("core.llm.AzureOpenAIEmbeddings")
     @patch("core.llm.settings")
     def test_embedding_factory_azure(self, mock_settings, mock_azure):
@@ -336,6 +354,14 @@ class TestLLM(unittest.IsolatedAsyncioTestCase):
         output.llm_output = {"token_usage": {"total_tokens": 10}}
         handler.on_llm_end(output)
         mock_telemetry.update_counter.assert_called()
+
+    @patch("core.llm.telemetry")
+    def test_callback_handler_no_usage(self, mock_telemetry):
+        handler = LLMCallbackHandler(agent_name="test_agent")
+        output = MagicMock()
+        output.llm_output = {}
+        handler.on_llm_end(output)
+        mock_telemetry.update_counter.assert_not_called()
 
     @patch("core.llm.telemetry")
     def test_callback_handler_errors(self, mock_telemetry):
@@ -603,6 +629,46 @@ class TestMCPClient(unittest.IsolatedAsyncioTestCase):
             await tools[0].ainvoke({})
             
         await client.stop()
+
+    @patch("core.mcp_client.sse_client")
+    @patch("core.mcp_client.ClientSession")
+    async def test_mcp_client_sse_transport(self, mock_session_cls, mock_sse_client):
+        config = {"transport": "sse", "url": "http://localhost:8000/sse"}
+        client = MCPClient("test_sse", config)
+        
+        mock_session = AsyncMock()
+        mock_session_cls.return_value.__aenter__.return_value = mock_session
+        mock_session_cls.return_value.__aexit__.return_value = None
+        mock_session.list_tools.return_value.tools = []
+
+        await client.start()
+        await asyncio.sleep(0.1)
+        
+        mock_sse_client.assert_called_with(
+            url="http://localhost:8000/sse",
+            headers={},
+            timeout=10.0
+        )
+        await client.stop()
+
+    async def test_mcp_client_invalid_transport(self):
+        config = {"transport": "ftp"}
+        client = MCPClient("test", config)
+        with self.assertRaises(ValueError):
+            await client._connect_session()
+
+    def test_mcp_client_schema_generation(self):
+        client = MCPClient("test", {})
+        schema = {
+            "properties": {
+                "req": {"type": "string"},
+                "opt": {"type": "integer", "description": "desc"}
+            },
+            "required": ["req"]
+        }
+        model = client._create_args_schema("tool_test", schema)
+        self.assertTrue(model.model_fields["req"].is_required())
+        self.assertFalse(model.model_fields["opt"].is_required())
 
     def test_sanitize_kwargs(self):
         # Test JSON parsing

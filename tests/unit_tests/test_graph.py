@@ -263,6 +263,21 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         }
         self.assertFalse(detect_tool_loop(state))
 
+    def test_detect_tool_loop_different_names(self):
+        """Test that different tools with same args is not a loop."""
+        call_a = {"name": "tool_a", "args": {"x": 1}, "id": "1"}
+        call_b = {"name": "tool_b", "args": {"x": 1}, "id": "2"}
+        state = {
+            "messages": [
+                AIMessage(content="", tool_calls=[call_a]),
+                ToolMessage(content="res", tool_call_id="1", name="tool_a"),
+                AIMessage(content="", tool_calls=[call_b]),
+                ToolMessage(content="res", tool_call_id="2", name="tool_b"),
+                AIMessage(content="", tool_calls=[call_a]),
+            ]
+        }
+        self.assertFalse(detect_tool_loop(state))
+
     def test_route_after_worker_loop_detection(self):
         """Test that route_after_worker catches loops."""
         tool_call = {"name": "tool_a", "args": {"x": 1}, "id": "1"}
