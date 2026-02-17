@@ -8,6 +8,7 @@ across your entire infrastructure—autonomously.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
 [![Tests](https://github.com/mehrdadrad/radops/actions/workflows/tests.yml/badge.svg)](https://github.com/mehrdadrad/radops/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/mehrdadrad/radops/branch/main/graph/badge.svg)](https://codecov.io/gh/marshadrad/radops)
 
 ![RadOps Architecture](/assets/radops_arch_diagram.png)
 
