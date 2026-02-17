@@ -101,8 +101,10 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
                         doc.metadata["agent_name"],
                     )
                     if score <= threshold:
+                        tool_list = doc.metadata.get("tools", [])
+                        tools_str = f" - Tools: {', '.join(tool_list)}" if tool_list else ""
                         candidates.append(
-                            f"'{doc.metadata['agent_name']}' (Score: {score:.2f})"
+                            f"'{doc.metadata['agent_name']}'{tools_str} (Score: {score:.2f})"
                         )
 
                 if candidates:

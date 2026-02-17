@@ -28,6 +28,13 @@ SYSTEM_AGENTS = [
             "check MCP server health/connectivity, or list MCP tools. "
             "Differentiation: Use ONLY for internal bot management tasks."
         ),
+        "tools": [
+            "system__list_mcp_server_tools", 
+            "system__list_mcp_servers_health",
+            "memory__clear_long_term_memory",
+            "memory__clear_short_term_memory",
+            "secret__set_user_secrets",
+            ],
     },
     {
         "name": "human",
@@ -39,6 +46,7 @@ SYSTEM_AGENTS = [
             "*mid-workflow*. "
             "Differentiation: Use human to PAUSE execution for input. Use end to FINISH execution."
         ),
+        "tools": [],
     },
 ]
 
@@ -121,7 +129,7 @@ def build_agent_registry(tools: Sequence[BaseTool]):
         docs.append(
             Document(
                 page_content=agent["description"],
-                metadata={"agent_name": agent["name"]},
+                metadata={"agent_name": agent["name"], "tools": agent["tools"]},
             )
         )
 
@@ -150,7 +158,7 @@ def build_agent_registry(tools: Sequence[BaseTool]):
         docs.append( 
             Document(
                 page_content=prompt_text, 
-                metadata={"agent_name": agent_name}
+                metadata={"agent_name": agent_name, "tools": [t.name for t in agent_tools]}
             )
         )
 
@@ -206,6 +214,8 @@ def _build_supervisor_prompt():
             "- **Agent Discovery:** You MUST use the `system__agent_discovery_tool` "
             "to identify the correct agent for the task. Pass the task description to the tool "
             "to get the recommended agent.\n"
+            "- **Constraint:** You are allowed to call `system__agent_discovery_tool` ONLY ONCE per request. "
+            "If the tool does not return a suitable agent, do NOT retry with different queries.\n"
             "- If the tool returns 'unavailable', you MUST inform the user that no suitable agent was found "
             "to handle their request and set `next_worker` to 'end'.\n"
         )
