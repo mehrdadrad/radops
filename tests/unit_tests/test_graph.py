@@ -25,7 +25,8 @@ from core.graph import (
     filter_tools,
     contains_sensitive_data,
     delete_tool_messages,
-    auditor_node
+    auditor_node,
+    summarize_conversation
 )
 
 
@@ -771,3 +772,46 @@ class TestAuditorNode(unittest.IsolatedAsyncioTestCase):
         result = await auditor_node(state)
         self.assertIn("QA REJECTION", result["messages"][0].content)
         self.assertIn("plan is incomplete", result["messages"][0].content)
+
+class TestSummarization(unittest.IsolatedAsyncioTestCase):
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_summarize_conversation_threshold_not_met(self, mock_settings, mock_llm_factory):
+        mock_settings.memory.short_term.summarization.token_threshold = 1000
+        mock_settings.memory.short_term.summarization.keep_message = 10
+        
+        mock_llm = MagicMock()
+        mock_llm.get_num_tokens_from_messages.return_value = 500
+        mock_llm_factory.return_value = mock_llm
+        
+        state = {"messages": [HumanMessage(content="hi")] * 5, "summary": "old summary"}
+        
+        summary, deleted = await summarize_conversation(state)
+        
+        self.assertEqual(summary, "old summary")
+        self.assertEqual(deleted, [])
+
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_summarize_conversation_triggered(self, mock_settings, mock_llm_factory):
+        mock_settings.memory.short_term.summarization.token_threshold = 100
+        mock_settings.memory.short_term.summarization.keep_message = 1
+        mock_settings.memory.short_term.summarization.llm_profile = "default"
+        mock_settings.llm.profiles = {"default": MagicMock()}
+        
+        mock_llm = MagicMock()
+        mock_llm.get_num_tokens_from_messages.return_value = 200
+        # Mock summarization invoke
+        mock_llm.bind.return_value.ainvoke = AsyncMock(return_value=AIMessage(content="new summary"))
+        mock_llm_factory.return_value = mock_llm
+        
+        # 3 messages. keep 1. 2 should be summarized.
+        msgs = [HumanMessage(content="1", id="1"), AIMessage(content="2", id="2"), HumanMessage(content="3", id="3")]
+        state = {"messages": msgs, "summary": "old"}
+        
+        summary, deleted = await summarize_conversation(state)
+        
+        self.assertEqual(summary, "new summary")
+        self.assertEqual(len(deleted), 2)
+        self.assertEqual(deleted[0].id, "1")
+        self.assertEqual(deleted[1].id, "2")
