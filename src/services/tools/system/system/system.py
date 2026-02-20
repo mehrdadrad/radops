@@ -89,6 +89,7 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
         # Lower is better.
         threshold = settings.agent.supervisor.discovery_threshold
 
+        agents_tools = {}
         for query in queries:
             search_results = db.similarity_search_with_score(query, k=2)
             candidates = []
@@ -102,10 +103,10 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
                     )
                     if score <= threshold:
                         tool_list = doc.metadata.get("tools", [])
-                        tools_str = f" - Tools: {', '.join(tool_list)}" if tool_list else ""
                         candidates.append(
-                            f"'{doc.metadata['agent_name']}'{tools_str} (Score: {score:.2f})"
+                            f"'{doc.metadata['agent_name']}' (Score: {score:.2f})"
                         )
+                        agents_tools[doc.metadata["agent_name"]] = tool_list
 
                 if candidates:
                     results.append(
@@ -120,8 +121,13 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
                     )
             else:
                 results.append(f"Query: '{query}' -> Agent: 'end' (No match)")
-        
-        return "\n".join(results)
+
+        output_parts = ["\n".join(results)]
+        for agent, tools in agents_tools.items():
+            tools_str = ", ".join(tools)
+            output_parts.append(f"## Agent {agent} has the following Tools: {tools_str}")
+ 
+        return "\n\n".join(output_parts)
 
     return system__agent_discovery_tool
                  
