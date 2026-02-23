@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any, List, Sequence
 from langchain_core.tools import tool
 from core.state import WorkerAgentOutput
@@ -130,4 +131,56 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
         return "\n\n".join(output_parts)
 
     return system__agent_discovery_tool
+
+def create_skill_loader_tool(skills_dir: str | None = None):
+    """
+    Creates a tool to load and register a skill from a SKILL.md file.
+    """
+    if skills_dir is None:
+        # Resolve default skills directory relative to project root
+        # This file is at src/services/tools/system/system/system.py
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(base_dir, "../../../../../"))
+        skills_dir = os.path.join(project_root, "skills")
+
+    # Ensure the directory exists
+    if not os.path.exists(skills_dir):
+        try:
+            os.makedirs(skills_dir)
+        except OSError:
+            pass
+
+    @tool
+    def system__load_skill_from_markdown(file_name: str):
+        """
+        Loads a skill definition from a markdown file in the skills directory.
+
+        Args:
+            file_name: The name of the file (e.g., 'audit-config.md').
+        """
+        file_path = os.path.join(skills_dir, file_name)
+        try:
+            if not os.path.exists(file_path):
+                return f"File not found: {file_path}"
+
+            with open(file_path, "r") as f:
+                content = f.read()
+
+            # Basic frontmatter parsing
+            if content.startswith("---"):
+                parts = content.split("---", 2)
+                if len(parts) >= 3:
+                    frontmatter = parts[1]
+                    name = "Unknown"
+                    for line in frontmatter.splitlines():
+                        if line.strip().startswith("name:"):
+                            name = line.split(":", 1)[1].strip()
+                            break
+                    return f"Successfully processed skill '{name}' from {file_name}."
+            
+            return f"Processed {file_name}, but no YAML frontmatter found."
+        except Exception as e:
+            return f"Failed to read skill file: {e}"
+
+    return system__load_skill_from_markdown
                  
