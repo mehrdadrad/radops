@@ -4,6 +4,7 @@ import logging
 
 # Ensure src is in pythonpath so we can import 'config' module as the app does
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
+os.environ.setdefault("DISCOVERY__EMBEDDING_PROFILE", "test-embedding")
 
 from config import utils
 
@@ -27,3 +28,6 @@ def _mock_get_config_path(filename: str) -> str:
         raise
 
 utils.get_config_path = _mock_get_config_path
+# Set required environment variables to ensure config.py can import successfully
+# during test collection, avoiding ValidationError on module level instantiation.
+os.environ.setdefault("DISCOVERY__EMBEDDING_PROFILE", "test-embedding")
