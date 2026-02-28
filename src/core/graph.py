@@ -46,6 +46,7 @@ from prompts.system import (
     PLATFORM_PROMPT,
     AUDITOR_PROMPT,
     SUMMARIZATION_PROMPT,
+    build_skill_registry,
 )
 from services.tools.system.system.system import create_agent_discovery_tool
 from services.guardrails.guardrails import guardrails
@@ -96,6 +97,7 @@ def get_detected_requirements(state: dict) -> list[dict]:
 
 def configure_agents(graph_builder: StateGraph, tools: Sequence[BaseTool]):
     """Configures and adds agent nodes to the graph."""
+    skill_registry = build_skill_registry()
     for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member
         system_prompt_file = agent_config.system_prompt_file
         if system_prompt_file:
@@ -108,7 +110,7 @@ def configure_agents(graph_builder: StateGraph, tools: Sequence[BaseTool]):
         graph_builder.add_node(
             agent_name,
             create_agent(
-                agent_name, system_prompt, filtered_tools, agent_config.llm_profile
+                agent_name, system_prompt, filtered_tools, agent_config.llm_profile, skill_registry
             ),
         )
         graph_builder.add_conditional_edges(
@@ -208,6 +210,7 @@ def create_agent(
     system_prompt: str,
     tools: Sequence[BaseTool],
     llm_profile: str = None,
+    skill_registry=None,
 ):
     """Factory function to create a worker agent node."""
     effective_llm_profile = (
@@ -224,7 +227,42 @@ def create_agent(
         llm_with_tools = llm.bind_tools(tools)
 
         user_id = state.get("user_id", "User")
-        prompt = f"{system_prompt}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
+
+        # search skills from skill resgistry
+        skills_context = ""
+        if skill_registry:
+            try:
+                last_message = state["messages"][-1]
+                content = last_message.content
+                if isinstance(content, list):
+                    content = " ".join(
+                        [
+                            c.get("text", "")
+                            for c in content
+                            if isinstance(c, dict) and c.get("type") == "text"
+                        ]
+                    )
+
+                results = skill_registry.similarity_search(
+                    str(content), k=3, filter={"agent_name": agent_name}
+                )
+                if results:
+                    skills_context = (
+                        "\n\n### Relevant Skills\n"
+                        "The following skills are relevant to the current request. "
+                        "To use a skill, you MUST use the `system__load_skill_from_markdown` tool "
+                        "with the provided 'Path'.\n"
+                    )
+                    skills_context += "\n".join(
+                        [
+                            f"- {doc.page_content}"
+                            for doc in results
+                        ]
+                    )
+            except Exception as e:
+                logger.warning("Failed to query skill registry: %s", e)
+
+        prompt = f"{system_prompt}\n{skills_context}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
         messages = construct_llm_context(state, prompt)
         start_time = time.perf_counter()
         ai_response = await llm_with_tools.ainvoke(messages)
@@ -525,9 +563,21 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
     if should_update_requirements:
         output["detected_requirements"] = decision.detected_requirements
 
+    # Since the system__agent_discovery_tool is purely an internal mechanism for
+    # the Supervisor to route the request, its history (the tool call and the result)
+    # provides no value to the subsequent Worker agent
+    cleanup_messages = []
+    if discovery_tool:
+        for m in state["messages"]:
+            if isinstance(m, ToolMessage) and m.name == discovery_tool.name:
+                cleanup_messages.append(RemoveMessage(id=m.id))
+            elif isinstance(m, AIMessage) and m.tool_calls:
+                if any(tc["name"] == discovery_tool.name for tc in m.tool_calls):
+                    cleanup_messages.append(RemoveMessage(id=m.id))
+
     if decision.next_worker == "end":
         output["next_worker"] = "end"
-        output["messages"] = [ai_message]
+        output["messages"] = [ai_message] + cleanup_messages
         return output
 
     context_message = HumanMessage(
@@ -547,7 +597,7 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
         if hasattr(decision.next_worker, "value")
         else str(decision.next_worker)
     )
-    output["messages"] = [ai_message, context_message]
+    output["messages"] = [ai_message, context_message] + cleanup_messages
     return output
 
 async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
