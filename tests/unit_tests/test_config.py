@@ -154,8 +154,11 @@ class TestMainConfig(unittest.TestCase):
         mock_yaml_source.return_value = {
             "llm": {
                 "default_profile": "test",
-                "profiles": {"test": {"provider": "openai", "model": "gpt-4"}}
-            }
+                "profiles": {"test": {"provider": "openai", "model": "gpt-4"}},
+            },
+            "discovery": {
+                "embedding_profile": "test_embedding",
+            },
         }
 
         settings = Settings()
