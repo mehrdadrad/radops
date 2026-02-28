@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+import json
 from pathlib import Path
 from typing import Sequence
 
@@ -123,6 +124,7 @@ def generate_agent_manifest(
 def build_agent_registry(tools: Sequence[BaseTool]):
     """Builds the agent registry by registering available agents including prompt and tools."""
     docs = []
+    available_skills = get_available_skills()
 
     # system agents
     for agent in SYSTEM_AGENTS:
@@ -154,17 +156,164 @@ def build_agent_registry(tools: Sequence[BaseTool]):
             prompt_text += "\n\n### Available Tools\n"
             for tool in agent_tools:
                 prompt_text += f"- {tool.name}: {tool.description}\n"
-        
-        docs.append( 
+
+        agent_skills = []
+        if agent_config.allow_skills:
+            for skill in available_skills:
+                for pattern in agent_config.allow_skills:
+                    categories = skill["metadata"].get("category") or []
+                    if isinstance(categories, str):
+                        categories = [categories]
+
+                    if re.fullmatch(pattern, skill["name"]) or any(
+                        re.fullmatch(pattern, c) for c in categories
+                    ):
+                        agent_skills.append(skill)
+                        break
+
+        if agent_skills:
+            prompt_text += "\n\n### Available Skills\n"
+            for skill in agent_skills:
+                prompt_text += f"- {skill['name']} (Path: '{skill['path']}'): {skill['description']}\n"
+
+        docs.append(
             Document(
-                page_content=prompt_text, 
-                metadata={"agent_name": agent_name, "tools": [t.name for t in agent_tools]}
+                page_content=prompt_text,
+                metadata={
+                    "agent_name": agent_name,
+                    "tools": [t.name for t in agent_tools],
+                    "skills": agent_skills,
+                },
             )
         )
 
     embedding = embedding_factory("openai-embedding-small") 
 
     return FAISS.from_documents(docs, embedding)
+
+def build_skill_registry():
+    """
+    Builds a registry of skills indexed by their description and associated with agents.
+    """
+    docs = []
+    available_skills = get_available_skills()
+
+    for agent_name, agent_config in settings.agent.profiles.items():
+        if not agent_config.allow_skills:
+            continue
+
+        for skill in available_skills:
+            allowed = False
+            for pattern in agent_config.allow_skills:
+                categories = skill["metadata"].get("category") or []
+                if isinstance(categories, str):
+                    categories = [categories]
+
+                if re.fullmatch(pattern, skill["name"]) or any(
+                    re.fullmatch(pattern, c) for c in categories
+                ):
+                    allowed = True
+                    break
+
+            if allowed:
+                docs.append(
+                    Document(
+                        page_content=(
+                            f"{skill['name']}: {skill['description']}, "
+                            f"path: {skill['path']}"
+                        ),
+                        metadata={"agent_name": agent_name, **skill},
+                    )
+                )
+
+    if not docs:
+        return None
+
+    embedding = embedding_factory("openai-embedding-small")
+    return FAISS.from_documents(docs, embedding)
+
+def get_available_skills() -> list[dict]:
+    """Scans the skills directory and returns a list of available skills."""
+    try:
+        # Resolve project root relative to this file: src/prompts/system.py
+        project_root = Path(__file__).resolve().parents[2]
+        skills_dir = project_root / "skills"
+        
+        if not skills_dir.exists():
+            return []
+
+        # Compile regex once for performance
+        input_pattern = re.compile(r"## Input(.*?)(?=\n##|\Z)", re.DOTALL)
+        skills_list = []
+
+        for root, _, files in os.walk(skills_dir):
+            for file in files:
+                if not file.endswith(".md"):
+                    continue
+
+                file_path = Path(root) / file
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    
+                    if not content.startswith("---"):
+                        continue
+
+                    parts = content.split("---", 2)
+                    if len(parts) < 3:
+                        continue
+
+                    frontmatter = parts[1]
+                    body = parts[2]
+                    
+                    name = "Unknown"
+                    description = ""
+                    metadata = {}
+                    
+                    for line in frontmatter.splitlines():
+                        line = line.strip()
+                        if not line or ":" not in line:
+                            continue
+                        
+                        key, val = line.split(":", 1)
+                        key = key.strip()
+                        val = val.strip()
+
+                        if key == "name":
+                            name = val
+                        elif key == "description":
+                            description = val.strip('"')
+                        elif key == "metadata":
+                            try:
+                                metadata = json.loads(val.strip("'\""))
+                            except json.JSONDecodeError:
+                                pass    
+                    
+                    # Extract inputs
+                    inputs = []
+                    input_match = input_pattern.search(body)
+                    if input_match:
+                        inputs = [
+                            line.strip() 
+                            for line in input_match.group(1).splitlines() 
+                            if line.strip().startswith("-")
+                        ]
+
+                    rel_path = str(file_path.relative_to(skills_dir))
+                    skills_list.append({
+                        "name": name, 
+                        "path": rel_path, 
+                        "description": description, 
+                        "inputs": inputs, 
+                        "metadata": metadata
+                    })
+                except Exception as e:
+                    logger.warning("Error parsing skill %s: %s", file, e)
+        
+        return skills_list
+    except Exception as e:
+        logger.error("Failed to load skills: %s", e)
+        return []
 
 def get_system_capabilities() -> str:
     """
