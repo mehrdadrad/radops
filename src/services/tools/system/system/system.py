@@ -1,6 +1,10 @@
 import logging
 import os
-from typing import Any, List, Sequence
+import re
+import io
+import sys
+from contextlib import redirect_stdout
+from typing import Any, List, Sequence, Optional
 from langchain_core.tools import tool
 from core.state import WorkerAgentOutput
 from langchain_core.tools import BaseTool
@@ -104,10 +108,14 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
                     )
                     if score <= threshold:
                         tool_list = doc.metadata.get("tools", [])
+                        skill_list = doc.metadata.get("skills", [])
                         candidates.append(
                             f"'{doc.metadata['agent_name']}' (Score: {score:.2f})"
                         )
-                        agents_tools[doc.metadata["agent_name"]] = tool_list
+                        if doc.metadata["agent_name"] not in agents_tools:
+                            agents_tools[doc.metadata["agent_name"]] = {}
+                        agents_tools[doc.metadata["agent_name"]]["tools"] = tool_list
+                        agents_tools[doc.metadata["agent_name"]]["skills"] = skill_list
 
                 if candidates:
                     results.append(
@@ -124,10 +132,18 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
                 results.append(f"Query: '{query}' -> Agent: 'end' (No match)")
 
         output_parts = ["\n".join(results)]
-        for agent, tools in agents_tools.items():
-            tools_str = ", ".join(tools)
-            output_parts.append(f"## Agent {agent} has the following Tools: {tools_str}")
- 
+        for agent, data in agents_tools.items():
+            tools_str = ", ".join(data.get("tools", []))
+            skills_list = data.get("skills", [])
+            skills_str = ", ".join([s["name"] for s in skills_list]) if skills_list else ""
+
+            info = f"## Agent {agent}"
+            if tools_str:
+                info += f"\n- Tools: {tools_str}"
+            if skills_str:
+                info += f"\n- Skills: {skills_str}"
+            output_parts.append(info)
+
         return "\n\n".join(output_parts)
 
     return system__agent_discovery_tool
@@ -151,12 +167,13 @@ def create_skill_loader_tool(skills_dir: str | None = None):
             pass
 
     @tool
-    def system__load_skill_from_markdown(file_name: str):
+    def system__load_skill_from_markdown(file_name: str, variables: Optional[dict] = None):
         """
-        Loads a skill definition from a markdown file in the skills directory.
+        Loads and executes a skill definition from a markdown file in the skills directory.
 
         Args:
-            file_name: The name of the file (e.g., 'audit-config.md').
+            file_name: The relative path to the skill file (e.g., 'ripe-bgp-state/SKILL.md').
+            variables: Dictionary of variables to inject (e.g., {'resource': '1.1.1.1'}). Required if the skill expects input.
         """
         file_path = os.path.join(skills_dir, file_name)
         try:
@@ -166,21 +183,35 @@ def create_skill_loader_tool(skills_dir: str | None = None):
             with open(file_path, "r") as f:
                 content = f.read()
 
-            # Basic frontmatter parsing
-            if content.startswith("---"):
-                parts = content.split("---", 2)
-                if len(parts) >= 3:
-                    frontmatter = parts[1]
-                    name = "Unknown"
-                    for line in frontmatter.splitlines():
-                        if line.strip().startswith("name:"):
-                            name = line.split(":", 1)[1].strip()
-                            break
-                    return f"Successfully processed skill '{name}' from {file_name}."
+            # Extract python code block
+            code_match = re.search(r"```python\n(.*?)```", content, re.DOTALL)
+            if not code_match:
+                return f"No Python code block found in {file_name}."
             
-            return f"Processed {file_name}, but no YAML frontmatter found."
+            code = code_match.group(1)
+
+            # Prepare execution environment
+            output_capture = io.StringIO()
+            exec_globals = {}
+            exec_locals = variables if variables else {}
+
+            # Capture stdout
+            original_argv = sys.argv
+            try:
+                if variables:
+                    sys.argv = ["skill_script"] + [str(v) for v in variables.values()]
+                with redirect_stdout(output_capture):
+                    try:
+                        exec(code, exec_globals, exec_locals)
+                    except Exception as e:
+                        print(f"Error executing skill: {e}")
+            finally:
+                sys.argv = original_argv
+            
+            return output_capture.getvalue()
+
         except Exception as e:
-            return f"Failed to read skill file: {e}"
+            return f"Failed to read or execute skill file: {e}"
 
     return system__load_skill_from_markdown
                  
