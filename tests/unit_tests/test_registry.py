@@ -26,11 +26,16 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
         self.kb_tools_patcher = patch("src.registry.tools.create_kb_tools")
         self.mock_create_kb_tools = self.kb_tools_patcher.start()
 
+        # Patch create_skill_loader_tool
+        self.skill_loader_patcher = patch("src.registry.tools.create_skill_loader_tool")
+        self.mock_create_skill_loader_tool = self.skill_loader_patcher.start()
+
     def tearDown(self):
         self.settings_patcher.stop()
         self.vs_factory_patcher.stop()
         self.mcp_client_patcher.stop()
         self.kb_tools_patcher.stop()
+        self.skill_loader_patcher.stop()
 
     def test_initialization(self):
         # Setup settings for MCP
@@ -125,18 +130,23 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
         mock_kb_tool = MagicMock()
         self.mock_create_kb_tools.return_value = [mock_kb_tool]
         
+        # Mock Skill tool
+        mock_skill_tool = MagicMock()
+        self.mock_create_skill_loader_tool.return_value = mock_skill_tool
+
         tools = await registry.get_all_tools()
         
         self.assertIn(mock_local_tool, tools)
         self.assertIn(mock_mcp_tool, tools)
         self.assertIn(mock_kb_tool, tools)
+        self.assertIn(mock_skill_tool, tools)
         
         # Verify MCP start called
         self.mock_mcp_client.start.assert_called_once()
         
         # Verify system__submit_work is added (it's hardcoded in get_all_tools)
-        # local_tools (1) + system__submit_work (1) + mcp (1) + kb (1) = 4
-        self.assertEqual(len(tools), 4)
+        # local_tools (1) + system__submit_work (1) + mcp (1) + kb (1) + skill (1) = 5
+        self.assertEqual(len(tools), 5)
 
     async def test_get_all_tools_mcp_error(self):
         registry = ToolRegistry(self.mock_checkpointer)
@@ -148,11 +158,15 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
         
         self.mock_create_kb_tools.return_value = []
         
+        # Mock Skill tool
+        mock_skill_tool = MagicMock()
+        self.mock_create_skill_loader_tool.return_value = mock_skill_tool
+
         with self.assertLogs("src.registry.tools", level="ERROR") as cm:
             tools = await registry.get_all_tools()
             self.assertTrue(any("Failed to load tools from" in o for o in cm.output))
             # Should still have system__submit_work
-            self.assertEqual(len(tools), 1) 
+            self.assertEqual(len(tools), 2)
 
     async def test_get_all_tools_kb_error(self):
         registry = ToolRegistry(self.mock_checkpointer)
