@@ -72,6 +72,7 @@ class AgentSettings(BaseModel):
     llm_profile: str = None
     manifest_llm_profile: Optional[str] = None
     allow_tools: list[str] = Field(default_factory=list)
+    allow_skills: list[str] = Field(default_factory=list)
     system_prompt_file: str
 
 
@@ -114,6 +115,12 @@ class AuditorSettings(BaseModel):
     llm_profile: str = None
     prompt_file: str = None
     threshold: float = 0.8
+
+
+class DiscoverySettings(BaseModel):
+    """Settings for discovery mechanisms (agents, skills)."""
+
+    embedding_profile: str
 
 
 class AgentsSettings(BaseModel):
@@ -302,6 +309,9 @@ class Settings(BaseSettings):
 
     # LLM
     llm: LLMSettings = Field(default_factory=LLMSettings)
+
+    # Discovery (agent and skills registry)
+    discovery: DiscoverySettings = Field(default_factory=DiscoverySettings)
 
     # Vector Store
     vector_store: VectorStoreSettings = Field(

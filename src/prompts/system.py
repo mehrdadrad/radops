@@ -187,7 +187,7 @@ def build_agent_registry(tools: Sequence[BaseTool]):
             )
         )
 
-    embedding = embedding_factory("openai-embedding-small") 
+    embedding = embedding_factory(settings.discovery.embedding_profile) 
 
     return FAISS.from_documents(docs, embedding)
 
@@ -229,7 +229,7 @@ def build_skill_registry():
     if not docs:
         return None
 
-    embedding = embedding_factory("openai-embedding-small")
+    embedding = embedding_factory(settings.discovery.embedding_profile)
     return FAISS.from_documents(docs, embedding)
 
 def get_available_skills() -> list[dict]:
