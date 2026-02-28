@@ -20,6 +20,7 @@ from services.tools.system.history.history_tools import (
 from services.tools.system.history.long_memory import memory__clear_long_term_memory
 from services.tools.system.kb.kb_tools import create_kb_tools
 from services.tools.system.system.system import (
+    create_skill_loader_tool,
     create_mcp_server_health_tool,
     create_mcp_server_tools_tool,
     system__submit_work
@@ -90,6 +91,7 @@ class ToolRegistry:
         """Gathers and returns all available tools."""
         local_tools = self._load_tools_from_config()
         local_tools = local_tools + [system__submit_work]
+        skill_tools = [create_skill_loader_tool()]
 
         mcp_tools = []
         async def _load_client(client):
@@ -114,7 +116,7 @@ class ToolRegistry:
             logger.error("No dynamic knowledge base tools found: %s", e)
             dynamic_kb_tools = []
 
-        return local_tools + mcp_tools + dynamic_kb_tools
+        return local_tools + skill_tools + mcp_tools + dynamic_kb_tools
 
     async def get_system_tools(self):
         """Returns a list of system-level tools."""
