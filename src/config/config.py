@@ -311,7 +311,7 @@ class Settings(BaseSettings):
     llm: LLMSettings = Field(default_factory=LLMSettings)
 
     # Discovery (agent and skills registry)
-    discovery: DiscoverySettings = Field(default_factory=DiscoverySettings)
+    discovery: DiscoverySettings
 
     # Vector Store
     vector_store: VectorStoreSettings = Field(
