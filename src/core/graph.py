@@ -523,13 +523,22 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
             req_agent = existing_requirements[step_idx].get("assigned_agent")
             
             if req_agent == next_worker_val:
-                logger.warning(
-                    "Supervisor marked step %d as completed but is routing to assigned agent %s. "
-                    "Forcing status to pending.",
-                    decision.current_step_id,
-                    next_worker_val,
-                )
-                decision.current_step_status = "pending"
+                # Check if the next step is also assigned to the same agent.
+                # If so, this is a valid transition.
+                is_next_step_same_agent = False
+                if step_idx + 1 < len(existing_requirements):
+                    next_step_agent = existing_requirements[step_idx + 1].get("assigned_agent")
+                    if next_step_agent == next_worker_val:
+                        is_next_step_same_agent = True
+
+                if not is_next_step_same_agent:
+                    logger.warning(
+                        "Supervisor marked step %d as completed but is routing to assigned agent %s. "
+                        "Forcing status to pending.",
+                        decision.current_step_id,
+                        next_worker_val,
+                    )
+                    decision.current_step_status = "pending"
 
     update_step_status(decision, steps_status)
     # Check if supervisor wants to end but state shows pending steps
