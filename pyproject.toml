@@ -261,6 +261,7 @@ dependencies = [
     "notion-client>=2.7.0",
     "streamlit>=1.53.0",
     "faiss-cpu>=1.13.2",
+    "python-frontmatter>=1.1.0",
 ]
 
 [project.optional-dependencies]
