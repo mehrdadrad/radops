@@ -924,6 +924,7 @@ async def manage_memory_node(state: State) -> dict:
             await mem0.add(
                 messages=interaction_messages,
                 user_id=user_id,
+                agent_id="radops",
             )
             duration = time.perf_counter() - start_time
             telemetry.update_histogram(
