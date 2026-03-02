@@ -360,13 +360,10 @@ def _build_supervisor_prompt():
     discovery_mode = settings.agent.supervisor.discovery_mode
     if discovery_mode != "prompt":
         general_instructions += (
-            "- **Agent Discovery:** You MUST use the `system__agent_discovery_tool` "
-            "to identify the correct agent for the task. Pass the task description to the tool "
-            "to get the recommended agent.\n"
-            "- **Constraint:** You are allowed to call `system__agent_discovery_tool` ONLY ONCE per request. "
-            "If the tool does not return a suitable agent, do NOT retry with different queries.\n"
-            "- If the tool returns 'unavailable', you MUST inform the user that no suitable agent was found "
-            "to handle their request and set `next_worker` to 'end'.\n"
+            "- **Agent Discovery:** The system has already identified the best agents for this task. "
+            "See the 'DISCOVERED AGENTS' section below.\n"
+            "- **Selection:** You MUST prioritize the agents listed in that section. "
+            "Lower scores indicate a better match.\n"
         )
     else:
         for agent_name, agent_config in settings.agent.profiles.items():  # pylint: disable=no-member

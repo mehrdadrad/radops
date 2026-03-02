@@ -360,6 +360,54 @@ def check_completion(decision, existing_requirements, steps_status):
             decision.next_worker = "end"
 
 
+async def _discover_agents(
+    last_user_request: str | list, discovery_tool: BaseTool
+) -> str:
+    """Decomposes the user request and discovers relevant agents."""
+    logger.info(
+        "Running agent discovery for request: %s", str(last_user_request)[:50]
+    )
+    try:
+        query_text = last_user_request
+        if isinstance(query_text, list):
+            query_text = " ".join(
+                c.get("text", "")
+                for c in query_text
+                if isinstance(c, dict) and c.get("type") == "text"
+            )
+
+        # Decompose the request into multiple queries for better agent discovery
+        llm_decomp = llm_factory(
+            settings.agent.supervisor.llm_profile or settings.llm.default_profile,
+            agent_name="supervisor",
+        )
+        decomp_messages = [
+            SystemMessage(
+                content=(
+                    "Analyze the user request. If it contains multiple distinct "
+                    "tasks, break it down into a list of strings. "
+                    "If it is a single task, return it as a single string in "
+                    "the list. Do NOT generate synonyms or variations. "
+                    "Return ONLY a valid JSON list of strings."
+                )
+            ),
+            HumanMessage(content=query_text),
+        ]
+        queries = [query_text]
+        try:
+            decomp_response = await llm_decomp.ainvoke(decomp_messages)
+            content = decomp_response.content.strip()
+            queries = json.loads(content)
+        except Exception as e:
+            logger.warning("Query decomposition failed: %s", e)
+
+        discovery_result = await discovery_tool.ainvoke({"queries": queries})
+        return f"\n\n### DISCOVERED AGENTS\n{discovery_result}\n"
+    except Exception as e:
+        logger.error("Agent discovery failed: %s", e)
+        return ""
+
+
 async def _get_supervisor_decision(
     state: State, messages: list, node_name: str, discovery_tool: BaseTool = None
 ):
@@ -491,6 +539,10 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
         )
         if last_user_request:
             system_prompt += f"\n\n### LATEST USER REQUEST\n{last_user_request}\n"
+
+            if discovery_tool:
+                system_prompt += await _discover_agents(last_user_request, discovery_tool)
+
             system_prompt += (
                 "**FOCUS**: Plan based on this LATEST request. "
                 "Ignore completed tasks from the chat history unless explicitly asked to retry."
@@ -498,7 +550,7 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
 
     messages = [SystemMessage(content=system_prompt)] + conversation_messages
 
-    decision = await _get_supervisor_decision(state, messages, node_name, discovery_tool=discovery_tool)
+    decision = await _get_supervisor_decision(state, messages, node_name, discovery_tool=None)
 
     if isinstance(decision, dict):
         return decision
@@ -572,21 +624,9 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
     if should_update_requirements:
         output["detected_requirements"] = decision.detected_requirements
 
-    # Since the system__agent_discovery_tool is purely an internal mechanism for
-    # the Supervisor to route the request, its history (the tool call and the result)
-    # provides no value to the subsequent Worker agent
-    cleanup_messages = []
-    if discovery_tool:
-        for m in state["messages"]:
-            if isinstance(m, ToolMessage) and m.name == discovery_tool.name:
-                cleanup_messages.append(RemoveMessage(id=m.id))
-            elif isinstance(m, AIMessage) and m.tool_calls:
-                if any(tc["name"] == discovery_tool.name for tc in m.tool_calls):
-                    cleanup_messages.append(RemoveMessage(id=m.id))
-
     if decision.next_worker == "end":
         output["next_worker"] = "end"
-        output["messages"] = [ai_message] + cleanup_messages
+        output["messages"] = [ai_message]
         return output
 
     context_message = HumanMessage(
@@ -606,7 +646,7 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
         if hasattr(decision.next_worker, "value")
         else str(decision.next_worker)
     )
-    output["messages"] = [ai_message, context_message] + cleanup_messages
+    output["messages"] = [ai_message, context_message]
     return output
 
 async def system_node(state: State, tools: Sequence[BaseTool]) -> dict:
