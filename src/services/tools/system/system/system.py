@@ -1,13 +1,11 @@
 import logging
 import os
 import re
-import io
-import sys
-from contextlib import redirect_stdout
 from typing import Any, List, Sequence, Optional
 from langchain_core.tools import tool
 from core.state import WorkerAgentOutput
 from langchain_core.tools import BaseTool
+from core.skill import SkillRunner
 from config.config import settings
 from prompts.system import build_agent_registry
 
@@ -148,7 +146,7 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
 
     return system__agent_discovery_tool
 
-def create_skill_loader_tool(skills_dir: str | None = None):
+def create_skill_loader_tool(mcp_clients: List[Any] = None, skills_dir: str | None = None):
     """
     Creates a tool to load and register a skill from a SKILL.md file.
     """
@@ -167,7 +165,7 @@ def create_skill_loader_tool(skills_dir: str | None = None):
             pass
 
     @tool
-    def system__load_skill_from_markdown(file_name: str, variables: Optional[dict] = None):
+    async def system__load_skill_from_markdown(file_name: str, variables: Optional[dict] = None):
         """
         Loads and executes a skill definition from a markdown file in the skills directory.
 
@@ -178,40 +176,13 @@ def create_skill_loader_tool(skills_dir: str | None = None):
         file_path = os.path.join(skills_dir, file_name)
         try:
             if not os.path.exists(file_path):
-                return f"File not found: {file_path}"
-
-            with open(file_path, "r") as f:
-                content = f.read()
-
-            # Extract python code block
-            code_match = re.search(r"```python\n(.*?)```", content, re.DOTALL)
-            if not code_match:
-                return f"No Python code block found in {file_name}."
+                return f"Skill file not found: {file_path}"
             
-            code = code_match.group(1)
-
-            # Prepare execution environment
-            output_capture = io.StringIO()
-            exec_globals = {}
-            exec_locals = variables if variables else {}
-
-            # Capture stdout
-            original_argv = sys.argv
-            try:
-                if variables:
-                    sys.argv = ["skill_script"] + [str(v) for v in variables.values()]
-                with redirect_stdout(output_capture):
-                    try:
-                        exec(code, exec_globals, exec_locals)
-                    except Exception as e:
-                        print(f"Error executing skill: {e}")
-            finally:
-                sys.argv = original_argv
-            
-            return output_capture.getvalue()
+            runner = SkillRunner(file_path)
+            return await runner.execute(inputs=variables, mcp_clients=mcp_clients)
 
         except Exception as e:
-            return f"Failed to read or execute skill file: {e}"
+            return f"Failed to execute skill: {e}"
 
     return system__load_skill_from_markdown
                  

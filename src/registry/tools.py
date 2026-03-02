@@ -91,7 +91,7 @@ class ToolRegistry:
         """Gathers and returns all available tools."""
         local_tools = self._load_tools_from_config()
         local_tools = local_tools + [system__submit_work]
-        skill_tools = [create_skill_loader_tool()]
+        skill_tools = [create_skill_loader_tool(mcp_clients=self.mcp_clients)]
 
         mcp_tools = []
         async def _load_client(client):
