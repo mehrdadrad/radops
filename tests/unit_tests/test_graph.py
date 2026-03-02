@@ -26,7 +26,8 @@ from core.graph import (
     contains_sensitive_data,
     delete_tool_messages,
     auditor_node,
-    summarize_conversation
+    summarize_conversation,
+    _discover_agents
 )
 
 
@@ -815,3 +816,99 @@ class TestSummarization(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(deleted), 2)
         self.assertEqual(deleted[0].id, "1")
         self.assertEqual(deleted[1].id, "2")
+
+class TestDiscoverAgents(unittest.IsolatedAsyncioTestCase):
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_discover_agents_success(self, mock_settings, mock_llm_factory):
+        """Test successful agent discovery with query decomposition."""
+        mock_settings.agent.supervisor.llm_profile = "supervisor_profile"
+        
+        # Mock LLM decomposition response
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content='["task 1", "task 2"]'))
+        mock_llm_factory.return_value = mock_llm
+        
+        # Mock discovery tool
+        mock_tool = MagicMock()
+        mock_tool.ainvoke = AsyncMock(return_value="Found agents: A, B")
+        
+        result = await _discover_agents("do task 1 and 2", mock_tool)
+        
+        self.assertIn("### DISCOVERED AGENTS", result)
+        self.assertIn("Found agents: A, B", result)
+        
+        # Verify decomposition call
+        mock_llm.ainvoke.assert_called_once()
+        # Verify tool call
+        mock_tool.ainvoke.assert_called_once_with({"queries": ["task 1", "task 2"]})
+
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_discover_agents_list_input(self, mock_settings, mock_llm_factory):
+        """Test agent discovery with list input (content blocks)."""
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content='["task 1"]'))
+        mock_llm_factory.return_value = mock_llm
+        
+        mock_tool = MagicMock()
+        mock_tool.ainvoke = AsyncMock(return_value="Found agent A")
+        
+        input_list = [{"type": "text", "text": "task 1"}, {"type": "image", "url": "..."}]
+        result = await _discover_agents(input_list, mock_tool)
+        
+        self.assertIn("Found agent A", result)
+        
+        # Check that text was extracted
+        args, _ = mock_llm.ainvoke.call_args
+        self.assertIn("task 1", args[0][1].content)
+
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_discover_agents_decomp_failure(self, mock_settings, mock_llm_factory):
+        """Test fallback when decomposition fails."""
+        # LLM raises exception
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(side_effect=Exception("LLM Error"))
+        mock_llm_factory.return_value = mock_llm
+        
+        mock_tool = MagicMock()
+        mock_tool.ainvoke = AsyncMock(return_value="Found agent A")
+        
+        result = await _discover_agents("task 1", mock_tool)
+        
+        self.assertIn("Found agent A", result)
+        # Should fall back to original query
+        mock_tool.ainvoke.assert_called_once_with({"queries": ["task 1"]})
+
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_discover_agents_tool_failure(self, mock_settings, mock_llm_factory):
+        """Test handling of discovery tool failure."""
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content='["task 1"]'))
+        mock_llm_factory.return_value = mock_llm
+        
+        mock_tool = MagicMock()
+        mock_tool.ainvoke = AsyncMock(side_effect=Exception("Tool Error"))
+        
+        result = await _discover_agents("task 1", mock_tool)
+        
+        self.assertEqual(result, "")
+
+    @patch("core.graph.llm_factory")
+    @patch("core.graph.settings")
+    async def test_discover_agents_invalid_json(self, mock_settings, mock_llm_factory):
+        """Test fallback when LLM returns invalid JSON."""
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="invalid json"))
+        mock_llm_factory.return_value = mock_llm
+        
+        mock_tool = MagicMock()
+        mock_tool.ainvoke = AsyncMock(return_value="Found agent A")
+        
+        result = await _discover_agents("task 1", mock_tool)
+        
+        self.assertIn("Found agent A", result)
+        # Should fall back to original query
+        mock_tool.ainvoke.assert_called_once_with({"queries": ["task 1"]})
