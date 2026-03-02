@@ -21,6 +21,7 @@ across your entire infrastructure—autonomously.
 * **🔎 Scalable Agent Discovery**: Supports **Prompt Mode** for small teams (<15 agents) and **Discovery Mode** for unlimited scaling via vector-based agent lookup.
 * **🤖 Config-Driven Specialists**: Instantly spin up specialized agents (e.g., Network, Security) by defining personas and toolsets in YAML — no new code required.
 * **👨‍💻 Human-in-the-Loop**: Seamlessly pause workflows for user approval or input before executing sensitive actions.
+* **⚡ Agent Skills**: Rapidly extend agent capabilities by defining executable skills (Python, Bash, or MCP calls) directly in Markdown files.
 * **🔄 Multi-Step Workflows**: Automatically decomposes complex requests into logical steps, executing them sequentially with state tracking and plan enforcement.
 * **✅ Trust-but-Verify Auditing**: A dedicated **QA Auditor Node** verifies actual tool outputs against the user request to catch hallucinations before they reach you.
 * **📂 Declarative RAG & BYODB**: "Bring Your Own Database." Supports top vector databases with zero-code, config-driven knowledge tool generation.
