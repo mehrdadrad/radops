@@ -232,6 +232,100 @@ def build_skill_registry():
     embedding = embedding_factory(settings.discovery.embedding_profile)
     return FAISS.from_documents(docs, embedding)
 
+def build_workflow_registry():
+    """
+    Builds a registry of workflows indexed by their description.
+    """
+    docs = []
+    available_workflows = get_available_workflows()
+
+    for workflow in available_workflows:
+        docs.append(
+            Document(
+                page_content=(
+                    f"Workflow: {workflow['name']}\n"
+                    f"Description: {workflow['description']}\n"
+                    f"Path: {workflow['path']}"
+                ),
+                metadata={"type": "workflow", **workflow},
+            )
+        )
+
+    if not docs:
+        return None
+
+    embedding = embedding_factory(settings.discovery.embedding_profile)
+    return FAISS.from_documents(docs, embedding)
+
+def get_available_workflows() -> list[dict]:
+    """Scans the workflows directory and returns a list of available workflows."""
+    try:
+        # Resolve project root relative to this file: src/prompts/system.py
+        project_root = Path(__file__).resolve().parents[2]
+        workflows_dir = project_root / "workflows"
+        
+        if not workflows_dir.exists():
+            return []
+
+        workflows_list = []
+
+        for root, _, files in os.walk(workflows_dir):
+            for file in files:
+                if not file.endswith(".md"):
+                    continue
+
+                file_path = Path(root) / file
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    
+                    if not content.startswith("---"):
+                        continue
+
+                    parts = content.split("---", 2)
+                    if len(parts) < 3:
+                        continue
+
+                    frontmatter = parts[1]
+                    
+                    name = "Unknown"
+                    description = ""
+                    metadata = {}
+                    
+                    for line in frontmatter.splitlines():
+                        line = line.strip()
+                        if not line or ":" not in line:
+                            continue
+                        
+                        key, val = line.split(":", 1)
+                        key = key.strip()
+                        val = val.strip()
+
+                        if key == "name":
+                            name = val
+                        elif key == "description":
+                            description = val.strip('"\'')
+                        elif key == "metadata":
+                            try:
+                                metadata = json.loads(val.strip("'\""))
+                            except json.JSONDecodeError:
+                                pass    
+                    
+                    rel_path = str(file_path.relative_to(workflows_dir))
+                    workflows_list.append({
+                        "name": name, 
+                        "path": rel_path, 
+                        "description": description, 
+                        "metadata": metadata
+                    })
+                except Exception as e:
+                    logger.warning("Error parsing workflow %s: %s", file, e)
+        
+        return workflows_list
+    except Exception as e:
+        logger.error("Failed to load workflows: %s", e)
+        return []
+
 def get_available_skills() -> list[dict]:
     """Scans the skills directory and returns a list of available skills."""
     try:
@@ -413,4 +507,18 @@ SUMMARIZATION_PROMPT = """
 You are an expert technical writer. Your task is to summarize the conversation history in under {max_summary_tokens} tokens.
 ### Conversation to Summarize:
 {conversation_history}
+"""
+
+WORKFLOW_PROMPT = """
+You are an expert technical planner for RadOps. 
+The user wants to execute a workflow described in the document below.
+
+Your task:
+1. Extract specific execution steps into a flat list.
+2. Inject user-provided variables (IPs, Hostnames) into the step text.
+3. If a step involves a specific skill (e.g., ping, DNS), prefix it with 'EXECUTE: '.
+4. If a step is just a notification or summary, prefix it with 'NOTIFY: '.
+5. Evaluate all 'if/then' logic based on the user's current context.
+
+Return ONLY a valid JSON list of strings.
 """
