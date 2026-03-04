@@ -16,6 +16,7 @@ import re
 import time
 import uuid
 from functools import partial
+from pathlib import Path
 from typing import Any, AsyncGenerator, Literal, Sequence
 
 from langchain_core.messages import (
@@ -46,7 +47,9 @@ from prompts.system import (
     PLATFORM_PROMPT,
     AUDITOR_PROMPT,
     SUMMARIZATION_PROMPT,
+    WORKFLOW_PROMPT,
     build_skill_registry,
+    build_workflow_registry,
 )
 from services.tools.system.system.system import create_agent_discovery_tool
 from services.guardrails.guardrails import guardrails
@@ -136,11 +139,13 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
         discovery_tool = create_agent_discovery_tool(tools)
         system_tools.append(discovery_tool)
 
+    workflow_registry = build_workflow_registry()
+
     graph_builder = StateGraph(State)
     graph_builder.add_node("guardrails", guardrails)
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node(
-        "supervisor", partial(supervisor_node, discovery_tool=discovery_tool)
+        "supervisor", partial(supervisor_node, discovery_tool=discovery_tool, workflow_registry=workflow_registry)
     )
     graph_builder.add_node("auditor", auditor_node)
     graph_builder.add_node("human", human_node)
@@ -361,7 +366,7 @@ def check_completion(decision, existing_requirements, steps_status):
 
 
 async def _discover_agents(
-    last_user_request: str | list, discovery_tool: BaseTool
+    last_user_request: str | list, discovery_tool: BaseTool, workflow_registry=None
 ) -> str:
     """Decomposes the user request and discovers relevant agents."""
     logger.info(
@@ -386,6 +391,7 @@ async def _discover_agents(
                 content=(
                     "Analyze the user request. If it contains multiple distinct "
                     "tasks, break it down into a list of strings. "
+                    "If a task implies running a workflow, SOP, or playbook, prefix it with '[WORKFLOW]'. "
                     "If it is a single task, return it as a single string in "
                     "the list. Do NOT generate synonyms or variations. "
                     "Return ONLY a valid JSON list of strings."
@@ -401,12 +407,73 @@ async def _discover_agents(
         except Exception as e:
             logger.warning("Query decomposition failed: %s", e)
 
-        discovery_result = await discovery_tool.ainvoke({"queries": queries})
+        expanded_queries = await _workflow_process(queries, workflow_registry)
+        discovery_result = await discovery_tool.ainvoke({"queries": expanded_queries})
         return f"\n\n### DISCOVERED AGENTS\n{discovery_result}\n"
     except Exception as e:
         logger.error("Agent discovery failed: %s", e)
         return ""
 
+
+async def _workflow_process(queries: list[str], workflow_registry) -> list[str]:
+    """
+    Processes queries to expand workflow references into individual steps using an LLM.
+    """
+    expanded_queries = []
+    project_root = Path(__file__).resolve().parents[2]
+    
+    llm = llm_factory(
+        settings.agent.supervisor.llm_profile or settings.llm.default_profile,
+        agent_name="supervisor",
+    )
+
+    for query in queries:
+        processed = False
+        if "[WORKFLOW]" in query and workflow_registry:
+            search_query = query.replace("[WORKFLOW]", "").strip()
+            try:
+                results = workflow_registry.similarity_search(search_query, k=1)
+                if results:
+                    doc = results[0]
+                    rel_path = doc.metadata.get("path")
+                    if rel_path:
+                        # Resolve path manually to avoid strict parsing in Workflow class
+                        file_path = project_root / rel_path
+                        if not file_path.exists():
+                             file_path = project_root / "workflows" / rel_path
+                        
+                        if file_path.exists():
+                            try:
+                                with open(file_path, "r", encoding="utf-8") as f:
+                                    content = f.read()
+                                
+                                prompt = (
+                                    f"{WORKFLOW_PROMPT}" 
+                                    f"User Request: {search_query}\n\n"
+                                    f"Workflow Document:\n{content}"
+                                )
+                                
+                                response = await llm.ainvoke([SystemMessage(content=prompt)])
+                                # Clean up potential markdown code blocks in response
+                                content_str = response.content.strip()
+                                if content_str.startswith("```"):
+                                    content_str = content_str.strip("`")
+                                    if content_str.startswith("json"):
+                                        content_str = content_str[4:]
+                                
+                                steps = json.loads(content_str.strip())
+                                if isinstance(steps, list):
+                                    expanded_queries.extend(steps)
+                                    processed = True
+                            except Exception as e:
+                                logger.warning("Failed to generate workflow steps with LLM: %s", e)
+            except Exception as e:
+                logger.warning("Failed to resolve workflow for query '%s': %s", query, e)
+        
+        if not processed:
+            expanded_queries.append(query)
+            
+    return expanded_queries
 
 async def _get_supervisor_decision(
     state: State, messages: list, node_name: str, discovery_tool: BaseTool = None
@@ -488,7 +555,7 @@ async def _get_supervisor_decision(
     return decision
 
 
-async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict:
+async def supervisor_node(state: State, discovery_tool: BaseTool = None, workflow_registry=None) -> dict:
     """The supervisor node that routes to the correct worker or ends."""
     node_name = "supervisor"
     telemetry.update_counter(
@@ -541,7 +608,7 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None) -> dict
             system_prompt += f"\n\n### LATEST USER REQUEST\n{last_user_request}\n"
 
             if discovery_tool:
-                system_prompt += await _discover_agents(last_user_request, discovery_tool)
+                system_prompt += await _discover_agents(last_user_request, discovery_tool, workflow_registry)
 
             system_prompt += (
                 "**FOCUS**: Plan based on this LATEST request. "
