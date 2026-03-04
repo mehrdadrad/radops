@@ -15,7 +15,7 @@ Welcome to the RadOps documentation. Here you will find detailed guides on how t
 ## Features & Integrations
 *   [System Features](system_guide.md) - Memory management (Short/Long-term) and user secrets configuration.
 *   [Agent Discovery](agent_discovery.md) - Scalable agent routing modes (Prompt vs Discovery).
-*   [Creating Skills](CREATING_SKILLS.md) - Defining executable skills (Python, Bash, MCP) in Markdown.
+*   [Creating Skills](creating_skills.md) - Defining executable skills (Python, Bash, MCP) in Markdown.
 *   [Integrations & Knowledge Base](integrations_guide.md) - Sync locationsetting up RAG data sources (GitHub, GDrive) and external integrations.
 *   [Knowledge Base & RAG](kb_rag.md) - Advanced RAG configuration, vector stores, metadata filtering, and reranking.
 *   [Observability](metrics.md) - Configuring OpenTelemetry, Tracing, and Prometheus metrics.
