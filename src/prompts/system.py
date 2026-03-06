@@ -518,7 +518,8 @@ Your task:
 2. Inject user-provided variables (IPs, Hostnames) into the step text.
 3. If a step involves a specific skill (e.g., ping, DNS), prefix it with 'EXECUTE: '.
 4. If a step is just a notification or summary, prefix it with 'NOTIFY: '.
-5. Evaluate all 'if/then' logic based on the user's current context.
+5. If a step contains a **Condition**, you MUST append it to the instruction text so the agent knows the logic.
+6. Prefix each step with its number (e.g., "1. ", "2. ").
 
 Return ONLY a valid JSON list of strings.
 """
