@@ -8,6 +8,7 @@ metadata: '{"category":"network"}'
 
 1. **Check DNS**
 - **Instruction:** Check the A record for the host
+- **Condition:** Skip to "Summarize Findings" if the DNS report does not resolve to an IP address
 
 2. **Check HTTP Status Code**
 - **Instruction:** HTTP check for the host
