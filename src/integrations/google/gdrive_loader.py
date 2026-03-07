@@ -214,10 +214,19 @@ class GoogleDriveLoader(DataLoader):
         """The loop that polls for changes."""
         logger.info("Starting watcher for GDrive folders %s...", self.folder_ids)
         while not self._stop_event.is_set():
-            updated_docs = self._fetch_documents()
-            if updated_docs:
-                logger.info("Found %d updated documents in GDrive. Triggering callback.", len(updated_docs))
-                callback(updated_docs)
+            try:
+                updated_docs = self._fetch_documents()
+                if updated_docs:
+                    logger.info("Found %d updated documents in GDrive. Triggering callback.", len(updated_docs))
+                    callback(updated_docs)
+            except (BrokenPipeError, ConnectionError) as e:
+                logger.warning(
+                    "GDrive watcher encountered a network error: %s. "
+                    "This is often temporary. Attempting to recover on the next cycle.", e
+                )
+                # Reset the service object to force re-authentication and get a new connection
+                self._gdrive_service = None
+            
             self._stop_event.wait(self.poll_interval)
         logger.info("GDrive watcher stopped.")
     
