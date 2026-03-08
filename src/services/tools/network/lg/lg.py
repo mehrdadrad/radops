@@ -23,7 +23,7 @@ def network__verizon_looking_glass(
     Args:
         destination: The destination IP address or hostname.
         command: The command to run. Can be 'ping', 'trace', or 'bgp'. Defaults to 'ping'.
-        source: The exact source location string obtained from the 'verizon_looking_glass_locations' tool (e.g., 'ASHBURN,USA').
+        source: The exact source location string obtained from the 'verizon_looking_glass_locations' tool. Defaults to 'ASHBURN,USA'.
         ip_version: The IP version to use. Can be 'ipv4' or 'ipv6'. Defaults to 'ipv4'.
 
     Returns:
@@ -55,7 +55,11 @@ def network__verizon_looking_glass(
     data = {"src": source, "dest": destination, "cmd": command, "ipv": ip_version}
 
     try:
-        response = requests.post(url, headers=headers, data=data, timeout=30)
+        for _ in range(2):
+            response = requests.post(url, headers=headers, data=data, timeout=20)
+            if response.status_code in [200, 429]:
+                break
+            time.sleep(2)
         response.raise_for_status()
         data = response.json()
         data["location"] = source
@@ -106,7 +110,11 @@ def network__verizon_looking_glass_locations() -> list[str] | str:
     url = "https://www.verizon.com/business/api/lg.js?cmd"
 
     try:
-        response = requests.get(url, timeout=30)
+        for _ in range(2):
+            response = requests.get(url, timeout=20)
+            if response.status_code in [200, 429]:
+                break
+            time.sleep(2)
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
         data = response.json()
 
