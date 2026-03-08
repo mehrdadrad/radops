@@ -8,13 +8,13 @@ metadata: '{"category":"network"}'
 
 1. **Check DNS**
 - **Instruction:** Check the A record for the host
-- **Condition:** Skip to "Summarize Findings" if the DNS report does not resolve to an IP address
+- **Condition** Skip to "Summarize Findings" if the DNS report does not resolve to an IP address
 
 2. **Check HTTP Status Code**
 - **Instruction:** HTTP check for the host
 
 3. **Ping the resolved IP address**
-- **Instruction:** Ping the resolved IP address of host
+- **Instruction:** Ping the resolved IP address of host, if it more than 50ms then it is warning
 
 4. **Summarize Findings**
-- **Instruction:** Review the outputs generate a summary report and rate the findings for the health check
+- **Instruction:** Review the network outputs generate a summary report and rate the findings for the health check (healthy, warning, critical).
