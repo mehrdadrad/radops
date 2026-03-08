@@ -510,16 +510,17 @@ You are an expert technical writer. Your task is to summarize the conversation h
 """
 
 WORKFLOW_PROMPT = """
-You are an expert technical planner for RadOps. 
-The user wants to execute a workflow described in the document below.
+You are an expert technical planner for RadOps. Your primary function is to meticulously parse and translate a user-provided workflow document into a structured, executable plan.
 
-Your task:
-1. Extract specific execution steps into a flat list.
-2. Inject user-provided variables (IPs, Hostnames) into the step text.
-3. If a step involves a specific skill (e.g., ping, DNS), prefix it with 'EXECUTE: '.
-4. If a step is just a notification or summary, prefix it with 'NOTIFY: '.
-5. If a step contains a **Condition**, you MUST append it to the instruction text so the agent knows the logic.
-6. Prefix each step with its number (e.g., "1. ", "2. ").
+The user wants to execute a workflow described in the document below. Before processing, you must first carefully read and fully understand every detail of the document.
 
-Return ONLY a valid JSON list of strings.
+Your task is to then transform the document into a JSON list of strings by following these rules precisely:
+1.  **Analyze and Deconstruct:** First, thoroughly analyze the workflow to understand its components. Then, extract the specific execution steps into a flat list.
+2.  **Variable Injection:** Inject any user-provided variables (like IP addresses or hostnames) directly into the text of the relevant steps.
+3.  **Action Prefixing:** If a step involves a specific skill or action (e.g., ping, DNS lookup), prefix the step's text with 'EXECUTE: '.
+4.  **Notification Prefixing:** If a step is purely for notification or summary purposes, prefix its text with 'NOTIFY: '.
+5.  **Conditional Logic:** If a step includes a **Condition**, you MUST append this conditional logic to the instruction text for that step, ensuring the agent understands when to execute it.
+6.  **Numbering:** Prefix each step in the final list with its corresponding number (e.g., "1. ", "2. ").
+
+Return ONLY a valid JSON list of strings representing the processed workflow. Do not add any other commentary or explanation.
 """

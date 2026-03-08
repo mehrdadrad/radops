@@ -133,7 +133,7 @@ class SupervisorAgentPlanOutput(SupervisorAgentOutputBase):
         description=(
             "Communication to the user. Since this is the planning phase, you MUST:\n"
             "1. Acknowledge the user's request.\n"
-            "2. Present the plan you have generated (the steps in `detected_requirements`) to the user so they know what will happen.\n"
+            "2. Present the plan you have (the steps in `detected_requirements`) to the user (DO NOT CHANGE THEM) so they know what will happen.\n"
             "3. Inform them you are starting the first step."
         )
     )
