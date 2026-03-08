@@ -391,7 +391,7 @@ async def _discover_agents(
                 content=(
                     "Analyze the user request. If it contains multiple distinct "
                     "tasks, break it down into a list of strings. "
-                    "If a task implies running a workflow, SOP, or playbook, prefix it with '[WORKFLOW]'. "
+                    "If the request contains the word 'workflow', 'SOP', or 'playbook', prefix the string with '[WORKFLOW]'. "
                     "If it is a single task, return it as a single string in "
                     "the list. Do NOT generate synonyms or variations. "
                     "Return ONLY a valid JSON list of strings."
@@ -408,6 +408,14 @@ async def _discover_agents(
             logger.warning("Query decomposition failed: %s", e)
 
         expanded_queries = await _workflow_process(queries, workflow_registry)
+        if not expanded_queries and any("[WORKFLOW]" in q for q in queries):
+            return (
+                "\n\n### IMPORTANT\n"
+                "A workflow was requested, but no matching workflow was found or "
+                "no steps could be generated. You MUST inform the user that the "
+                "requested workflow could not be found and that you cannot "
+                "proceed. Do not try to complete the task in another way."
+            )
         discovery_result = await discovery_tool.ainvoke({"queries": expanded_queries})
         return f"\n\n### DISCOVERED AGENTS\n{discovery_result}\n"
     except Exception as e:
@@ -432,10 +440,22 @@ async def _workflow_process(queries: list[str], workflow_registry) -> list[str]:
         if "[WORKFLOW]" in query and workflow_registry:
             search_query = query.replace("[WORKFLOW]", "").strip()
             try:
-                results = workflow_registry.similarity_search(search_query, k=1)
-                if results:
-                    doc = results[0]
+                results_with_score = workflow_registry.similarity_search_with_score(search_query, k=1)
+
+                if results_with_score:
+                    doc, score = results_with_score[0]
+                    logger.info("Workflow search score: %f", score)
                     rel_path = doc.metadata.get("path")
+                    name = doc.metadata.get("name", None)
+                    if not name or score > 1.0:
+                        logger.warning(
+                            "High similarity score for workflow search. "
+                            "Score: %f, Query: '%s', Result Name: '%s'",
+                            score, search_query, name
+                        )
+                        processed = True
+                        continue
+
                     if rel_path:
                         # Resolve path manually to avoid strict parsing in Workflow class
                         file_path = project_root / rel_path
@@ -453,7 +473,7 @@ async def _workflow_process(queries: list[str], workflow_registry) -> list[str]:
                                     f"Workflow Document:\n{content}"
                                 )
                                 
-                                response = await llm.ainvoke([SystemMessage(content=prompt)])
+                                response = await llm.ainvoke([HumanMessage(content=prompt)])
                                 # Clean up potential markdown code blocks in response
                                 content_str = response.content.strip()
                                 if content_str.startswith("```"):
@@ -472,7 +492,7 @@ async def _workflow_process(queries: list[str], workflow_registry) -> list[str]:
         
         if not processed:
             expanded_queries.append(query)
-            
+
     return expanded_queries
 
 async def _get_supervisor_decision(
