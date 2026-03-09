@@ -15,6 +15,7 @@ import logging
 import re
 import time
 import uuid
+import os
 from functools import partial
 from pathlib import Path
 from typing import Any, AsyncGenerator, Literal, Sequence
@@ -35,6 +36,7 @@ from config.config import settings
 from core.auth import is_tool_authorized
 from core.llm import llm_factory
 from core.memory import get_mem0_client
+from core.skill import SkillRunner
 from core.state import (
     AuditReport,
     State,
@@ -257,6 +259,7 @@ def create_agent(
                         "The following skills are relevant to the current request. "
                         "To use a skill, you MUST use the `system__load_skill_from_markdown` tool "
                         "with the provided 'Path'.\n"
+                        "If the skill requires arguments (e.g. domain, ip), you MUST pass them in the `variables` dictionary.\n"
                     )
                     skills_context += "\n".join(
                         [
@@ -1082,22 +1085,60 @@ async def authorize_tools(request, handler) -> ToolMessage:
     tool_name = request.tool_call["name"]
     user_id = request.state.get("user_id")
 
-    if await is_tool_authorized(tool_name, user_id):
-        start_time = time.perf_counter()
-        response = await handler(request)
-        duration = time.perf_counter() - start_time
-        telemetry.update_histogram(
-            "agent.tool.duration_seconds", duration, attributes={"tool": tool_name}
+    # Check tool authorization first.
+    if not await is_tool_authorized(tool_name, user_id):
+        error_message = f"unauthorized tool call: {tool_name}"
+        return ToolMessage(
+            content=error_message,
+            name=tool_name,
+            tool_call_id=request.tool_call["id"],
+            status="error",
         )
-        return response
 
-    error_message = f"unauthorized tool call: {tool_name}"
-    return ToolMessage(
-        content=error_message,
-        name=tool_name,
-        tool_call_id=request.tool_call["id"],
-        status="error",
+    # If tool is the skill loader, check skill authorization.
+    if tool_name == "system__load_skill_from_markdown":
+        try:
+            skill_file_name = request.tool_call["args"]["file_name"]
+            # This is fragile, but it's the best we can do without a major refactor
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.abspath(os.path.join(base_dir, "..", ".."))
+            skills_dir = os.path.join(project_root, "skills")
+            skill_path = os.path.join(skills_dir, skill_file_name)
+
+            if not os.path.exists(skill_path):
+                return ToolMessage(
+                    content=f"skill file not found: {skill_path}",
+                    name=tool_name,
+                    tool_call_id=request.tool_call["id"],
+                    status="error",
+                )
+
+            skill_runner = SkillRunner(skill_path)
+            skill_name = skill_runner.name
+            if not await is_tool_authorized(skill_name, user_id):
+                error_message = f"unauthorized skill call: {skill_name}"
+                return ToolMessage(
+                    content=error_message,
+                    name=tool_name,
+                    tool_call_id=request.tool_call["id"],
+                    status="error",
+                )
+        except Exception as e:
+            return ToolMessage(
+                content=f"Error during skill authorization: {e}",
+                name=tool_name,
+                tool_call_id=request.tool_call["id"],
+                status="error",
+            )
+
+    # If all checks pass, execute the handler.
+    start_time = time.perf_counter()
+    response = await handler(request)
+    duration = time.perf_counter() - start_time
+    telemetry.update_histogram(
+        "agent.tool.duration_seconds", duration, attributes={"tool": tool_name}
     )
+    return response
 
 
 def route_workflow(state: State) -> str:
