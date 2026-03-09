@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, mock_open
 
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, RemoveMessage
@@ -323,30 +323,6 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         self.assertIn("The tool failed to execute", result)
         self.assertIn("Something went wrong", result)
 
-    @patch("core.graph.is_tool_authorized")
-    async def test_authorize_tools(self, mock_is_authorized):
-        """Test tool authorization logic."""
-        # Authorized
-        mock_is_authorized.return_value = True
-        mock_handler = AsyncMock(return_value="Success")
-        request = MagicMock()
-        request.tool_call = {"name": "test_tool", "id": "123"}
-        request.state = {"user_id": "user1"}
-
-        result = await authorize_tools(request, mock_handler)
-        self.assertEqual(result, "Success")
-        mock_handler.assert_called_once_with(request)
-
-        # Unauthorized
-        mock_is_authorized.return_value = False
-        mock_handler.reset_mock()
-
-        result = await authorize_tools(request, mock_handler)
-        self.assertIsInstance(result, ToolMessage)
-        self.assertIn("unauthorized", result.content)
-        self.assertEqual(result.status, "error")
-        mock_handler.assert_not_called()
-
     @patch("core.graph.get_mem0_client")
     @patch("core.graph.settings")
     async def test_manage_memory_node(self, mock_settings, mock_get_mem0):
@@ -378,6 +354,110 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         self.assertIn("User likes AI", result["relevant_memories"])
         mock_mem0.add.assert_called()
         mock_mem0.search.assert_called()
+
+class TestAuthorizeTools(unittest.IsolatedAsyncioTestCase):
+    @patch("core.graph.is_tool_authorized")
+    async def test_tool_authorization_authorized(self, mock_is_authorized):
+        """Test tool authorization logic for an authorized tool."""
+        mock_is_authorized.return_value = True
+        mock_handler = AsyncMock(return_value="Success")
+        request = MagicMock()
+        request.tool_call = {"name": "test_tool", "id": "123"}
+        request.state = {"user_id": "user1"}
+
+        result = await authorize_tools(request, mock_handler)
+        self.assertEqual(result, "Success")
+        mock_handler.assert_called_once_with(request)
+
+    @patch("core.graph.is_tool_authorized")
+    async def test_tool_authorization_unauthorized(self, mock_is_authorized):
+        """Test tool authorization logic for an unauthorized tool."""
+        mock_is_authorized.return_value = False
+        mock_handler = AsyncMock()
+        request = MagicMock()
+        request.tool_call = {"name": "test_tool", "id": "123"}
+        request.state = {"user_id": "user1"}
+
+        result = await authorize_tools(request, mock_handler)
+        self.assertIsInstance(result, ToolMessage)
+        self.assertIn("unauthorized tool call: test_tool", result.content)
+        self.assertEqual(result.status, "error")
+        mock_handler.assert_not_called()
+
+    @patch("core.graph.os.path.exists", return_value=True)
+    @patch("core.graph.SkillRunner")
+    @patch("core.graph.is_tool_authorized")
+    async def test_skill_authorization_authorized(
+        self, mock_is_authorized, mock_skill_runner, mock_exists
+    ):
+        """Test that an authorized user can execute a skill."""
+        mock_is_authorized.side_effect = [True, True]  # Authorize both tool and skill
+        mock_skill_instance = MagicMock()
+        mock_skill_instance.name = "test_skill"
+        mock_skill_runner.return_value = mock_skill_instance
+        mock_handler = AsyncMock(return_value="Skill Success")
+
+        request = MagicMock()
+        request.tool_call = {
+            "name": "system__load_skill_from_markdown",
+            "args": {"file_name": "test_skill.md"},
+            "id": "456",
+        }
+        request.state = {"user_id": "user_with_skill_access"}
+
+        result = await authorize_tools(request, mock_handler)
+
+        self.assertEqual(result, "Skill Success")
+        mock_handler.assert_called_once_with(request)
+        mock_is_authorized.assert_any_call("test_skill", "user_with_skill_access")
+
+    @patch("core.graph.os.path.exists", return_value=True)
+    @patch("core.graph.SkillRunner")
+    @patch("core.graph.is_tool_authorized")
+    async def test_skill_authorization_unauthorized(
+        self, mock_is_authorized, mock_skill_runner, mock_exists
+    ):
+        """Test that an unauthorized user cannot execute a skill."""
+        mock_is_authorized.side_effect = [True, False]  # Authorize tool, deny skill
+        mock_skill_instance = MagicMock()
+        mock_skill_instance.name = "test_skill"
+        mock_skill_runner.return_value = mock_skill_instance
+        mock_handler = AsyncMock()
+
+        request = MagicMock()
+        request.tool_call = {
+            "name": "system__load_skill_from_markdown",
+            "args": {"file_name": "test_skill.md"},
+            "id": "456",
+        }
+        request.state = {"user_id": "user_without_skill_access"}
+
+        result = await authorize_tools(request, mock_handler)
+
+        self.assertIsInstance(result, ToolMessage)
+        self.assertIn("unauthorized skill call: test_skill", result.content)
+        self.assertEqual(result.status, "error")
+        mock_handler.assert_not_called()
+
+    @patch("core.graph.os.path.exists", return_value=False)
+    @patch("core.graph.is_tool_authorized", return_value=True)
+    async def test_skill_authorization_file_not_found(self, mock_is_authorized, mock_exists):
+        """Test skill authorization when the skill file does not exist."""
+        mock_handler = AsyncMock()
+        request = MagicMock()
+        request.tool_call = {
+            "name": "system__load_skill_from_markdown",
+            "args": {"file_name": "non_existent_skill.md"},
+            "id": "789",
+        }
+        request.state = {"user_id": "any_user"}
+
+        result = await authorize_tools(request, mock_handler)
+
+        self.assertIsInstance(result, ToolMessage)
+        self.assertIn("skill file not found", result.content)
+        self.assertEqual(result.status, "error")
+        mock_handler.assert_not_called()
 
 class TestSanitizeToolCalls(unittest.TestCase):
     def test_basic_conversation(self):
