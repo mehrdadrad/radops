@@ -259,7 +259,15 @@ def create_agent(
                         "The following skills are relevant to the current request. "
                         "To use a skill, you MUST use the `system__load_skill_from_markdown` tool "
                         "with the provided 'Path'.\n"
-                        "If the skill requires arguments (e.g. domain, ip), you MUST pass them in the `variables` dictionary.\n"
+                        "This tool will return the raw content of the skill. You MUST carefully read "
+                        "all instructions, logic, and conditions within the skill.\n"
+                        "Extract the necessary code blocks, substitute required variables yourself, "
+                        "and execute them using the `system__python_executor` tool according to the "
+                        "skill's logic (e.g., passing results between blocks or conditional execution).\n"
+                        "IMPORTANT: You MUST explicitly use `print()` in your Python code to output results.\n"
+                        "Wait for the result of each execution before proceeding to the next code block.\n"
+                        "After completing the required execution steps (or if an unrecoverable error occurs), "
+                        "you MUST immediately use the `system__submit_work` tool to report the final status. Do NOT run any other tools.\n"
                     )
                     skills_context += "\n".join(
                         [

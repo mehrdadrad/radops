@@ -5,7 +5,6 @@ from typing import Any, List, Sequence, Optional
 from langchain_core.tools import tool
 from core.state import WorkerAgentOutput
 from langchain_core.tools import BaseTool
-from core.skill import SkillRunner
 from config.config import settings
 from prompts.system import build_agent_registry
 
@@ -148,7 +147,7 @@ def create_agent_discovery_tool(tools: Sequence[BaseTool]):
 
 def create_skill_loader_tool(mcp_clients: List[Any] = None, skills_dir: str | None = None):
     """
-    Creates a tool to load and register a skill from a SKILL.md file.
+    Creates a tool to load a skill from a SKILL.md file.
     """
     if skills_dir is None:
         # Resolve default skills directory relative to project root
@@ -165,24 +164,29 @@ def create_skill_loader_tool(mcp_clients: List[Any] = None, skills_dir: str | No
             pass
 
     @tool
-    async def system__load_skill_from_markdown(file_name: str, variables: Optional[dict] = None):
+    def system__load_skill_from_markdown(file_name: str):
         """
-        Loads and executes a skill definition from a markdown file in the skills directory.
+        Loads a skill from a markdown file and returns its content.
+        IMPORTANT: This tool only reads the file. It DOES NOT execute it.
+        You MUST carefully read the skill's instructions, conditions, and logic.
+        Extract the necessary Python code blocks, inject any required variables yourself, 
+        and execute them using the `system__python_executor` tool.
+        Follow any conditional logic or data passing between steps as described in the skill.
+        Once you have the final results, you MUST use the `system__submit_work` tool.
 
         Args:
             file_name: The relative path to the skill file (e.g., 'ripe-bgp-state/SKILL.md').
-            variables: Dictionary of variables to inject (e.g., {'resource': '1.1.1.1'}). Required if the skill expects input.
         """
         file_path = os.path.join(skills_dir, file_name)
         try:
             if not os.path.exists(file_path):
                 return f"Skill file not found: {file_path}"
-            
-            runner = SkillRunner(file_path)
-            return await runner.execute(inputs=variables, mcp_clients=mcp_clients)
+
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
 
         except Exception as e:
-            return f"Failed to execute skill: {e}"
+            return f"Failed to load skill: {e}"
 
     return system__load_skill_from_markdown
                  

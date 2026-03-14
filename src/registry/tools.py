@@ -25,6 +25,8 @@ from services.tools.system.system.system import (
     create_mcp_server_tools_tool,
     system__submit_work
 )
+from services.tools.executors.python_executor import system__python_executor
+from services.tools.executors.shell_executor import system__shell_executor
 
 
 logger = logging.getLogger(__name__)
@@ -91,7 +93,7 @@ class ToolRegistry:
         """Gathers and returns all available tools."""
         local_tools = self._load_tools_from_config()
         local_tools = local_tools + [system__submit_work]
-        skill_tools = [create_skill_loader_tool(mcp_clients=self.mcp_clients)]
+        skill_tools = [create_skill_loader_tool(mcp_clients=self.mcp_clients), system__python_executor, system__shell_executor]
 
         mcp_tools = []
         async def _load_client(client):
