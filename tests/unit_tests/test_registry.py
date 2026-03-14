@@ -146,7 +146,7 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
         
         # Verify system__submit_work is added (it's hardcoded in get_all_tools)
         # local_tools (1) + system__submit_work (1) + mcp (1) + kb (1) + skill (1) = 5
-        self.assertEqual(len(tools), 5)
+        self.assertEqual(len(tools), 7)
 
     async def test_get_all_tools_mcp_error(self):
         registry = ToolRegistry(self.mock_checkpointer)
@@ -165,8 +165,8 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs("src.registry.tools", level="ERROR") as cm:
             tools = await registry.get_all_tools()
             self.assertTrue(any("Failed to load tools from" in o for o in cm.output))
-            # Should still have system__submit_work
-            self.assertEqual(len(tools), 2)
+            # Should still have system__submit_work and executor tools
+            self.assertEqual(len(tools), 4)
 
     async def test_get_all_tools_kb_error(self):
         registry = ToolRegistry(self.mock_checkpointer)
