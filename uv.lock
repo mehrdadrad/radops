@@ -781,6 +781,20 @@ wheels = [
 ]
 
 [[package]]
+name = "docker"
+version = "7.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/9b/4a2ea29aeba62471211598dac5d96825bb49348fa07e906ea930394a83ce/docker-7.1.0.tar.gz", hash = "sha256:ad8c70e6e3f8926cb8a92619b832b4ea5299e2831c14284663184e200546fa6c", size = 117834, upload-time = "2024-05-23T11:13:57.216Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e3/26/57c6fb270950d476074c087527a558ccb6f4436657314bfb6cdf484114c4/docker-7.1.0-py3-none-any.whl", hash = "sha256:c96b93b7f0a746f9e77d325bcfb87422a3d8bd4f03136ae8a85b37f1898d5fc0", size = 147774, upload-time = "2024-05-23T11:13:55.01Z" },
+]
+
+[[package]]
 name = "docstring-parser"
 version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2874,6 +2888,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pip"
+version = "26.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/48/83/0d7d4e9efe3344b8e2fe25d93be44f64b65364d3c8d7bc6dc90198d5422e/pip-26.0.1.tar.gz", hash = "sha256:c4037d8a277c89b320abe636d59f91e6d0922d08a05b60e85e53b296613346d8", size = 1812747, upload-time = "2026-02-05T02:20:18.702Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/f0/c81e05b613866b76d2d1066490adf1a3dbc4ee9d9c839961c3fc8a6997af/pip-26.0.1-py3-none-any.whl", hash = "sha256:bdb1b08f4274833d62c1aa29e20907365a2ceb950410df15fc9521bad440122b", size = 1787723, upload-time = "2026-02-05T02:20:16.416Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3659,6 +3682,7 @@ dependencies = [
     { name = "django-handleref" },
     { name = "django-inet" },
     { name = "django-peeringdb" },
+    { name = "docker" },
     { name = "docstring-parser" },
     { name = "durationpy" },
     { name = "dydantic" },
@@ -3774,6 +3798,7 @@ dependencies = [
     { name = "pdpyras" },
     { name = "peeringdb" },
     { name = "peewee" },
+    { name = "pip" },
     { name = "platformdirs" },
     { name = "pluggy" },
     { name = "ply" },
@@ -3924,6 +3949,7 @@ requires-dist = [
     { name = "django-handleref", specifier = "==2.0.1" },
     { name = "django-inet", specifier = "==1.1.1" },
     { name = "django-peeringdb", specifier = "==3.7.0" },
+    { name = "docker", specifier = ">=7.1.0" },
     { name = "docstring-parser", specifier = "==0.17.0" },
     { name = "durationpy", specifier = "==0.10" },
     { name = "dydantic", specifier = "==0.0.8" },
@@ -4039,6 +4065,7 @@ requires-dist = [
     { name = "pdpyras", specifier = "==5.4.1" },
     { name = "peeringdb", specifier = "==2.4.1" },
     { name = "peewee", specifier = "==3.18.3" },
+    { name = "pip", specifier = ">=26.0.1" },
     { name = "platformdirs", specifier = "==4.5.0" },
     { name = "pluggy", specifier = "==1.6.0" },
     { name = "ply", specifier = "==3.11" },
