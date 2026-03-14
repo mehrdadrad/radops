@@ -51,6 +51,8 @@ across your entire infrastructure—autonomously.
 
 ## 💡 Example Outputs
 
+[Slack Video Demo](https://www.youtube.com/watch?v=D4zDUwUnqIM)
+
 ### Workflow
 ```
 User: run host health check workflow for www.ippacket.org
