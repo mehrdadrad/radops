@@ -50,6 +50,7 @@ from prompts.system import (
     AUDITOR_PROMPT,
     SUMMARIZATION_PROMPT,
     WORKFLOW_PROMPT,
+    SKILLS_SYSTEM_PROMPT,
     build_skill_registry,
     build_workflow_registry,
 )
@@ -212,6 +213,56 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     return graph
 
 
+def _get_skills_context(skill_registry, state: State, agent_name: str) -> str:
+    """
+    Searches for relevant skills and constructs the skills context for the prompt.
+    """
+    skills_context = ""
+    if not skill_registry:
+        return skills_context
+
+    try:
+        last_message = state["messages"][-1]
+        content = last_message.content
+        if isinstance(content, list):
+            content = " ".join(
+                [
+                    c.get("text", "")
+                    for c in content
+                    if isinstance(c, dict) and c.get("type") == "text"
+                ]
+            )
+
+        results_with_scores = skill_registry.similarity_search_with_score(
+            str(content), k=3, filter={"agent_name": agent_name}
+        )
+        
+        # Filter results based on score threshold (lower is better)
+        skill_threshold = 1.5
+        
+        results = [
+            (doc, score)
+            for doc, score in results_with_scores
+            if score <= skill_threshold
+        ]
+
+        if results:
+            skills_context = (
+                "\n\n### Relevant Skills\n"
+                "The following skills are relevant to the current request:\n"
+            )
+            skills_context += "\n".join(
+                [
+                    f"- {doc.page_content} (Score: {score:.2f})"
+                    for doc, score in results
+                ]
+            )
+    except Exception as e:
+        logger.warning("Failed to query skill registry: %s", e)
+
+    return skills_context
+
+
 def create_agent(
     agent_name: str,
     system_prompt: str,
@@ -235,50 +286,9 @@ def create_agent(
 
         user_id = state.get("user_id", "User")
 
-        # search skills from skill resgistry
-        skills_context = ""
-        if skill_registry:
-            try:
-                last_message = state["messages"][-1]
-                content = last_message.content
-                if isinstance(content, list):
-                    content = " ".join(
-                        [
-                            c.get("text", "")
-                            for c in content
-                            if isinstance(c, dict) and c.get("type") == "text"
-                        ]
-                    )
+        skills_context = _get_skills_context(skill_registry, state, agent_name)
 
-                results = skill_registry.similarity_search(
-                    str(content), k=3, filter={"agent_name": agent_name}
-                )
-                if results:
-                    skills_context = (
-                        "\n\n### Relevant Skills\n"
-                        "The following skills are relevant to the current request. "
-                        "To use a skill, you MUST use the `system__load_skill_from_markdown` tool "
-                        "with the provided 'Path'.\n"
-                        "This tool will return the raw content of the skill. You MUST carefully read "
-                        "all instructions, logic, and conditions within the skill.\n"
-                        "Extract the necessary code blocks, substitute required variables yourself, "
-                        "and execute them using the `system__python_executor` tool according to the "
-                        "skill's logic (e.g., passing results between blocks or conditional execution).\n"
-                        "IMPORTANT: You MUST explicitly use `print()` in your Python code to output results.\n"
-                        "Wait for the result of each execution before proceeding to the next code block.\n"
-                        "After completing the required execution steps (or if an unrecoverable error occurs), "
-                        "you MUST immediately use the `system__submit_work` tool to report the final status. Do NOT run any other tools.\n"
-                    )
-                    skills_context += "\n".join(
-                        [
-                            f"- {doc.page_content}"
-                            for doc in results
-                        ]
-                    )
-            except Exception as e:
-                logger.warning("Failed to query skill registry: %s", e)
-
-        prompt = f"{system_prompt}\n{skills_context}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
+        prompt = f"{system_prompt}\n{SKILLS_SYSTEM_PROMPT}\n{skills_context}\n{EXTENSION_PROMPT.format(user_id=user_id)}"
         messages = construct_llm_context(state, prompt)
         start_time = time.perf_counter()
         ai_response = await llm_with_tools.ainvoke(messages)
