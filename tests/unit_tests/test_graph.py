@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, mock_open
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, RemoveMessage
 from core.state import SupervisorAgentPlanOutput
 from core.graph import (
+    _get_skills_context,
     create_agent,
     authorize_tools,
     check_end_status,
@@ -786,6 +787,54 @@ class TestGraphUtilities(unittest.TestCase):
         self.assertIsInstance(updates[1], AIMessage)
         self.assertEqual(updates[1].id, "ai1")
         self.assertEqual(updates[1].tool_calls, [])
+
+    @patch("core.graph.logger")
+    def test_get_skills_context(self, mock_logger):
+        """Test the _get_skills_context function."""
+        # Test case 1: Skills found, some below and some above threshold
+        mock_skill_registry = MagicMock()
+        doc1 = MagicMock()
+        doc1.page_content = "Skill 1 content"
+        doc2 = MagicMock()
+        doc2.page_content = "Skill 2 content (should be filtered)"
+        
+        mock_skill_registry.similarity_search_with_score.return_value = [
+            (doc1, 0.5),
+            (doc2, 1.8),  # Above the 1.5 threshold
+        ]
+        
+        state = {"messages": [HumanMessage(content="find me a skill")]}
+        agent_name = "test_agent"
+
+        # Execute
+        skills_context = _get_skills_context(mock_skill_registry, state, agent_name)
+
+        # Verify
+        self.assertIn("### Relevant Skills", skills_context)
+        self.assertIn("Skill 1 content", skills_context)
+        self.assertIn("(Score: 0.50)", skills_context)
+        self.assertNotIn("Skill 2 content", skills_context)
+        mock_skill_registry.similarity_search_with_score.assert_called_once_with(
+            "find me a skill", k=3, filter={"agent_name": "test_agent"}
+        )
+
+        # Test case 2: No skills found (empty return)
+        mock_skill_registry.reset_mock()
+        mock_skill_registry.similarity_search_with_score.return_value = []
+        skills_context_empty = _get_skills_context(mock_skill_registry, state, agent_name)
+        self.assertEqual(skills_context_empty, "")
+
+        # Test case 3: skill_registry is None
+        skills_context_none = _get_skills_context(None, state, agent_name)
+        self.assertEqual(skills_context_none, "")
+
+        # Test case 4: Exception during search
+        mock_skill_registry.reset_mock()
+        mock_skill_registry.similarity_search_with_score.side_effect = Exception("Search failed")
+        skills_context_exception = _get_skills_context(mock_skill_registry, state, agent_name)
+        self.assertEqual(skills_context_exception, "")
+        mock_logger.warning.assert_called_once()
+        self.assertIn("Failed to query skill registry", mock_logger.warning.call_args[0][0])
 
 class TestAuditorNode(unittest.IsolatedAsyncioTestCase):
     @patch("core.graph.llm_factory")
