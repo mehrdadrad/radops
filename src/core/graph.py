@@ -148,7 +148,11 @@ async def run_graph(checkpointer=None, tools=None, tool_registry=None):
     graph_builder.add_node("guardrails", guardrails)
     graph_builder.add_node("memory", manage_memory_node)
     graph_builder.add_node(
-        "supervisor", partial(supervisor_node, discovery_tool=discovery_tool, workflow_registry=workflow_registry)
+        "supervisor",
+        partial(supervisor_node,
+            discovery_tool=discovery_tool,
+            workflow_registry=workflow_registry
+        )
     )
     graph_builder.add_node("auditor", auditor_node)
     graph_builder.add_node("human", human_node)
@@ -517,7 +521,7 @@ async def _workflow_process(queries: list[str], workflow_registry) -> list[str]:
     return expanded_queries
 
 async def _get_supervisor_decision(
-    state: State, messages: list, node_name: str, discovery_tool: BaseTool = None
+    state: State, messages: list, node_name: str
 ):
     """Invokes the supervisor LLM to get a decision."""
     # Initial Plan: If no worker is assigned (start of task), generate the plan.
@@ -534,40 +538,7 @@ async def _get_supervisor_decision(
 
     start_time = time.perf_counter()
     try:
-        # Only enable discovery tool if we haven't established requirements yet
-        enable_discovery = discovery_tool and not state.get("detected_requirements")
-
-        if enable_discovery:
-            llm = llm.bind_tools([discovery_tool, output_schema])
-            decision = await llm.ainvoke(messages)
-            if decision.tool_calls:
-                if decision.tool_calls[0]["name"] == discovery_tool.name:
-                    return {
-                        "messages": [decision],
-                        "response_metadata": {"nodes": [node_name]},
-                        "next_worker": "supervisor"
-                    }
-                return output_schema(**decision.tool_calls[0]["args"])
-
-            # If no tool calls were made, treat the content as the response to user and end.
-            response_content = (
-                decision.content
-                if decision.content
-                else "I'm sorry, I couldn't determine how to proceed."
-            )
-            fallback_args = {
-                "next_worker": "end",
-                "response_to_user": response_content,
-                "instructions_for_worker": "",
-                "current_step_id": 0,
-                "current_step_status": "failed",
-                "skipped_step_ids": []
-            }
-            if output_schema == SupervisorAgentPlanOutput:
-                fallback_args["detected_requirements"] = []
-            return output_schema(**fallback_args)
-        else:
-            decision = await llm.with_structured_output(output_schema).ainvoke(messages)
+        decision = await llm.with_structured_output(output_schema).ainvoke(messages)
 
     except Exception as e:
         logger.error("LLM error: %s", e)
@@ -658,7 +629,7 @@ async def supervisor_node(state: State, discovery_tool: BaseTool = None, workflo
 
     messages = [SystemMessage(content=system_prompt)] + conversation_messages
 
-    decision = await _get_supervisor_decision(state, messages, node_name, discovery_tool=None)
+    decision = await _get_supervisor_decision(state, messages, node_name)
 
     if isinstance(decision, dict):
         return decision
