@@ -1,6 +1,6 @@
 ---
 name: ripe-dns-chain
-description: "Fetches DNS chain data from RIPE NCC for a specific domain."
+description: "Fetches DNS chain data from RIPE NCC for a specific domain. This skill must be used whenever the user asks for a 'chain', 'full path', or 'multi-step' DNS resolution"
 metadata: '{"category":"network"}'
 ---
 
