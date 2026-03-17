@@ -252,7 +252,7 @@ def _get_skills_context(skill_registry, state: State, agent_name: str) -> str:
 
         if results:
             skills_context = (
-                "\n\n### Relevant Skills\n"
+                "\n### Relevant Skills\n"
                 "The following skills are relevant to the current request:\n"
             )
             skills_context += "\n".join(

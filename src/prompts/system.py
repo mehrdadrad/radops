@@ -529,13 +529,9 @@ SKILLS_SYSTEM_PROMPT = """
 You have access to a skills library that provides specialized capabilities and domain knowledge.
 
 **How to Use Skills (Progressive Disclosure):**
-
-Skills follow a **progressive disclosure** pattern - you see their name and description above, but only read full instructions when needed:
-
-1. **Recognize when a skill applies**: Check if the user's task matches a skill's description. A lower relevance score means a better match.
-2. **Read the skill's full instructions**: Use the path shown in the skill list above
-3. **Follow the skill's instructions**: SKILL.md contains step-by-step workflows, best practices, and examples
-4. **Access supporting files**: Skills may include helper scripts, configs, or reference docs - use absolute paths
+1. **Match:** If keywords in the user request match a Skill's description, use it.
+2. **Read:** Access the full instructions via the path (e.g., ripe-dns-chain/SKILL.md).
+3. **Execute:** Follow the specific workflow and use any helper scripts provided within that skill path.
 
 **Executing Skill Scripts:**
 Skills may contain Python scripts or other executable inline or external files.
